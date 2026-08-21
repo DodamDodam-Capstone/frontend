@@ -9,3 +9,6 @@ hardcode one in advance.
 
 Organization workflow documentation is maintained in the
 [integration repository](https://github.com/DodamDodam-Capstone/integration/blob/main/docs/GITHUB_WORKFLOW.md).
+
+Repository initialization, CI readiness, and the repository-specific Slack
+notification path were validated before application development began.
