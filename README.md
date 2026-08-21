@@ -11,6 +11,9 @@ Organization 전체 협업 흐름은
 [integration 저장소 문서](https://github.com/DodamDodam-Capstone/integration/blob/main/docs/GITHUB_WORKFLOW.md)에서
 관리합니다.
 
+Frontend의 Jira Epic·Task 명명과 GitHub Issue·브랜치·PR 연결 규칙은
+[`docs/JIRA_WORKFLOW.md`](docs/JIRA_WORKFLOW.md)를 따릅니다.
+
 애플리케이션 개발을 시작하기 전에 저장소 초기화, CI 준비 상태, 저장소 전용
 Slack 알림 경로를 검증했습니다.
 
