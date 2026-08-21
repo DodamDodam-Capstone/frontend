@@ -61,7 +61,6 @@ jobs:
                   pr for pr in associated_prs
                   if (pr.get("head") or {}).get("ref") == head_branch
               ] or associated_prs[:1]
-
           source_branch = "—"
           target_branch = head_branch
           pr_number = None
