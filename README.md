@@ -12,3 +12,7 @@ Organization workflow documentation is maintained in the
 
 Repository initialization, CI readiness, and the repository-specific Slack
 notification path were validated before application development began.
+
+Changes are promoted from `development` to `main` through a protected,
+human-approved squash pull request. A successful `main` promotion then updates
+the immutable frontend SHA in the integration repository through a bot PR.
