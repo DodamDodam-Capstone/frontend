@@ -14,6 +14,10 @@ Organization 전체 협업 흐름은
 Frontend의 Jira Epic·Task 명명과 GitHub Issue·브랜치·PR 연결 규칙은
 [`docs/JIRA_WORKFLOW.md`](docs/JIRA_WORKFLOW.md)를 따릅니다.
 
+처음 업무를 시작하는 팀원은 Jira-first와 GitHub-first 선택 기준, 실제 branch,
+commit, PR 예시가 포함된
+[`docs/TEAM_WORKFLOW_GUIDE.md`](docs/TEAM_WORKFLOW_GUIDE.md)를 먼저 확인합니다.
+
 애플리케이션 개발을 시작하기 전에 저장소 초기화, CI 준비 상태, 저장소 전용
 Slack 알림 경로를 검증했습니다.
 
