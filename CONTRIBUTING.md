@@ -54,5 +54,7 @@ Gitmoji와 type을 의미상 고정해 연결하지 않습니다. 변경 내용�
 - PR은 작고 명확한 한 가지 목적에 집중합니다.
 - 모든 review conversation을 해결합니다.
 - 필수 검사를 모두 통과해야 합니다.
-- squash merge만 사용합니다.
+- 작업 브랜치 → `development`는 squash merge합니다.
+- `development` → `main` 승격은 두 장기 브랜치의 계보를 보존하도록 merge
+  commit을 사용합니다.
 - 자동 브랜치 삭제는 사용하지 않으며, 작업 브랜치는 sprint 정리 시 수동으로 삭제합니다.
