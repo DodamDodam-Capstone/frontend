@@ -138,7 +138,8 @@ cookie, 개인정보는 첨부하지 않습니다.
   Conventional Commit type을 사용합니다.
 - GitHub Issue가 있을 때만 같은 저장소 Issue를 `Resolves #번호`로 연결합니다.
 - `frontend-quality`와 모든 필수 검사를 통과합니다.
-- 마지막 push를 하지 않은 다른 팀원의 승인을 받습니다.
+- 프론트엔드 1인 담당 체제에서는 별도 리뷰 승인을 요구하지 않으며, PR 작성자가
+  필수 검사 통과를 확인한 뒤 병합할 수 있습니다.
 - 모든 review conversation을 해결한 뒤 squash merge합니다.
 - `development`와 `main`에는 직접 push하지 않습니다.
 

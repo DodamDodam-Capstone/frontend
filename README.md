@@ -22,6 +22,7 @@ commit, PR 예시가 포함된
 Slack 알림 경로를 검증했습니다.
 
 기능 변경은 작업 브랜치에서 `development`로 squash merge합니다. 검증된
-`development`는 보호된 PR과 사람의 승인을 거쳐 merge commit으로 `main`에
-승격합니다. `main` 반영이 완료되면 Bot PR이 integration의 `development`에서
+`development`는 보호된 PR에서 필수 CI를 통과한 뒤 merge commit으로 `main`에
+승격합니다. 프론트엔드는 1인 담당 체제이므로 별도 사람 승인을 필수로 요구하지
+않습니다. `main` 반영이 완료되면 Bot PR이 integration의 `development`에서
 프론트엔드 commit SHA를 자동으로 갱신합니다.
