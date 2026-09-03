@@ -10,9 +10,10 @@ GitHub-first 중 한 가지 경로를 선택합니다.
 - `development`: 개발 변경 사항을 통합하는 브랜치
 - `feature/<issue>-<description>`: 기능 개발
 - `fix/<issue>-<description>`: 일반 버그 수정
-- `hotfix/<issue>-<description>`: `main`에서 시작하는 긴급 수정
+- `hotfix/<issue>-<description>`: `development`에서 시작하는 긴급 수정
 
-`main`과 `development`의 모든 변경은 반드시 PR을 사용해야 합니다.
+`main`과 `development`의 모든 변경은 반드시 PR을 사용해야 합니다. `main` 대상
+PR의 source branch는 예외 없이 `development`여야 합니다.
 
 ## PR 제목
 
