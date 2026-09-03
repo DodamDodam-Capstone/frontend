@@ -142,6 +142,8 @@ cookie, 개인정보는 첨부하지 않습니다.
   필수 검사 통과를 확인한 뒤 병합할 수 있습니다.
 - 모든 review conversation을 해결한 뒤 squash merge합니다.
 - `development`와 `main`에는 직접 push하지 않습니다.
+- `main` 대상 PR은 `development`에서만 만들며 긴급 수정도 같은 승격 경로를
+  사용합니다.
 
 ## 7. 완료 확인
 
