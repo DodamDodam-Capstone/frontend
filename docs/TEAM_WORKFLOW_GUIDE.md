@@ -84,7 +84,9 @@ Jira: https://dodamdodam.atlassian.net/browse/SCRUM-201
 - [ ] development 대상 PR 준비
 ```
 
-Issue를 열면 자동화가 Jira Task를 만들고 제목을 다음과 같이 변경합니다.
+Issue를 연 뒤 Jira 키가 바로 붙지 않으면 팀원이 유형과 내용을 검토하고
+`jira-sync` 레이블을 추가합니다. 이 레이블만으로 자동화가 Jira Task를 만들고
+제목을 다음과 같이 변경합니다.
 
 ```text
 frontend#123 SCRUM-205 [FE] 로그인 오류 메시지 개선
@@ -138,9 +140,12 @@ cookie, 개인정보는 첨부하지 않습니다.
   Conventional Commit type을 사용합니다.
 - GitHub Issue가 있을 때만 같은 저장소 Issue를 `Resolves #번호`로 연결합니다.
 - `frontend-quality`와 모든 필수 검사를 통과합니다.
-- 마지막 push를 하지 않은 다른 팀원의 승인을 받습니다.
+- 프론트엔드 1인 담당 체제에서는 별도 리뷰 승인을 요구하지 않으며, PR 작성자가
+  필수 검사 통과를 확인한 뒤 병합할 수 있습니다.
 - 모든 review conversation을 해결한 뒤 squash merge합니다.
 - `development`와 `main`에는 직접 push하지 않습니다.
+- `main` 대상 PR은 `development`에서만 만들며 긴급 수정도 같은 승격 경로를
+  사용합니다.
 
 ## 7. 완료 확인
 
@@ -153,7 +158,10 @@ cookie, 개인정보는 첨부하지 않습니다.
 ## 8. 문제 발생 시
 
 - `jira-issue-key` 실패: branch와 PR의 Jira 키, `[FE]`, target branch를 확인합니다.
-- Jira 자동 생성 실패: `GitHub Issue to Jira`를 `main`에서 Issue 번호로 재실행합니다.
+- Jira 자동 생성이 건너뛰어짐: `task` 또는 `bug`를 확인한 뒤 `jira-sync` 레이블을
+  추가합니다.
+- Jira 자동 생성 실패: `jira-sync`를 제거 후 다시 추가하거나 `GitHub Issue to
+  Jira`를 `main`에서 Issue 번호로 재실행합니다.
 - 중복 Jira Task가 의심됨: 새 Task를 만들지 말고 `jira-linked` 댓글과 Jira의
   `github-frontend-<issue-number>` 레이블을 확인합니다.
 - Issue가 닫히지 않음: PR 본문의 `Resolves #번호`, 같은 저장소 Issue인지,

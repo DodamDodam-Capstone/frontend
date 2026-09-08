@@ -18,8 +18,10 @@ PR에 직접 사용합니다.
 
 ## GitHub Issue에서 Jira 자동 생성
 
-`New issue`에서 `Frontend Task` 또는 `Frontend Bug` Form을 사용합니다. Issue가
-열리면 `GitHub Issue to Jira` workflow가 다음을 자동 처리합니다.
+`New issue`에서 `Frontend Task` 또는 `Frontend Bug` Form을 사용합니다. 신뢰된
+작성자의 Issue는 열린 직후 처리됩니다. Jira 키가 붙지 않으면 팀원이 유형과
+내용을 검토한 뒤 `jira-sync` 레이블을 추가하며, 이때 `GitHub Issue to Jira`
+workflow가 다음을 자동 처리합니다.
 
 1. Jira `SCRUM` 프로젝트에 `[FE]` Task 또는 Bug 생성
 2. GitHub Issue 제목을 `SCRUM-<번호> [FE] ...`로 변경
@@ -32,10 +34,12 @@ Epic 아래에 둘 업무는 Form의 `상위 Jira 키`에 `SCRUM-<번호>`를 �
 제목에 Jira 키가 있더라도 이 GitHub Issue의 고유 Jira 레이블과 일치할 때만 기존
 업무를 재사용합니다.
 
-저장소가 public이므로 자동 생성은 GitHub의 `OWNER`, `MEMBER`, `COLLABORATOR`가
-연 Issue에만 실행됩니다. 외부 사용자가 등록한 Issue는 팀원이 내용을 검토한 뒤
-`Run workflow`로 승인·동기화합니다. 재실행해도 Jira 업무와 링크 댓글은 중복
-생성되지 않으며 Slack 성공 알림 완료는 `jira-notified` 레이블로 표시됩니다.
+저장소가 public이므로 열린 직후 자동 생성은 GitHub의 `OWNER`, `MEMBER`,
+`COLLABORATOR`가 연 Issue에만 실행됩니다. GitHub가 작성자를 `CONTRIBUTOR` 또는
+`NONE`으로 분류했거나 외부 사용자가 등록한 Issue는 팀원이 내용을 검토하고
+`task` 또는 `bug` 유형 레이블을 확인한 뒤 `jira-sync`를 추가해 승인·동기화합니다.
+재실행해도 Jira 업무와 링크 댓글은 중복 생성되지 않으며 Slack 성공 알림 완료는
+`jira-notified` 레이블로 표시됩니다.
 secret을 사용하는 중앙 helper는 CI를 통과한 integration commit 전체 SHA로
 고정합니다. Task·Bug 유형 레이블이 충돌하면 잘못된 유형을 만들지 않고 실패
 알림을 보냅니다.
@@ -67,14 +71,16 @@ Resolves #9
 ```
 
 일반 작업 PR의 대상은 `development`입니다. `development` 반영과 검증이 끝난
-뒤 sprint 승격 PR로 `main`에 반영합니다.
+뒤 sprint 승격 PR로 `main`에 반영합니다. `main` 대상 PR의 source branch는
+항상 `development`여야 하며 hotfix도 먼저 `development`에 반영합니다.
 
 ## 완료 조건
 
 - GitHub-first 업무는 Jira Task와 GitHub Issue가 서로 연결되어 있습니다.
 - branch, commit, PR 제목에 같은 Jira 키가 있습니다.
 - Gitmoji PR 제목 검사와 `frontend-quality`가 통과합니다.
-- 리뷰 승인과 모든 검토 대화 해결을 완료합니다.
+- 모든 필수 검사를 통과하고 검토 대화를 해결합니다. 프론트엔드 1인 담당 체제에서는
+  별도 리뷰 승인을 요구하지 않습니다.
 - PR merge 후 Jira Task가 완료되고, GitHub-first 업무는 GitHub Issue도 닫히며
   Slack 알림이 성공합니다.
 - Jira 업무는 삭제하지 않고 `완료` 상태로 전환하며 Team Board의
@@ -84,6 +90,7 @@ Resolves #9
 
 - `feature/*`, `fix/*` → `development`: squash merge로 작업 단위를 정리합니다.
 - `development` → `main`: merge commit으로 두 장기 브랜치의 계보를 보존합니다.
+- `main` 대상 PR은 `development`에서만 생성합니다.
 - 두 보호 브랜치에는 직접 push와 force push를 사용하지 않습니다.
 - 초기 독립 squash로 갈라진 계보는 commit을 삭제하지 않고 보호된 동기화 PR로
   한 번 연결합니다.
@@ -96,8 +103,10 @@ Resolves #9
 
 팀원 초대 후 GitHub visible Team `frontend`에 Frontend 담당자를 넣고 이
 저장소에 `Write`를 부여합니다. 팀원이 2명 이상일 때만 CODEOWNERS와 리뷰 자동
-배정을 사용합니다. Jira에는 `Frontend` Team을 연결하되 `Assignee`는 실제 담당
-개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지 않습니다.
+배정을 사용합니다. 한 명인 동안 Ruleset의 필수 승인 수는 0으로 유지하고, PR과
+필수 CI는 계속 강제합니다. Jira에는 `Frontend` Team을 연결하되 `Assignee`는
+실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
+않습니다.
 
 ## 초기 자동화 검증
 
