@@ -79,10 +79,13 @@ Resolves #9
 - GitHub-first 업무는 Jira Task와 GitHub Issue가 서로 연결되어 있습니다.
 - branch, commit, PR 제목에 같은 Jira 키가 있습니다.
 - Gitmoji PR 제목 검사와 `frontend-quality`가 통과합니다.
-- 모든 필수 검사를 통과하고 검토 대화를 해결합니다. 프론트엔드 1인 담당 체제에서는
-  별도 리뷰 승인을 요구하지 않습니다.
-- PR merge 후 Jira Task가 완료되고, GitHub-first 업무는 GitHub Issue도 닫히며
-  Slack 알림이 성공합니다.
+- 모든 필수 검사를 통과하고, 작성자와 다른 `Write` 권한자의 승인 리뷰 1건을
+  받은 뒤 검토 대화를 해결합니다.
+- Frontend 저장소의 작업 PR이 `development`에 병합되고 PR 제목의 Jira 키가
+  Task와 같으면 Jira Task가 완료됩니다. GitHub-first 업무는 PR 본문의
+  `Resolves #번호`로 같은 저장소 GitHub Issue도 닫고 Slack 알림을 확인합니다.
+- `development` → `main` 승격이나 integration의 컴포넌트 갱신은 Frontend
+  Task를 완료시키지 않습니다.
 - Jira 업무는 삭제하지 않고 `완료` 상태로 전환하며 Team Board의
   `Show completed tickets`에서 완료 기록을 확인할 수 있습니다.
 
@@ -103,8 +106,9 @@ Resolves #9
 
 팀원 초대 후 GitHub visible Team `frontend`에 Frontend 담당자를 넣고 이
 저장소에 `Write`를 부여합니다. 팀원이 2명 이상일 때만 CODEOWNERS와 리뷰 자동
-배정을 사용합니다. 한 명인 동안 Ruleset의 필수 승인 수는 0으로 유지하고, PR과
-필수 CI는 계속 강제합니다. Jira에는 `Frontend` Team을 연결하되 `Assignee`는
+배정을 사용합니다. 현재 Ruleset은 팀 담당자가 한 명이어도 다른 `Write`
+권한자의 승인 리뷰 1건과 필수 CI를 요구합니다. Jira에는 `Frontend` Team을
+연결하되 `Assignee`는
 실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
 않습니다.
 
