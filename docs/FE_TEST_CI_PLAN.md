@@ -7,9 +7,9 @@
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.29`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.30`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. 원격 runner에서 실제 통과했는지는 PR 검사 전까지 미확인이다.
-- 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. Expo 호환성 검사는 5단계에 오프라인 의존성 맵으로 성공해, 온라인 재검증은 원격 CI에 남아 있다. 깨끗한 CI의 검사·네이티브 빌드는 아직 수행하지 않았다. Jira 상태와 로컬 단계 완료는 별개다.
+- 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사는 통과했다. 새 PR 커밋의 깨끗한 CI 검사·네이티브 빌드는 아직 미확인이다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
 
 Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기대값으로 삼는다. 이 문서의 사례는 현재 범위의 **검증 항목**이며, 미확정 API 필드·운영값·음성 제한을 새로 정하는 명세가 아니다.
@@ -36,10 +36,11 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 ### SCRUM-159 5단계 로컬 결과 — 2026-10-16
 
-- `npm ci` 성공, `npm run lint`·`npm run typecheck` 성공, `CI=true npm run test`는 1개 suite·1개 테스트 통과. `npx --no-install expo install --check`는 종료 코드 0이지만 네트워크가 비활성화되어 로컬 의존성 맵으로 판정했다. 온라인 호환성 재검사는 CI에서 확인한다.
+- 최초 `npm ci` 성공, `npm run lint`·`npm run typecheck` 성공, `CI=true npm run test`는 1개 suite·1개 테스트 통과. 최초 `npx --no-install expo install --check`는 종료 코드 0이지만 네트워크가 비활성화되어 로컬 의존성 맵으로 판정했다.
 - `npx --no-install expo export --platform android --output-dir dist/android`와 iOS의 동일 명령이 각각 성공했다. 두 플랫폼의 JS 번들과 asset export를 확인했다. 로컬 생성물 `dist/`는 Git 제외다.
 - `.github/scripts/validate_frontend_project.mjs`의 정상 입력은 통과하고, 필수 파일 누락·빈 테스트 스크립트·다른 패키지 관리자 lockfile의 임시 복사본은 실패했다. YAML 파싱과 각 `run` 명령의 Bash 구문도 통과했다. 집계 job의 JS 실패·Android 실패·iOS 취소·예상 밖 skip 모의 입력은 모두 실패, 세 job 성공 입력만 통과했다.
 - README에 설치·개발 실행·플랫폼별 JS export와 깨끗한 checkout의 Android/iOS Debug 컴파일 절차를 기록했다. 3단계의 로컬 태블릿 네이티브 실행 증거는 유지하지만 이번 5단계에서 다시 컴파일하지 않았다. GitHub runner의 실제 결과와 보안 감사 통과는 아직 주장하지 않는다.
+- PR #29 첫 실행의 JS job은 온라인 Expo 검사에서 `expo@57.0.29`가 기대 범위 `~57.0.30`보다 낮아 실패했고, 두 native job은 건너뛰었으며 집계도 실패했다. Expo를 `57.0.30`으로 갱신하고 `npm ci`부터 온라인 `expo install --check`, lint, typecheck, 1개 테스트, 두 플랫폼 JS export까지 다시 통과했다. PR 최신 커밋의 원격 결과는 별도로 확인한다.
 
 **각 구현 Subtask의 공통 종료 순서:** 최신 AC에서 테스트 사례를 먼저 고른다 → 기능의 최소 동작을 구현한다 → 그 동작의 정상·핵심 오류·경계 테스트를 작성·실행한다 → 로컬 필수 검사를 실행한다 → 해당되는 기기/시각 확인을 한다 → PR 검증란 또는 기존 Jira 작업 기록에 명령·결과·미실행 사유를 남긴다. 필요한 기능이 모두 연결된 후의 통합 검사는 168·164·174·171 등 담당 검증 Subtask에서 수행한다. 전체 FE 기능이 끝날 때까지 개별 테스트를 미루지 않는다.
 
