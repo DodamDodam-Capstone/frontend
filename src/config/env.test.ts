@@ -52,6 +52,11 @@ describe('API 설정 준비', () => {
     expect(JSON.stringify(result)).not.toContain(apiBaseUrl);
   });
 
+  it.each(['\u0000', '\u001f', '\u007f'])('URL 파서가 제거하거나 보정하는 제어문자는 거절한다', (control) => {
+    expect(resolveApiConfig({ ...development, apiBaseUrl: `https://api.example.invalid/api/v1${control}` }).ok).toBe(false);
+    expect(resolveOAuthConfig({ ...development, oauthRedirectUri: `${development.oauthRedirectUri}${control}` }).ok).toBe(false);
+  });
+
   it.each(['test', 'production'])('%s 환경에서 평문 HTTP를 거절한다', (appEnv) => {
     expect(resolveApiConfig({ ...development, appEnv }).ok).toBe(false);
   });

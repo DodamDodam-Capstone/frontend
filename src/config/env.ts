@@ -39,6 +39,10 @@ function resolveAppEnvironment(value: string | undefined): ConfigResult<AppEnvir
 function validAddress(value: string, protocols: string[]): boolean {
   // Reject URL-parser repairs and credential-bearing settings before parsing.
   if (!/^[a-z][a-z0-9+.-]*:\/\/[^/]/i.test(value) || /[\s\\?#]/.test(value)) return false;
+  if ([...value].some((character) => {
+    const code = character.charCodeAt(0);
+    return code <= 31 || code === 127;
+  })) return false;
   try {
     const url = new URL(value);
     return protocols.includes(url.protocol) && !!url.hostname && !url.username && !url.password;
