@@ -8,85 +8,226 @@ on:
 permissions:
   contents: read
 
+env:
+  CI: "true"
+
 concurrency:
   group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
-  quality:
-    name: frontend-quality
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+  js:
+    name: js-quality
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - name: Detect project and package manager
-        id: project
-        shell: bash
-        run: |
-          if [[ ! -f package.json ]]; then
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          echo "ready=true" >> "$GITHUB_OUTPUT"
-          if [[ -f .nvmrc ]]; then
-            echo "version-file=.nvmrc" >> "$GITHUB_OUTPUT"
-          elif [[ -f .node-version ]]; then
-            echo "version-file=.node-version" >> "$GITHUB_OUTPUT"
-          else
-            echo "package.json exists but .nvmrc or .node-version is missing." >&2
-            exit 1
-          fi
-          if [[ -f pnpm-lock.yaml ]]; then
-            echo "manager=pnpm" >> "$GITHUB_OUTPUT"
-          elif [[ -f package-lock.json ]]; then
-            echo "manager=npm" >> "$GITHUB_OUTPUT"
-          elif [[ -f yarn.lock ]]; then
-            echo "manager=yarn" >> "$GITHUB_OUTPUT"
-          else
-            echo "package.json exists but no supported lockfile was found." >&2
-            exit 1
-          fi
-
-      - name: Repository readiness
-        if: steps.project.outputs.ready != 'true'
-        run: echo "Frontend source is not initialized yet; CI configuration is ready."
-
       - name: Set up Node.js
-        if: steps.project.outputs.ready == 'true'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version-file: ${{ steps.project.outputs.version-file }}
+          node-version-file: .nvmrc
           package-manager-cache: false
 
-      - name: Enable Corepack
-        if: steps.project.outputs.ready == 'true' && steps.project.outputs.manager != 'npm'
-        run: corepack enable
+      - name: Validate project manifest
+        run: node .github/scripts/validate_frontend_project.mjs
+
+      - name: Pin npm version
+        run: |
+          expected="$(node -p "require('./package.json').engines.npm")"
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            npm install --global "npm@$expected"
+          fi
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            echo "npm version does not match package.json engines.npm" >&2
+            exit 1
+          fi
+          node --version
+          npm --version
 
       - name: Install dependencies
-        if: steps.project.outputs.ready == 'true'
-        shell: bash
-        env:
-          MANAGER: ${{ steps.project.outputs.manager }}
-        run: |
-          case "$MANAGER" in
-            npm) npm ci ;;
-            pnpm) pnpm install --frozen-lockfile ;;
-            yarn) yarn install --immutable ;;
-          esac
+        run: npm ci
 
-      - name: Run configured checks
-        if: steps.project.outputs.ready == 'true'
-        shell: bash
-        env:
-          CI: "true"
-          MANAGER: ${{ steps.project.outputs.manager }}
+      - name: Check Expo dependency compatibility
+        run: npx --no-install expo install --check
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm run test
+
+      - name: Export Android JavaScript and assets
+        run: npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/expo-android"
+
+      - name: Export iOS JavaScript and assets
+        run: npx --no-install expo export --platform ios --output-dir "$RUNNER_TEMP/expo-ios"
+
+  android:
+    name: android-debug-build
+    needs: js
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Validate project manifest
+        run: node .github/scripts/validate_frontend_project.mjs
+
+      - name: Pin npm version
         run: |
-          for script in lint typecheck test build; do
-            if node -e "const p=require('./package.json'); process.exit(p.scripts?.['$script'] ? 0 : 1)"; then
-              "$MANAGER" run "$script"
-            fi
-          done
+          expected="$(node -p "require('./package.json').engines.npm")"
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            npm install --global "npm@$expected"
+          fi
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            echo "npm version does not match package.json engines.npm" >&2
+            exit 1
+          fi
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Select JDK 17
+        run: |
+          if [[ -z "${JAVA_HOME_17_X64:-}" || ! -x "$JAVA_HOME_17_X64/bin/java" ]]; then
+            echo "JDK 17 is unavailable" >&2
+            exit 1
+          fi
+          if [[ "$("$JAVA_HOME_17_X64/bin/javac" -version)" != javac\ 17* ]]; then
+            echo "JDK version is not 17" >&2
+            exit 1
+          fi
+          echo "JAVA_HOME=$JAVA_HOME_17_X64" >> "$GITHUB_ENV"
+          echo "$JAVA_HOME_17_X64/bin" >> "$GITHUB_PATH"
+          "$JAVA_HOME_17_X64/bin/java" -version
+
+      - name: Install required Android SDK packages
+        run: |
+          if [[ -z "${ANDROID_HOME:-}" || ! -x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" ]]; then
+            echo "Android SDK command-line tools are unavailable" >&2
+            exit 1
+          fi
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platforms;android-36" "build-tools;36.0.0" "ndk;27.1.12297006"
+          if [[ ! -d "$ANDROID_HOME/platforms/android-36" || ! -d "$ANDROID_HOME/build-tools/36.0.0" || ! -d "$ANDROID_HOME/ndk/27.1.12297006" ]]; then
+            echo "Required Android SDK packages were not installed" >&2
+            exit 1
+          fi
+
+      - name: Generate Android project
+        run: npx --no-install expo prebuild --platform android --no-install
+
+      - name: Check generated project did not change tracked config
+        run: git diff --exit-code
+
+      - name: Compile Android debug app
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+  ios:
+    name: ios-simulator-debug-build
+    needs: js
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          package-manager-cache: false
+
+      - name: Validate project manifest
+        run: node .github/scripts/validate_frontend_project.mjs
+
+      - name: Pin npm version
+        run: |
+          expected="$(node -p "require('./package.json').engines.npm")"
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            npm install --global "npm@$expected"
+          fi
+          if [[ "$(npm --version)" != "$expected" ]]; then
+            echo "npm version does not match package.json engines.npm" >&2
+            exit 1
+          fi
+          node --version
+          npm --version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check Xcode, CocoaPods, and disk
+        run: |
+          xcodebuild -version
+          if [[ "$(xcodebuild -version | head -n 1)" != "Xcode 26.6" ]]; then
+            echo "Xcode version is not 26.6" >&2
+            exit 1
+          fi
+          pod --version
+          df -h .
+
+      - name: Generate iOS project
+        run: npx --no-install expo prebuild --platform ios --no-install
+
+      - name: Check generated project did not change tracked config
+        run: git diff --exit-code
+
+      - name: Install CocoaPods
+        working-directory: ios
+        run: pod install
+
+      - name: Compile unsigned iOS Simulator app
+        run: |
+          xcodebuild \
+            -workspace ios/app.xcworkspace \
+            -scheme app \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath "$RUNNER_TEMP/dodamdodam-derived-data" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+  quality:
+    name: frontend-quality
+    needs: [js, android, ios]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require every platform check to succeed
+        env:
+          JS_RESULT: ${{ needs.js.result }}
+          ANDROID_RESULT: ${{ needs.android.result }}
+          IOS_RESULT: ${{ needs.ios.result }}
+        run: |
+          printf 'JS: %s\nAndroid: %s\niOS: %s\n' "$JS_RESULT" "$ANDROID_RESULT" "$IOS_RESULT"
+          if [[ "$JS_RESULT" != success || "$ANDROID_RESULT" != success || "$IOS_RESULT" != success ]]; then
+            echo "A required frontend check did not succeed." >&2
+            exit 1
+          fi
