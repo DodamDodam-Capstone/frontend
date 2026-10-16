@@ -15,7 +15,8 @@
     "ios": "expo run:ios",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
-    "test": "jest --ci --runInBand"
+    "test": "jest --ci --runInBand",
+    "test:env": "node .github/scripts/check_public_env.mjs"
   },
   "jest": {
     "preset": "jest-expo"
