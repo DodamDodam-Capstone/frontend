@@ -1,14 +1,16 @@
 import appConfig from '../../app.json';
 
 export type AppEnvironment = 'development' | 'test' | 'production';
+export type ApiMode = 'mock' | 'real';
 export type EnvironmentInput = {
   appEnv?: string;
+  apiMode?: string;
   apiBaseUrl?: string;
   oauthRedirectUri?: string;
 };
 export type ConfigError = {
-  variable: 'EXPO_PUBLIC_APP_ENV' | 'EXPO_PUBLIC_API_BASE_URL' | 'EXPO_PUBLIC_OAUTH_REDIRECT_URI';
-  code: 'required' | 'invalid_environment' | 'invalid_url';
+  variable: 'EXPO_PUBLIC_APP_ENV' | 'EXPO_PUBLIC_API_MODE' | 'EXPO_PUBLIC_API_BASE_URL' | 'EXPO_PUBLIC_OAUTH_REDIRECT_URI';
+  code: 'required' | 'invalid_environment' | 'invalid_mode' | 'mock_in_production' | 'invalid_url';
 };
 export type ConfigResult<T> =
   | { ok: true; value: T }
@@ -19,6 +21,7 @@ export type ConfigResult<T> =
 export function readEnvironment(): EnvironmentInput {
   return {
     appEnv: process.env.EXPO_PUBLIC_APP_ENV,
+    apiMode: process.env.EXPO_PUBLIC_API_MODE,
     apiBaseUrl: process.env.EXPO_PUBLIC_API_BASE_URL,
     oauthRedirectUri: process.env.EXPO_PUBLIC_OAUTH_REDIRECT_URI,
   };
@@ -34,6 +37,19 @@ function resolveAppEnvironment(value: string | undefined): ConfigResult<AppEnvir
     return failure('EXPO_PUBLIC_APP_ENV', 'invalid_environment');
   }
   return { ok: true, value };
+}
+
+export function resolveApiMode(input: EnvironmentInput = readEnvironment()): ConfigResult<ApiMode> {
+  const environment = resolveAppEnvironment(input.appEnv);
+  if (!environment.ok) return environment;
+  if (!input.apiMode?.trim()) return failure('EXPO_PUBLIC_API_MODE', 'required');
+  if (input.apiMode !== 'mock' && input.apiMode !== 'real') {
+    return failure('EXPO_PUBLIC_API_MODE', 'invalid_mode');
+  }
+  if (environment.value === 'production' && input.apiMode === 'mock') {
+    return failure('EXPO_PUBLIC_API_MODE', 'mock_in_production');
+  }
+  return { ok: true, value: input.apiMode };
 }
 
 function validAddress(value: string, protocols: string[]): boolean {
