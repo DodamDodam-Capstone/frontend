@@ -1,4 +1,4 @@
-import { afterEach, expect, test } from '@jest/globals';
+import { afterEach, expect, jest, test } from '@jest/globals';
 import { render, screen } from '@testing-library/react-native';
 
 import App from './App';
@@ -33,8 +33,14 @@ test('개발 화면에서 real 모드를 선택해도 서버 요청을 시작하
   process.env.EXPO_PUBLIC_APP_ENV = 'development';
   process.env.EXPO_PUBLIC_API_MODE = 'real';
   process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.invalid/api/v1';
+  const fetchCall = jest.spyOn(globalThis, 'fetch');
 
-  await render(<App />);
+  try {
+    await render(<App />);
 
-  expect(await screen.findByText('real API 모드 선택: 서버 요청 없음')).toBeVisible();
+    expect(await screen.findByText('real API 모드 선택: 서버 요청 없음')).toBeVisible();
+    expect(fetchCall).not.toHaveBeenCalled();
+  } finally {
+    fetchCall.mockRestore();
+  }
 });
