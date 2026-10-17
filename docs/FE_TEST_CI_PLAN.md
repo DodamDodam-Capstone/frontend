@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-159 완료, SCRUM-160 진행 중**. PR #29가 development에 squash 병합됐다(`b55d4fd`). 최신 구현 커밋 `4dcf760`의 필수 CI·GPT 리뷰와 Jira 완료를 확인했다. SCRUM-160의 로컬 결과와 이후 원격 검사는 구분하며 실제 서버 검증은 SCRUM-129 범위다.
+상태: **SCRUM-159·160 완료, SCRUM-161 로컬 구현·검증 완료**. 160은 PR #30의 병합 커밋 `137098b`가 development에 반영됐다. 161의 로컬 결과와 PR의 원격 CI·리뷰·Jira 상태는 구분하며 실제 서버 검증은 SCRUM-129 범위다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업은 [SCRUM-160](https://dodamdodam.atlassian.net/browse/SCRUM-160)의 환경 설정·공통 경로와 검증이다.** FE는 팀장 결정에 따라 최신 변경의 GPT 리뷰·지적 사항 처리·필수 CI·대화 해결을 확인한다. 2026-10-16 development Ruleset의 승인 수 0·마지막 push 승인 해제를 재확인했다. main 및 다른 저장소에는 확대하지 않는다. 160·161과 부모 AC 확인 전에는 부모121을 완료하지 않는다.
+**현재 작업은 [SCRUM-161](https://dodamdodam.atlassian.net/browse/SCRUM-161)의 mock·실제 API 모드 분리와 전체 재현이다.** FE는 팀장 결정에 따라 최신 변경의 GPT 리뷰·지적 사항 처리·필수 CI·대화 해결을 확인한다. 2026-10-16 development Ruleset의 승인 수 0·마지막 push 승인 해제를 재확인했다. main 및 다른 저장소에는 확대하지 않는다. 161과 부모 AC 확인 전에는 부모121을 완료하지 않는다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -26,7 +26,14 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 5단계에서 `.github/workflows/ci.yml`과 README를 맞췄다. 필수 파일·스크립트 누락, 테스트 0개, Android/iOS JS export 또는 네이티브 빌드 실패가 `frontend-quality`를 실패시키도록 구성했다. 로컬 설치·JS 검사·양 플랫폼 export와 CI 결과 집계 실패 사례를 실행했다. 당시 원격 CI는 미검증이었다.
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
-- [ ] 159가 완료된 뒤 160의 환경/경로 구현→해당 테스트, 161의 mock/실제 모드 구현→해당 테스트·전체 재현을 진행한다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+- [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-161 로컬 구현·검증 — 2026-10-17
+
+- 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.
+- `npm ci`, lint, typecheck, Jest **58개**, Android/iOS별 공개 환경 주입 **14개 조합**, 두 플랫폼 JS export와 Android·iOS Simulator Debug 빌드가 로컬에서 통과했다. `expo install --check`는 종료 코드 0이지만 네트워크가 제한된 실행에서는 로컬 의존성 맵을 사용했으므로 온라인 호환성 확인과 구분한다.
+- Pixel Tablet API 36 및 iPad Pro 11형 iOS 26.5 개발 빌드에서 가로 화면의 mock 200과 real 모드의 `서버 요청 없음` 표시를 각각 확인했다. iPad 시뮬레이터는 가로로 회전한 뒤 화면을 재확인했다. real 모드는 이 개발 화면에서 요청을 보내지 않으며, 가상 응답은 실제 서버 연결 증거가 아니다.
+- 이 브랜치의 로컬 결과는 PR 최신 커밋의 GitHub CI·GPT 리뷰·병합·Jira 완료를 뜻하지 않는다. 새 CI job이나 필수 검사 변경 없이 기존 JS·네이티브 게이트가 이 테스트를 실행하도록 유지한다.
 
 ### SCRUM-160 로컬 구현·검증 — 2026-10-16
 

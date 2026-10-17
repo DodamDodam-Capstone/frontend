@@ -46,6 +46,7 @@ Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네
 | 변수 | 용도·검증 시점 |
 | --- | --- |
 | `EXPO_PUBLIC_APP_ENV` | `development` / `test` / `production` 중 명시적으로 선택. 누락·오타에 기본값 없음 |
+| `EXPO_PUBLIC_API_MODE` | `mock` / `real` 중 명시적으로 선택. `production`에서 `mock`은 거절 |
 | `EXPO_PUBLIC_API_BASE_URL` | `resolveApiConfig()` 사용 시 필수. 절대 URL, test/production은 HTTPS만 허용 |
 | `EXPO_PUBLIC_OAUTH_REDIRECT_URI` | `resolveOAuthConfig()` 사용 시 필수. API 주소와 독립적으로 검증 |
 
@@ -105,16 +106,36 @@ if (config.ok) {
 실행 가능한 최소 수신자 예제는
 [`prepareDestinationExample`](src/examples/configuredDestination.ts)입니다. 설정이 유효하면
 선택한 공통 경로와 API 설정을 반환하고, 누락되면 오류를 반환합니다. 예제는 화면 이동·인증
-판단·네트워크 요청을 하지 않으며 접근 제어에 쓰지 않습니다. App의 첫 화면은 그대로입니다.
+판단·네트워크 요청을 하지 않으며 접근 제어에 쓰지 않습니다.
+
+## mock·실제 API 모드 — SCRUM-161
+
+개발 중 `.env.local`에서 앱 환경·API 모드·공개 API 주소를 명시적으로 선택합니다.
+mock 검증에는 `EXPO_PUBLIC_APP_ENV=test`, `EXPO_PUBLIC_API_MODE=mock`,
+`EXPO_PUBLIC_API_BASE_URL=https://api.example.invalid/api/v1` 같은 **가상 주소**를
+사용할 수 있습니다. `production`과 `mock`의 조합은 설정 오류입니다.
+
+[`createExampleTransport`](src/api/exampleTransport.ts)는 현재 테스트 수신자인
+`GET /auth/me`만 지원합니다. mock 모드에서는 로컬 handler가 명세 기반 200 계정 상태를
+반환하고, 테스트에서 `signedOut` 시나리오를 주면 401 `AUTHENTICATION_REQUIRED`를
+반환합니다. 등록하지 않은 요청은 네트워크로 넘기지 않고 거절합니다. real 모드는
+mock handler를 등록·실행하지 않으며, 수신자가 요청할 때에만 `fetch`를 호출합니다.
+후속 API를 추가할 때 해당 요청의 mock handler와 실제 전송 경계를 이 위치에서 확장합니다.
+테스트의 가상 응답은 실제 서버·세션·쿠키 동작을 검증한 결과가 아닙니다.
+
+개발 빌드의 첫 화면은 선택한 모드를 간단히 표시합니다. mock에서는 위 가상 응답의
+HTTP 상태를 보여주고, real에서는 시작 시 서버 요청 없이 모드 선택만 표시합니다.
+실제 서버 왕복·인증·쿠키·CSRF 확인은 SCRUM-129와 해당 기능 작업에서 수행합니다.
+`.env.local` 변경 후 앱을 다시 로드하고, 셸 환경을 변경했다면 Metro를 재시작하세요.
 
 ### 검증과 후속 연결
 
 - `npm test`: 설정 정상·오류·경계와 공통 정의를 참조하는 예제 사용처를 검사합니다.
 - `npm run test:env`: 설치된 Expo Babel preset으로 **실제 설정 모듈**을 Android/iOS별
-  변환한 뒤 런타임 환경값이 없는 상태에서 실행합니다. 미설정·개발·테스트·운영 8개 조합을
+  변환한 뒤 런타임 환경값이 없는 상태에서 실행합니다. 미설정과 환경·API 모드 14개 조합을
   확인합니다. 이는 변환 경계 검사이며 전체 Metro export·기기 실행은 별도로 확인합니다.
 - 기존 CI의 JS job에서 두 명령과 양 플랫폼 export를 실행합니다. 네이티브 빌드·집계 게이트를 유지합니다.
-- SCRUM-161은 mock/실제 모드 분리와 전체 재현, 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다.
+- 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다. 서버 왕복 검증은 129에서 수행합니다.
 
 ## 로컬 검사와 플랫폼별 빌드
 

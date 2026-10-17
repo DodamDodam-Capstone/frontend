@@ -1,5 +1,5 @@
 import { describe, expect, it } from '@jest/globals';
-import { readEnvironment, resolveApiConfig, resolveOAuthConfig } from './env';
+import { readEnvironment, resolveApiConfig, resolveApiMode, resolveOAuthConfig } from './env';
 
 const development = {
   appEnv: 'development',
@@ -94,4 +94,30 @@ describe('OAuth 복귀 설정 준비', () => {
 
 it('설정을 읽는 것만으로 누락값 검증 예외를 던지지 않는다', () => {
   expect(() => readEnvironment()).not.toThrow();
+});
+
+describe('API 실행 모드', () => {
+  it.each(['development', 'test'])('%s 환경에서 mock과 real을 각각 명시적으로 선택한다', (appEnv) => {
+    expect(resolveApiMode({ appEnv, apiMode: 'mock' })).toEqual({ ok: true, value: 'mock' });
+    expect(resolveApiMode({ appEnv, apiMode: 'real' })).toEqual({ ok: true, value: 'real' });
+  });
+
+  it.each([undefined, '', '  '])('모드 누락(%s)을 real이나 mock으로 대체하지 않는다', (apiMode) => {
+    expect(resolveApiMode({ appEnv: 'development', apiMode })).toEqual({
+      ok: false, errors: [{ variable: 'EXPO_PUBLIC_API_MODE', code: 'required' }],
+    });
+  });
+
+  it('모드 오타는 값 노출 없이 거절한다', () => {
+    expect(resolveApiMode({ appEnv: 'development', apiMode: 'm0ck' })).toEqual({
+      ok: false, errors: [{ variable: 'EXPO_PUBLIC_API_MODE', code: 'invalid_mode' }],
+    });
+  });
+
+  it('운영 환경의 mock 선택을 거절하고 real만 허용한다', () => {
+    expect(resolveApiMode({ appEnv: 'production', apiMode: 'mock' })).toEqual({
+      ok: false, errors: [{ variable: 'EXPO_PUBLIC_API_MODE', code: 'mock_in_production' }],
+    });
+    expect(resolveApiMode({ appEnv: 'production', apiMode: 'real' })).toEqual({ ok: true, value: 'real' });
+  });
 });
