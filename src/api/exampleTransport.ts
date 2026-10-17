@@ -19,7 +19,7 @@ export function createExampleTransport(
     return { ok: true, value: registerExampleHandlers(options.scenario ?? 'signedIn') };
   }
 
-  return { ok: true, value: ({ method, path }) => {
+  return { ok: true, value: async ({ method, path }) => {
     if (method !== 'GET' || path !== '/auth/me') throw new Error('Unsupported example request');
     const url = `${config.value.apiBaseUrl.replace(/\/+$/, '')}${path}`;
     return (options.fetchImpl ?? fetch)(url, { method: 'GET' });

@@ -81,6 +81,14 @@ describe('SCRUM-161 API 모드 테스트 수신자', () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  it('real 모드의 미지원 요청도 Promise로 거절하고 전송하지 않는다', async () => {
+    const fetchImpl = jest.fn<ExampleFetch>();
+    const request = ready(createExampleTransport({ ...config, apiMode: 'real' }, { fetchImpl }));
+
+    await expect(request({ method: 'POST', path: '/auth/me' })).rejects.toThrow('Unsupported example request');
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it('설정 오류가 있으면 요청 실행기를 만들지 않는다', () => {
     expect(createExampleTransport({ ...config, apiMode: 'm0ck' })).toEqual({
       ok: false, errors: [{ variable: 'EXPO_PUBLIC_API_MODE', code: 'invalid_mode' }],
