@@ -67,6 +67,9 @@ jobs:
       - name: Test
         run: npm run test
 
+      - name: Verify Expo public environment injection
+        run: npm run test:env
+
       - name: Export Android JavaScript and assets
         run: npx --no-install expo export --platform android --output-dir "$RUNNER_TEMP/expo-android"
 

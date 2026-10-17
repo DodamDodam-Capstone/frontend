@@ -4,8 +4,9 @@ DodamDodam 캡스톤 프로젝트의 프론트엔드 애플리케이션 저장�
 
 Expo SDK 57·React Native·TypeScript로 만든 Android/iOS **가로 고정 태블릿 앱**입니다.
 네이티브 프로젝트는 Expo 설정에서 생성하며 `android/`·`ios/`를 Git에 넣지 않습니다.
-앱 식별자·방향 등 현재 설정은 [`app.json`](app.json)에 있습니다. 환경별 API 주소와
-OAuth 복귀 경로는 후속 SCRUM-160에서 정의합니다.
+앱 식별자·방향 등 현재 설정은 [`app.json`](app.json)에 있습니다. 환경별 공개 설정은
+[`src/config/env.ts`](src/config/env.ts), 공통 화면 경로는
+[`src/navigation/routes.ts`](src/navigation/routes.ts)에서 관리합니다.
 
 ## 설치와 개발 실행
 
@@ -36,6 +37,85 @@ npm run ios
 Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네이티브 빌드·실행을
 검증한 것으로 기록하지 않습니다.
 
+## 공개 환경 설정과 공통 경로 — SCRUM-160
+
+`.env.example`을 `.env.local`로 복사한 뒤 필요한 **공개 설정만** 입력합니다.
+예시 파일은 공란이며 기존 `.env.local`을 덮어쓰지 마세요. 환경 파일과 실제 운영값은
+커밋하지 않습니다. `EXPO_PUBLIC_*`는 번들에 노출되므로 secret 저장소가 아닙니다.
+
+| 변수 | 용도·검증 시점 |
+| --- | --- |
+| `EXPO_PUBLIC_APP_ENV` | `development` / `test` / `production` 중 명시적으로 선택. 누락·오타에 기본값 없음 |
+| `EXPO_PUBLIC_API_BASE_URL` | `resolveApiConfig()` 사용 시 필수. 절대 URL, test/production은 HTTPS만 허용 |
+| `EXPO_PUBLIC_OAUTH_REDIRECT_URI` | `resolveOAuthConfig()` 사용 시 필수. API 주소와 독립적으로 검증 |
+
+앱 환경은 `NODE_ENV`와 별개입니다. `EXPO_PUBLIC_APP_ENV=test`가 `.env.test`를 자동으로
+선택하지 않습니다. 로컬은 선택한 환경의 값을 `.env.local`에 공급하고, CI는 프로세스
+환경으로 공개 시험값을 공급합니다. 충돌하는 파일·셸 값을 함께 사용하지 마세요.
+이 프로젝트의 Expo SDK 57에서 동작을 확인하며 SDK 58 전용 로딩 규칙을 소급하지 않습니다.
+
+- 개발: 개발용 주소를 명시합니다. HTTP는 개발 환경의 주소 형식 검사에서만 허용하며,
+  Android cleartext/iOS ATS 예외나 네트워크 접근을 이 모듈이 허용해 주는 것은 아닙니다.
+- 테스트: 공개 시험용 HTTPS 주소를 사용합니다. CI 주입 검사는 `.invalid` 도메인을
+  사용하고 서버에 요청하지 않습니다. `test:env`는 환경별 값을 자체 공급하므로 개인 파일이 필요 없습니다.
+- 운영: SCRUM-129에서 확인한 HTTPS API 주소·허용된 복귀 URI를 빌드 환경에 공급합니다.
+  미확정 값을 개발/시험 주소로 대체하지 않습니다. 현재 앱 식별자는 개발용입니다.
+
+`readEnvironment()`는 읽기만 수행합니다. 모듈 import나 설정 읽기가 미설정 때문에 앱을
+종료시키지 않습니다. 사용처는 `resolveApiConfig()` 또는 `resolveOAuthConfig()` 결과의
+`ok`를 확인한 뒤 `value`를 사용하세요. 실패 시 요청/인증을 시작하지 말고 `errors`의
+변수 이름과 오류 코드만 처리합니다. 원래 환경값·URL 전체·파서 예외를 로그로 남기지 마세요.
+URL의 자격 증명, query, fragment, 공백, 역슬래시는 설정 오류로 거절합니다.
+
+설정 읽기는 Expo의 정적 `process.env.EXPO_PUBLIC_이름` 참조를 유지해야 합니다.
+개발 중 `.env.local` 변경 후 앱을 완전히 Reload하고, 셸 환경을 바꿨다면 Metro도 재시작합니다.
+배포 번들은 다시 생성해야 합니다. 앱 scheme·식별자 같은 네이티브 설정 변경은 새 빌드가 필요합니다.
+
+### 네이티브 앱 주소와 OAuth 책임
+
+현재 Android/iOS 앱에는 웹 FE origin이 없어 별도 웹 주소를 필수 변수로 만들지 않습니다.
+앱 진입 식별자는 `app.json`의 package/bundleIdentifier로 확인합니다. 웹/WebView 기능에서
+FE origin이 필요해지면 해당 기능에서 설정을 추가하고 SCRUM-129에서 실제 값을 확인합니다.
+
+현재 명시적 `expo.scheme`이 없으므로 prebuild가 등록하는 개발용 package/bundleIdentifier
+scheme과 HTTPS 복귀 URI의 형식을 지원합니다. 개발 환경에서는 HTTP 형식도 허용합니다.
+`exp://`·개발 클라이언트 접속 URL을 OAuth 복귀 주소로 사용하지 않습니다.
+BE의 `/login/oauth2/code/google`은 공급자 콜백이며 앱의 복귀 주소가 아닙니다.
+**형식 통과는 OS 링크 등록·BE allowlist·Google 로그인 성공을 의미하지 않습니다.**
+실제 복귀 값, 앱 링크 등록, 허용 목록, 세션 전달과 서버 왕복 검증은 SCRUM-129에서 수행합니다.
+
+### 공통 경로 사용
+
+로그인 `/login`, 아이 등록 `/children/register`, 홈 `/home`은 중앙 `ROUTES`에 있습니다.
+Jira와 FE_Handoff v3.1의 화면 역할을 대조했지만 구체적인 FE 경로 문자열은 명시되지 않아
+이번에 FE 내부 개발용으로 정의했습니다. 공개 딥링크·BE API 계약으로 확정한 주소가 아닙니다.
+외부 계약 확정 시 이 중앙 정의와 실제 라우터 연결을 함께 검토합니다.
+
+```ts
+import { resolveApiConfig } from './src/config/env';
+import { ROUTES } from './src/navigation/routes';
+
+const config = resolveApiConfig();
+if (config.ok) {
+  // 후속 요청 계층에 config.value.apiBaseUrl을 전달합니다.
+  // 후속 화면 이동에는 ROUTES.login / ROUTES.childRegistration / ROUTES.home을 재사용합니다.
+}
+```
+
+실행 가능한 최소 수신자 예제는
+[`prepareDestinationExample`](src/examples/configuredDestination.ts)입니다. 설정이 유효하면
+선택한 공통 경로와 API 설정을 반환하고, 누락되면 오류를 반환합니다. 예제는 화면 이동·인증
+판단·네트워크 요청을 하지 않으며 접근 제어에 쓰지 않습니다. App의 첫 화면은 그대로입니다.
+
+### 검증과 후속 연결
+
+- `npm test`: 설정 정상·오류·경계와 공통 정의를 참조하는 예제 사용처를 검사합니다.
+- `npm run test:env`: 설치된 Expo Babel preset으로 **실제 설정 모듈**을 Android/iOS별
+  변환한 뒤 런타임 환경값이 없는 상태에서 실행합니다. 미설정·개발·테스트·운영 8개 조합을
+  확인합니다. 이는 변환 경계 검사이며 전체 Metro export·기기 실행은 별도로 확인합니다.
+- 기존 CI의 JS job에서 두 명령과 양 플랫폼 export를 실행합니다. 네이티브 빌드·집계 게이트를 유지합니다.
+- SCRUM-161은 mock/실제 모드 분리와 전체 재현, 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다.
+
 ## 로컬 검사와 플랫폼별 빌드
 
 앱 변경 후 다음 명령을 실행합니다. 테스트는 watch 모드 없이 실제 테스트를 발견해야 하며,
@@ -47,6 +127,7 @@ npx --no-install expo install --check
 npm run lint
 npm run typecheck
 CI=true npm run test
+npm run test:env
 npx --no-install expo export --platform android --output-dir dist/android
 npx --no-install expo export --platform ios --output-dir dist/ios
 ```
@@ -97,7 +178,10 @@ Slack 알림 경로를 검증했습니다.
 기능 변경은 작업 브랜치에서 `development`로 squash merge합니다. 검증된
 `development`는 보호된 PR에서 필수 CI를 통과한 뒤 merge commit으로 `main`에
 승격합니다. `main` 대상 PR의 source branch는 `development`만 허용하며 긴급
-수정도 먼저 `development`에 반영합니다. 프론트엔드 담당자가 한 명이어도
-저장소 Ruleset에 따라 다른 `Write` 권한자의 승인 리뷰 1건이 필요합니다.
+수정도 먼저 `development`에 반영합니다. 2026-10-16 팀장 결정(담당자 전달)에 따라
+FE는 사람 승인 대신 최신 변경의 GPT 코드 리뷰·지적 사항 검토·대화 해결과 필수 CI를
+확인합니다. 같은 날 development Ruleset의 승인 수 0·마지막 push 승인 해제를
+확인했습니다. main 설정과 다른 저장소까지 동일하다고 가정하지 않으며, 병합 시 실제
+보호 조건을 다시 확인합니다.
 `main` 반영이 완료되면 Bot PR이
 integration의 `development`에서 프론트엔드 commit SHA를 자동으로 갱신합니다.
