@@ -35,6 +35,13 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - Expo Modules Core·JSI 등 네이티브 의존성도 갱신돼 전용 worktree에 `npx --no-install expo prebuild --no-install`로 새 네이티브 프로젝트를 생성했다. 생성 과정에서 추적 설정 파일의 추가 변경은 없었다. JDK 17·SDK 36의 `./gradlew :app:assembleDebug --no-daemon`은 `BUILD SUCCESSFUL`, CocoaPods `1.16.2`의 `pod install` 후 Xcode `26.6`의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/scrum165-expo31-derived-data CODE_SIGNING_ALLOWED=NO build`는 `BUILD SUCCEEDED`였다.
 - 이번 결과는 착수 전 로컬 호환성 보정이다. 세션·CSRF 기능 구현, 새 빌드의 기기 실행·쿠키 왕복, 원격 CI·PR 병합·Jira 완료 또는 SCRUM-129의 실제 서버 연동 검증을 뜻하지 않는다. 설치 감사의 high 5건은 남아 있으며 강제 의존성 보정은 수행하지 않았다.
 
+### SCRUM-165 2단계 — 초기 세션·CSRF 공통 요청 · 2026-10-25
+
+- `client.ts`·`csrf.ts`에 API 목적지 제한, 쿠키 포함·no-store·redirect 거절 설정, 최초 CSRF 발급·메모리 재사용·동시 발급 공유와 실패 전달을 구현했다. caller의 인증·CSRF 헤더 덮어쓰기를 거절하며 본문·Content-Type을 임의 생성하지 않는다. 기존 `/auth/me` 예제도 공통 client를 거치고 real 모드 시작 시 무요청 동작을 유지한다.
+- 초기 계약 테스트47개의 실패를 확인한 뒤 구현했고, 예제 연결 테스트2개의 실패를 확인한 뒤 연결했다. CSRF 대기 중 caller가 요청 객체를 바꿨을 때 method가 달라지는 추가 실패를 재현한 뒤 method·path·body를 대기 전에 고정했다. 민감값의 URL·결과·콘솔 비노출과 서버 requestId의 UUID 형식도 검증한다.
+- Node `24.20.0`·npm `11.19.0`에서 전체 Jest **5개 suite·113개 테스트**, lint·typecheck, 공개 환경 주입 **14개 조합**, Android/iOS JS export가 통과했다. React Native가 사용하는 `whatwg-fetch`의 Headers로 개행·제어문자 등이 통과하는 실패5개를 재현하고 명시적 값 검증을 추가해 해결했다. 의존성·네이티브 설정 변경이 없어 설치·네이티브 컴파일은 이번 단계에서 반복하지 않았다.
+- 로그인·로그아웃 뒤 갱신·인증 변경 경계는4단계, 양 OS의 실제 쿠키·redirect 동작은3단계, 인증 전환 경합의 기기 검증은5단계다. 이번 단위 테스트를 해당 기기 검증이나 SCRUM-129의 서버 연동 성공으로 보고하지 않는다. 원격 CI·PR·Jira 변경은 수행하지 않았다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.

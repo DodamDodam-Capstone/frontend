@@ -4,9 +4,14 @@ export type ExampleScenario = 'signedIn' | 'signedOut';
 
 export function registerExampleHandlers(scenario: ExampleScenario): ExampleTransport {
   return async ({ method, path }) => {
+    const requestId = '22222222-2222-4222-8222-222222222222';
+    if (method === 'GET' && path === '/auth/csrf') {
+      return new Response(JSON.stringify({ headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'mock-csrf-token' }), {
+        status: 200, headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-ID': requestId },
+      });
+    }
     if (method !== 'GET' || path !== '/auth/me') throw new Error('Unsupported example request');
 
-    const requestId = '22222222-2222-4222-8222-222222222222';
     const signedIn = scenario === 'signedIn';
     const body = signedIn
       ? { data: {
@@ -20,7 +25,7 @@ export function registerExampleHandlers(scenario: ExampleScenario): ExampleTrans
 
     return new Response(JSON.stringify(body), {
       status: signedIn ? 200 : 401,
-      headers: { 'Content-Type': 'application/json', 'X-Request-ID': requestId },
+      headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-ID': requestId },
     });
   };
 }

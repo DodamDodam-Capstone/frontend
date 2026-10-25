@@ -137,6 +137,37 @@ HTTP 상태를 보여주고, real에서는 시작 시 서버 요청 없이 모�
 - 기존 CI의 JS job에서 두 명령과 양 플랫폼 export를 실행합니다. 네이티브 빌드·집계 게이트를 유지합니다.
 - 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다. 서버 왕복 검증은 129에서 수행합니다.
 
+## 초기 세션·CSRF 공통 요청 — SCRUM-165 2단계
+
+`src/api/client.ts`의 `createApiClient()`는 기존 환경·API 모드 검증을 재사용합니다.
+생성만으로 요청하지 않으며, 쿠키 문맥마다 같은 client를 재사용합니다. `prepareCsrf()`는
+`GET /auth/csrf`의 wrapper 없는 응답을 검증해 token을 메모리에 보관하고 준비 결과만 반환합니다.
+POST는 초기 발급이 필요하면 기다리고, 준비 실패 시 전송하지 않습니다. 준비된 token은 재사용하며
+실패한 POST를 자동 재전송하지 않습니다. mock은 `/auth/csrf`·`/auth/me` 예제만 제공하고,
+미등록 요청을 실제 네트워크로 넘기지 않습니다.
+
+```ts
+import { createApiClient } from './src/api/client';
+
+const client = createApiClient(); // 설정 검증만 수행하며 네트워크 요청은 하지 않습니다.
+export async function requestAccountExample() {
+  if (!client.ok) return client;
+  return client.value.request({ method: 'GET', path: '/auth/me' });
+}
+```
+
+- `request()`의 경로는 API base 뒤의 `/auth/me` 같은 ASCII segment이며 query를 붙일 수 있습니다.
+  절대 URL·경로 이탈·encoded separator·fragment는 거절합니다. CSRF endpoint는 `prepareCsrf()`로만 호출합니다.
+- `GET`·`POST`만 지원하며, caller의 `Cookie`·`Authorization`·`X-XSRF-TOKEN` 헤더는 거절합니다.
+  `credentials: include`, `cache: no-store`, `redirect: error`를 적용하고 쿠키·token을 별도 저장하거나 기록하지 않습니다.
+- 본문은 전달받은 값 그대로 보내고 빈 객체나 Content-Type을 자동 생성하지 않습니다.
+  일반 응답 해석·직렬화는166, HTTP/code별 복구·인증 만료 판단은167에서 확장합니다.
+- 결과의 `kind=response`는 HTTP 응답 수신을 뜻하며 4xx·5xx도 포함합니다. `not_sent`는 요청을
+  보내지 않았다는 뜻이고, `transport_error`는 서버 처리 여부를 단정할 수 없는 통신 실패입니다.
+- **현재는 초기 발급 단계입니다.** 로그인·로그아웃 뒤 갱신과 인증 전환 중 요청 차단은4단계에서 구현합니다.
+  네이티브의 쿠키 전달 및 `redirect: error` 준수는 Jest로 입증되지 않았으며3단계에서 확인합니다.
+  초기 URL 제한만으로 리디렉션 이후의 목적지까지 제한됐다고 판단하지 않습니다. 실제 서버 연동은129입니다.
+
 ## 로컬 검사와 플랫폼별 빌드
 
 앱 변경 후 다음 명령을 실행합니다. 테스트는 watch 모드 없이 실제 테스트를 발견해야 하며,

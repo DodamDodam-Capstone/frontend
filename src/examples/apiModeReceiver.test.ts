@@ -66,7 +66,9 @@ describe('SCRUM-161 API 모드 테스트 수신자', () => {
       const response = await request(authMe);
 
       expect(response.status).toBe(200);
-      expect(fetchImpl).toHaveBeenCalledWith('https://api.example.invalid/api/v1/auth/me', { method: 'GET' });
+      expect(fetchImpl).toHaveBeenCalledWith('https://api.example.invalid/api/v1/auth/me', expect.objectContaining({
+        method: 'GET', credentials: 'include', cache: 'no-store', redirect: 'error',
+      }));
       expect(register).not.toHaveBeenCalled();
     } finally {
       register.mockRestore();
@@ -77,7 +79,9 @@ describe('SCRUM-161 API 모드 테스트 수신자', () => {
     const fetchImpl = jest.fn<ExampleFetch>(async () => { throw new Error('transport unavailable'); });
     const request = ready(createExampleTransport({ ...config, apiMode: 'real' }, { fetchImpl }));
 
-    await expect(request(authMe)).rejects.toThrow('transport unavailable');
+    const pending = request(authMe);
+    await expect(pending).rejects.toBeInstanceOf(Error);
+    await expect(pending).rejects.not.toThrow('transport unavailable');
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
