@@ -7,7 +7,7 @@
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.30`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.31`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. [PR #29의 실행 결과](https://github.com/DodamDodam-Capstone/frontend/actions/runs/38769299920)에서 JS·Android·iOS와 최종 집계가 모두 통과했다.
 - 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사와 깨끗한 checkout의 양쪽 네이티브 빌드, PR 원격 CI가 통과했다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
@@ -27,6 +27,13 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
+
+- SCRUM-165의 기준 검사에서 온라인 `npx --no-install expo install --check`가 설치된 Expo `57.0.30` 대신 `~57.0.31`을 요구하며 종료 코드 1로 실패했다. 공식 SDK 57 메타데이터와 npm 패키지를 확인한 뒤 Expo를 `57.0.31`로 고정하고 lockfile을 갱신했다. React `19.2.3`·React Native `0.86.3`은 유지했고 검사 제외·오프라인 우회는 적용하지 않았다.
+- Node `24.20.0`·npm `11.19.0`에서 갱신한 lockfile로 `npm ci`를 재현했다. manifest 검사, 온라인 Expo 호환성 검사, `npm run lint`, `npm run typecheck`, `npm run test`의 **4개 suite·58개 테스트**, `npm run test:env`의 **Android/iOS 14개 조합**이 통과했다. `npx --no-install expo export --platform android`와 `--platform ios`도 각각 임시 출력 경로에서 성공했다.
+- Expo Modules Core·JSI 등 네이티브 의존성도 갱신돼 전용 worktree에 `npx --no-install expo prebuild --no-install`로 새 네이티브 프로젝트를 생성했다. 생성 과정에서 추적 설정 파일의 추가 변경은 없었다. JDK 17·SDK 36의 `./gradlew :app:assembleDebug --no-daemon`은 `BUILD SUCCESSFUL`, CocoaPods `1.16.2`의 `pod install` 후 Xcode `26.6`의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/scrum165-expo31-derived-data CODE_SIGNING_ALLOWED=NO build`는 `BUILD SUCCEEDED`였다.
+- 이번 결과는 착수 전 로컬 호환성 보정이다. 세션·CSRF 기능 구현, 새 빌드의 기기 실행·쿠키 왕복, 원격 CI·PR 병합·Jira 완료 또는 SCRUM-129의 실제 서버 연동 검증을 뜻하지 않는다. 설치 감사의 high 5건은 남아 있으며 강제 의존성 보정은 수행하지 않았다.
 
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
