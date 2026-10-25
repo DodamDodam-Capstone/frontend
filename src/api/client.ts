@@ -59,9 +59,10 @@ export function createApiClient(
 
   let generation = 0;
   let transitioning = false;
+  const inFlight = new Set<Promise<ApiResult>>();
 
-  // 공유 CSRF GET 자체는 취소하지 않는다. 취소된 호출의 대기와 listener만 정리한다.
-  async function waitForCsrf(pending: Promise<CsrfResult> | undefined, signal?: AbortSignal) {
+  // 원래 요청 자체는 취소하지 않는다. 취소된 호출의 대기와 listener만 정리한다.
+  async function waitForPending<T>(pending: Promise<T> | undefined, signal?: AbortSignal) {
     if (!pending || !signal) return pending;
     if (signal.aborted) return;
     let onAbort!: () => void;
@@ -98,7 +99,7 @@ export function createApiClient(
     const { method, path, body, signal, url, headers } = value;
     if (signal?.aborted) return { kind: 'not_sent', reason: 'cancelled' };
     if (method === 'POST') {
-      const prepared = await waitForCsrf(csrf.prepare(), signal);
+      const prepared = await waitForPending(csrf.prepare(), signal);
       if (blocked()) return { kind: 'not_sent', reason: 'auth_transition' };
       if (signal?.aborted) return { kind: 'not_sent', reason: 'cancelled' };
       if (!prepared) return { kind: 'not_sent', reason: 'csrf_unavailable' };
@@ -125,9 +126,15 @@ export function createApiClient(
     if (transitioning) return { kind: 'not_sent', reason: 'auth_transition' };
     const started = generation;
     const blocked = () => transitioning || generation !== started;
-    const result = await perform(prepared, blocked);
-    // 이미 전송된 응답을 미전송으로 표시하지 않는다. OS 쿠키 적용을 되돌리는 기능은 아니다.
-    return result.kind === 'response' && blocked() ? { kind: 'stale_response' } : result;
+    const operation = perform(prepared, blocked);
+    inFlight.add(operation);
+    try {
+      const result = await operation;
+      // 이미 전송된 응답을 미전송으로 표시하지 않는다. OS 쿠키 적용을 되돌리는 기능은 아니다.
+      return result.kind === 'response' && blocked() ? { kind: 'stale_response' } : result;
+    } finally {
+      inFlight.delete(operation);
+    }
   }
 
   async function prepareCsrf(): Promise<CsrfResult> {
@@ -147,8 +154,8 @@ export function createApiClient(
     transitioning = true;
     generation += 1;
     try {
-      // 오래된 CSRF 응답의 Set-Cookie가 인증 전송 뒤에 도착하지 않도록 기다린다.
-      await waitForCsrf(csrf.settlePending(), prepared.signal);
+      // 일반 403도 CSRF 쿠키를 발급하므로 기존 일반 요청과 발급 응답을 모두 기다린다.
+      await waitForPending(Promise.allSettled([...inFlight, csrf.settlePending()]), prepared.signal);
       const operation = await perform(prepared, () => false);
       if (operation.kind === 'not_sent') return { operation, outcome: 'not_attempted' };
       let outcome: AuthOutcome = 'unknown';

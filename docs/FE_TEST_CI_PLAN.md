@@ -154,6 +154,40 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - 최종 `npm test` **7 suite·148 tests**, `npm run typecheck`, `npm run lint`, `npm run test:env` **14개 조합**, 온라인 `expo install --check`, 일반 App 진입점 Android/iOS JS export가 모두 통과했다. 기존 CI는 전체 Jest를 발견·실행하므로 새 테스트가 포함되며, 이번 커밋의 원격 CI는 실행하지 않는다. 네이티브 의존성·설정 변경이 없어 설치·Gradle/Xcode 재컴파일은 반복하지 않는다.
 - 독립 소스 검토에서 확정 P1/P2는 없었다. 취소 대기 보완은 추가 RED→GREEN으로 검증했다. 5단계에서는 실제 OS 쿠키·Abort 이후 종료·지연 CSRF·인증 경합을 확인해야 한다. JS 응답 폐기는 OS Set-Cookie 원복을 뜻하지 않는다. 같은 쿠키 문맥의 client 재사용, 이미 반환한 응답의 화면 반영과 실제 classifier는125/167 연결 시 확인한다. OAuth 외부 복귀126/129, 실서버·HTTPS 연동129는 이번 단계의 성공으로 보고하지 않는다.
 
+### SCRUM-165 5단계 — 네이티브 인증·쿠키 경합 및 일반 응답 drain 보완 · 2026-10-25
+
+- 시작 HEAD는 `54e4d39221bf21e495d29be5f92d46ac4dedf0bd`, 원격 FE development는 `6bddb664069884543e7968209c579c722dddedf7`로 확인했다. Jira165는 담당 고영준·해야 할 일·기존 AC와 같았다. 기존 3개 작업 공간의 HEAD·브랜치·status·변경 파일 SHA-256을 보존한다. 이번 승인 범위는5단계이며6단계·push·PR·병합·Jira 변경은 포함하지 않는다.
+- `auth.tsx`는 일반 앱에서 import하지 않는 개발 전용 진입점이다. 기존 `receiver.mjs`에 독립된 `authReceiver.js`를 연결했다. 실제 Expo `57.0.31`·RN `0.86.3` global fetch로 Android Pixel Tablet/API36 및 iPad Pro 11형 M5/iOS26.5 시뮬레이터를 각각 검증했다. Android는 재전송 보완 APK를 `adb install -r`, iOS는 같은 SDK의 기존 개발 앱을 데이터 초기화 없이 설치했다. 개인 `.env`·일반 진입점·패키지·네이티브 설정은 바꾸지 않았다.
+- body `synthetic-auth`·응답의 `synthetic` 표시는 수신자 전용 합성 데이터이며 실제 로그인 DTO가 아니다. classifier는 시험 응답만 판정한다. 실제 이메일 로그인/API logout은 BE에서 아직 후속 구현이고, 로그인 결과·화면 연결125, 일반 오류167, 실제 BE/HTTPS129·OAuth126/129의 완료를 뜻하지 않는다.
+
+**발견한 경합과 수정**
+
+- 최초 인증24개/OS와 기존26개/OS의100개 행렬은 통과했지만, 최종 BE 대조에서 일반 POST의403도 쿠키를 발급할 수 있음을 확인해2개/OS를 추가했다. [BE SecurityConfig](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/src/main/java/com/dodamdodam/backend/global/config/SecurityConfig.java#L71-L74)·[개발환경 §10.4](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/DEVELOPMENT_SETUP.md#L545-L548), Spring Security7.1.1의 [CsrfFilter](https://github.com/spring-projects/spring-security/blob/7.1.1/web/src/main/java/org/springframework/security/web/csrf/CsrfFilter.java#L121-L132)·[RepositoryDeferredCsrfToken](https://github.com/spring-projects/spring-security/blob/7.1.1/web/src/main/java/org/springframework/security/web/csrf/RepositoryDeferredCsrfToken.java#L66-L70)·[CookieCsrfTokenRepository](https://github.com/spring-projects/spring-security/blob/7.1.1/web/src/main/java/org/springframework/security/web/csrf/CookieCsrfTokenRepository.java#L93-L140)를 대조했다. CSRF 쿠키가 없거나 비었을 때 새 token 저장 후403이 나올 수 있으며, nonempty cookie와 헤더의 단순 mismatch가 언제나 새 쿠키를 발급하는 것은 아니다.
+- `late-csrf`는 세션·CSRF의 합성 쿠키를 구분한다. 초기 발급 뒤 CSRF 쿠키만 만료시키고, 일반 POST의403 응답과 그 쿠키를 보류한다. 수정 전 Android에서 auth/refresh가 먼저 끝난 뒤 이전403 쿠키가 도착해 다음 POST의 헤더·쿠키가 불일치하는 실패를 재현했다. auth1회·old1회·POST1회였고, `refresh.ok=true`여도 최종 조합이 틀렸다. raw 실패 증빙은 로컬 `native-ordinary-red.json`에 보존한다.
+- `client.ts`는 일반 요청의 진행 중 Promise를 private Set으로 추적하고 `finally`에서 제거한다. 인증 gate를 설정한 뒤 기존 일반 요청과 CSRF 발급을 함께 기다리고 내부 auth POST를 전송한다. auth 자체는 Set에 넣지 않아 자기 대기가 없다. 이미 보낸 이전 응답은 계속 `stale_response`로 전달한다. 원래 요청을 강제 취소하지 않으며 인증 대기만 취소해도 다음 인증은 남은 요청을 먼저 기다린다. 느린 일반 응답은 인증 전송을 지연시킬 수 있다. 이를 숨기려고 미확정 운영 timeout을 추가하지 않았다.
+- 기존 stale GET/POST 사례도 `인증 intent → 이전 응답 완료 → auth 전송` 순서를 확인하도록 바꿨다. 세대가 달라진 응답은 폐기하며, 이전 응답이 끝나기 전에 인증 완료를 요구하는 fixture 교착은 만들지 않는다. native 실패를 바탕으로 일반 응답 drain 테스트2개를 먼저 실패시킨 뒤 수정했고, fixture의 추가 cookie 관측 테스트도 실패→통과로 확인했다.
+
+| 최종 실제 네이티브 검사 | Android API36 | iOS26.5 |
+| --- | --- | --- |
+| 인증 행렬 + 기존 회귀 | 26 + 26, 52/52 통과 | 26 + 26, 52/52 통과 |
+| 성공·확정 실패·CSRF_INVALID·503/판정 예외 unknown | 원래 응답·판정·갱신 결과 분리, auth POST 각1회 | 동일 |
+| logout204 | auth 본문0바이트·Content-Type 미생성, 익명 발급 요청에서 이전 쿠키 부재 | 동일 |
+| 갱신401·403·429·503·잘못된JSON·단절·302 | 실패 전달·auth 재실행 없음, 후속 재준비 실패도 POST 미전송, fixture 복구 후 명시적 새 POST 성공 | 동일 |
+| auth/refresh 보류 중 gate | GET/POST·준비·중첩 인증 즉시 거절, 완료 후에도 차단 요청 수신0회 | 동일 |
+| 지연 CSRF·일반 응답·세대 전환 | 이전 응답 완료 뒤 auth 전송, old GET/POST의 `stale_response`, 차단 POST 수신0회 | 동일 |
+| 일반403의 늦은 CSRF 쿠키 | 수정 전 실패 → 이전 응답 drain 뒤 header/cookie 일치·POST 성공 | 같은 수정 코드로 통과 |
+| 전송 전·CSRF/일반 응답 대기 취소 | 미전송·대기만 해제, 다음 auth도 남은 응답 drain | 동일 |
+| auth 헤더 수신 전 취소 | `transport_error/unknown`, classifier0회·auth1회·서버 close 후 새 CSRF | 동일 |
+| auth 헤더 수신 뒤 본문 취소 | HTTP200 Response는 수신했으나 판정 unknown, 이미 받은 쿠키 유지·token 재준비 | 동일 |
+| 정리 | 보류/진행 응답/waiter0 확인 → 쿠키 만료 → 무발급 GET에서 이름 부재 | 동일 |
+
+- 최종 **104개 고유 결과**는 앱의 PASS 표시와 별도로 수신자 횟수·조합·본문 길이·이벤트 순서·보고 allowlist를 독립 대조했다. 모든 인증 사례의 auth POST는1회, 정상 대조 POST는1회였고 cookie/token 조합과 합성 로그인14바이트/로그아웃0바이트를 확인했다. `late-csrf`의 추가 CSRF 쿠키도 마지막에 만료·부재를 확인했다. 최초100개 통과만으로 추가 경합을 해결했다고 처리하지 않았다.
+- 쿠키 비교는 존재 여부만 사용하지 않는다. 발급·auth 응답의 세대를 보존하고, Set-Cookie 없는 GET과 갱신 요청 수신 시점에서 이전/현재/auth 쿠키 일치와 logout 이전 쿠키 부재를 검사한다. 수신자 보류 응답의 값도 요청 수신 시점에 캡처한다. 첫 독립 검토에서 발견한 로그인 익명 fallback 오인·logout 만료 미관측·판정 덮어쓰기·gate GET 누락4곳을 보완했다. 입력 cookie/token/예외/Response 원문은 보고하지 않는다.
+- 취소 후 JS fetch 완료만으로 정리 성공을 판단하지 않는다. 서버 `close/finish`와 해제 ack를 대조했다. 두 OS 모두 헤더 전 취소는 연결이 닫혀 보류 헤더 전송 자체가 불가능했고, 헤더 후 본문 취소는 이미 적용된 auth 쿠키가 남았다. 이는 전달된 쿠키를 OS가 무시하거나 JS가 원복한다는 증거가 아니다. 본문을 아직 읽는 호출부의 화면 반영은125/167에서 현재 인증 문맥과 함께 처리한다.
+- CSRF 단절의 전송 계층 GET 시도 수는 OS·연결 상태에 따라 달랐다. 최종 `refresh-network` 사례는 초기·실패2회·복구 단계를 합쳐 wire GET Android6회/iOS8회였고 JS 전송 호출은각6회, auth POST는각1회였다. 이 관측을 운영 GET 재시도 상한으로 정하지 않는다. HTTP401/403/429/503을 일괄 자동 재시도하거나 실패 POST를 재실행하지 않았다.
+- Node24.20.0/npm11.19.0의 최종 `npm test`는 **8 suite·160 tests**(인증33·수신자10 포함), `npm run typecheck`·`npm run lint`도 통과했다. 기존 CI의 전체 Jest가 새 수신자 테스트를 발견한다. 이번 단계는 네이티브 설정·의존성 변경이 없어 패키지 의존성 설치·prebuild·Gradle/Xcode 재컴파일을 반복하지 않았고, 원격 CI도 실행하지 않았다. 일반 App은 각 플랫폼의 실제 Metro로 로드해 양 OS의 화면 복귀를 확인했다. 6단계의 최종 AC 대조·필요 회귀/빌드 확인은 별도 승인 뒤 수행한다.
+- 재현은3-A의 수신자/Metro 명령과 `scripts/native-session/auth.bundle`을 사용한다. 선택자 없이 OS별26개, `EXPO_PUBLIC_NATIVE_PROBE_CASE=late-csrf`면 해당 사례만 실행한다. 관찰20초·제어/정리3초와 event-loop 확인용0ms timer는 진단 값이며 운영 정책이 아니다. 상한 후 새 제품 요청을 막고 정리 실패를 PASS로 바꾸지 않는다. 실제 운영 host·HTTPS·Secure/Domain/SameSite·OAuth·BE129 통합으로 확대하지 않는다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.

@@ -236,9 +236,10 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const api = client(fetchImpl);
     const old = api.request({ method, path: '/guardian/lock' });
     await started.promise;
-    await api.authTransition(login, () => 'changed');
+    const transition = api.authTransition(login, () => 'changed');
     held.resolve(response());
     expect(await old).toEqual({ kind: 'stale_response' });
+    await transition;
     expect(fetchImpl.mock.calls.filter(([url]) => url.endsWith('/guardian/lock'))).toHaveLength(1);
   });
 
@@ -371,5 +372,51 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
       for (const [url] of fetchImpl.mock.calls) expect(url).not.toMatch(/synthetic-(token|password)/);
       for (const output of outputs) expect(output).not.toHaveBeenCalled();
     } finally { outputs.forEach((value) => value.mockRestore()); }
+  });
+});
+
+
+describe('일반 응답의 Set-Cookie와 인증 전환 순서', () => {
+  it('먼저 보낸 일반 응답이 정리되기 전에는 auth POST를 보내지 않는다', async () => {
+    const held = deferred<Response>(); const started = deferred<void>();
+    const events: string[] = []; let gets = 0;
+    const fetchImpl = jest.fn<ApiFetch>(async (url) => {
+      if (url.endsWith('/auth/csrf')) return csrf(`synthetic-token-${++gets}`);
+      if (url.endsWith('/old')) { started.resolve(); const value = await held.promise; events.push('old-headers'); return value; }
+      events.push('auth'); return response();
+    });
+    const api = client(fetchImpl);
+    await api.prepareCsrf();
+    const old = api.request({ method: 'POST', path: '/old' }); await started.promise;
+    const auth = api.authTransition(login, () => 'changed');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(fetchImpl.mock.calls.map(([url]) => url.split('/').pop())).toEqual(['csrf', 'old']);
+    const denied = response(403, 'CSRF_INVALID'); denied.headers.set('Set-Cookie', 'synthetic-old-csrf'); held.resolve(denied);
+    expect(await old).toEqual({ kind: 'stale_response' });
+    expect((await auth).refresh).toEqual({ ok: true });
+    expect(events).toEqual(['old-headers', 'auth']);
+  });
+
+  it('일반 응답 drain 중 auth를 취소해도 다음 auth는 남은 응답을 먼저 기다린다', async () => {
+    const held = deferred<Response>(); const started = deferred<void>(); const abort = new AbortController(); let gets = 0;
+    const fetchImpl = jest.fn<ApiFetch>(async (url) => {
+      if (url.endsWith('/auth/csrf')) return csrf(`synthetic-token-${++gets}`);
+      if (url.endsWith('/old')) { started.resolve(); return held.promise; }
+      return response(204);
+    });
+    const api = client(fetchImpl); await api.prepareCsrf();
+    const old = api.request({ method: 'GET', path: '/old' }); await started.promise;
+    const cancelled = api.authTransition({ ...login, signal: abort.signal }, () => 'changed');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(fetchImpl.mock.calls.length).toBe(2);
+    abort.abort();
+    expect(await cancelled).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted' });
+    const next = api.authTransition(logout, () => 'changed');
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(fetchImpl.mock.calls.length).toBe(2);
+    held.resolve(response());
+    expect(await old).toEqual({ kind: 'stale_response' });
+    expect((await next).refresh).toEqual({ ok: true });
+    expect(fetchImpl.mock.calls.map(([url]) => url.split('/').pop())).toEqual(['csrf', 'old', 'logout', 'csrf']);
   });
 });
