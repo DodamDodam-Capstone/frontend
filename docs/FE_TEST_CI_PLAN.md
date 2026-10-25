@@ -42,6 +42,40 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - Node `24.20.0`·npm `11.19.0`에서 전체 Jest **5개 suite·113개 테스트**, lint·typecheck, 공개 환경 주입 **14개 조합**, Android/iOS JS export가 통과했다. React Native가 사용하는 `whatwg-fetch`의 Headers로 개행·제어문자 등이 통과하는 실패5개를 재현하고 명시적 값 검증을 추가해 해결했다. 의존성·네이티브 설정 변경이 없어 설치·네이티브 컴파일은 이번 단계에서 반복하지 않았다.
 - 로그인·로그아웃 뒤 갱신·인증 변경 경계는4단계, 양 OS의 실제 쿠키·redirect 동작은3단계, 인증 전환 경합의 기기 검증은5단계다. 이번 단위 테스트를 해당 기기 검증이나 SCRUM-129의 서버 연동 성공으로 보고하지 않는다. 원격 CI·PR·Jira 변경은 수행하지 않았다.
 
+### SCRUM-165 3-A — 네이티브 정상 발급·쿠키 왕복 · 2026-10-25
+
+- `scripts/native-session/probe.tsx`는 일반 `index.ts`에서 import하지 않는 개발 전용 Metro 진입점이다. `receiver.mjs`는 `127.0.0.1:48591`에만 바인딩하며 합성 세션·CSRF 값은 메모리에만 둔다. 개인 환경 파일, 제품 `client.ts`·`csrf.ts`, 의존성·네이티브 설정은 변경하지 않았다.
+- Node `24.20.0`·npm `11.19.0`, Expo `57.0.31`·React Native `0.86.3`을 사용했다. 앞 단계에서 빌드한 APK/iOS Simulator 앱을 데이터 초기화 없이 갱신 설치했다. Android Pixel Tablet API 36과 iPad Pro 11형 M5/iOS 26.5에서 실제 앱으로 실행했다.
+- 명시적 준비 사례와 사전 준비 없는 최초 POST 사례는 새 client·새 합성 값으로 분리한다. 각 사례 초기화 전에 수신 횟수를 별도 보존하며, 쿠키는 시험 경로에만 한정한다. 관측 함수는 기본 global fetch에 URL·RequestInit을 그대로 넘기고 Response도 그대로 반환한다. 원문 URL·쿠키·토큰·본문 대신 HTTP 상태·URL 일치 boolean·횟수만 기록한다.
+
+| 검증 | Android API 36 | iOS 26.5 |
+| --- | --- | --- |
+| 로컬 수신자에 앱 내부 직접 접근 | 통과 | 통과 |
+| client 생성 직후 API 요청 | 0회 | 0회 |
+| 명시적 CSRF 준비 후 GET | CSRF 1회·GET 1회·POST 0회, 준비 성공·쿠키 일치 | 동일 |
+| 새 client의 최초 POST | CSRF 1회·POST 1회, HTTP 200·쿠키/CSRF 발급 조합 일치 | 동일 |
+| 일반 App 복귀·real 모드 시작 | 화면 및 수신자 API 요청 0회 확인 | 동일 |
+
+- 검토 때 제기한 `whatwg-fetch`의 `no-store` cache-buster와 엄격한 URL 비교 충돌은 두 OS에서 재현되지 않았다. 요청 URL과 응답 URL이 일치했고 `_` query는 없었다. Expo SDK 57은 기본적으로 global fetch를 자체 네이티브 구현으로 교체한다(`expo/src/winter/runtime.native.ts`). `EXPO_PUBLIC_USE_RN_FETCH` 미설정인 이번 결과를 RN fetch를 명시적으로 선택한 환경에 확대하지 않는다. `_` 부재는 캐시 정책 전체 준수의 증거가 아니다.
+- 생성된 Android 개발 앱에는 `exp+dodamdodam` scheme이 등록돼 있었고 앱 식별자 scheme은 등록돼 있지 않았다. iOS는 두 scheme이 등록돼 있었다. 검증에는 양 OS 공통 개발 scheme을 사용했다. 이는 OAuth 복귀 URI 확정이나 `resolveOAuthConfig()`의 허용 규칙 변경이 아니다. 실제 등록 차이는 SCRUM-129 연동 때 다시 대조한다.
+- 진단 관찰 상한은 20초, 제어·정리·보고 요청 상한은 3초다. 모두 시험용 값이며 운영 timeout 정책이 아니다. 관찰 상한 이후 새 API 전송을 차단하고, 진행 중인 전송이 남으면 정리 성공으로 표시하지 않는다. 두 OS의 정상 사례에서는 상한에 도달하지 않았다.
+- 시험 종료 때 해당 합성 쿠키만 만료시키는 응답을 200으로 수신했다. 실제 삭제·실패·동시성·리디렉션 동작은 3-B에서 검증하며, 만료 응답 수신을 삭제 검증 통과로 확대하지 않는다. 3-B·4단계 인증 전환·5단계 경합은 미착수다. HTTP loopback 결과는 운영 HTTPS의 Secure/Domain/SameSite, OAuth 쿠키 공유, 실제 서버 SCRUM-129 성공을 뜻하지 않는다.
+
+- 최종 로컬 검사: 온라인 `expo install --check`, `npm run lint`, `npm run typecheck`, 전체 Jest **5 suite·113 tests**, `npm run test:env` **14개 조합**, 일반 앱 Android/iOS export가 통과했다. 수신자 프로토콜 사전 검사와 알 수 없는 입력 필드의 로그 제외 검사도 통과했다. 의존성·네이티브 설정 변경이 없어 설치·네이티브 컴파일은 반복하지 않았다. 일반 앱으로 복귀한 뒤 이 작업의 앱·기기·서버·adb reverse를 종료했으며 원격 CI·PR·Jira 변경은 하지 않았다.
+
+재현은 전용 작업 공간에서 다음 순서로 수행한다. 같은 Metro에서 두 플랫폼을 동시에 실행하지 않고 이전 플랫폼의 앱·서버를 종료한 뒤 다음 플랫폼을 실행한다. 진단 후에는 개발 클라이언트를 일반 Metro URL로 열어 기존 App으로 복귀시킨다.
+
+```bash
+# 프로젝트 지정 Node 24.20.0 PATH를 먼저 적용한다.
+node scripts/native-session/receiver.mjs
+# 별도 터미널: 개인 .env를 읽지 않는 IPv4 루프백 Metro
+NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082
+```
+
+- Android: `adb reverse tcp:8082 tcp:8082` 후 개발 클라이언트의 `url` 인자에 `http://127.0.0.1:8082/scripts/native-session/probe.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`를 URL 인코딩해 전달한다.
+- iOS: 동일 경로의 `platform=ios` URL을 인코딩해 `xcrun simctl openurl <시험 UDID> 'exp+dodamdodam://expo-development-client/?url=<인코딩한 URL>'`로 전달한다. Android도 같은 개발 scheme을 사용하며 `adb shell am start`의 VIEW intent로 연다.
+- 일반 앱 복귀 URL은 진단 bundle 경로가 없는 `http://127.0.0.1:8082`다. real 모드 복귀 검증에 사용한 API 주소는 로컬 시험 수신자의 별도 경로이며 프로세스 환경에만 공급했다. 수신자 집계·화면·실행 결과는 로컬 임시 증빙에 보관하며 합성 값 원문은 포함하지 않는다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.
