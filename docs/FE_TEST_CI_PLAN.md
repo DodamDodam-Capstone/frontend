@@ -78,6 +78,8 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 ### SCRUM-165 3-B — 네이티브 경계 검증·Android 중복 POST 재현 · 2026-10-25
 
+아래는 수정 전 체크포인트다. 실패는 그대로 보존하며, 현재 해결 결과와 재현 명령은 이어지는 **Android 중복 POST 보완** 기록을 따른다.
+
 - 사용자 승인 범위는 3-B 검증까지다. 제품 `client.ts`·`csrf.ts`, 일반 앱 진입점, 개인 환경 파일, 패키지·네이티브 설정은 바꾸지 않았다. 기존 `receiver.mjs`를 확장하고 별도 개발 진입점 `scripts/native-session/cases.tsx`를 추가했다. 합성 값만 사용하며 일반 앱에서는 두 진단 진입점을 import하지 않는다.
 - 3-A와 같은 Expo `57.0.31`·React Native `0.86.3` 기본 fetch, Android Pixel Tablet/API 36, iPad Pro 11형 M5/iOS 26.5 개발 빌드를 재사용했다. 두 플랫폼은 별도로 실행했다. 기본 행렬은 각 OS **20개, 합계 40개 사례**가 통과했다. GET의 전송 계층 재시도 관측으로 추가한 POST 연결 손실 사례는 Android 실패·iOS 통과였다. 최종 **42개 고유 검사 중 41개 통과·1개 실패**이며, Android POST 중복 방지 미충족으로 다음 기능 단계 진입을 보류한다.
 
@@ -93,7 +95,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 | CSRF 302 + Set-Cookie | 준비 실패로 POST 0회·redirect 목적지 0회. 후속 GET에서 302가 발급한 합성 쿠키는 존재 |
 | POST 301·302·303·307·308, 각 same/cross origin | 원래 POST 1회·쿠키/CSRF 일치·합성 본문 14바이트 확인 후 `transport_error`. 두 목적지에 대한 직접 접근 대조는 성공했고 실제 redirect 수신은 0회 |
 
-- **차단 사항:** 합성 POST 본문을 전부 받은 뒤 응답 없이 소켓을 끊는 조건에서 Android의 중복 POST를 재현했다. JS 전송 함수 호출은 CSRF GET 1회 + POST 1회였지만 서버의 POST 수신은 2회였고 두 조합과 총 28바이트를 확인했다. iOS 동일 조건은 POST 1회였다. 제품 코드는 고치지 않았으며 재전송 정책 보완 승인 전 4단계로 진행하지 않는다. 기존 40개 행렬 통과나 Jest 통과로 이 실패를 덮지 않는다.
+- **당시 차단 사항:** 합성 POST 본문을 전부 받은 뒤 응답 없이 소켓을 끊는 조건에서 Android의 중복 POST를 재현했다. JS 전송 함수 호출은 CSRF GET 1회 + POST 1회였지만 서버의 POST 수신은 2회였고 두 조합과 총 28바이트를 확인했다. iOS 동일 조건은 POST 1회였다. 제품 코드는 고치지 않았으며 재전송 정책 보완 승인 전 4단계로 진행하지 않는다. 기존 40개 행렬 통과나 Jest 통과로 이 실패를 덮지 않는다.
 - JS `RequestInit`에는 현재 native retry 설정이 없다. 읽기 전용 조사상 Expo client 생성 전에 RN 공개 `OkHttpClientProvider.setOkHttpClientFactory()`를 등록하는 조정 접점은 있다. `retryOnConnectionFailure(false)`나 POST body의 `isOneShot()` 처리는 후속 수정 후보이며, 다른 요청·쿠키 jar·503/421 follow-up 영향과 지속 가능한 Expo prebuild 반영을 확인해야 한다. 이번에는 적용하거나 해결됐다고 판단하지 않았다. JS 재호출 방지·사후 Abort·미확정 `clientRequestId` 추가로 해결했다고 보지 않는다.
 - 소켓 단절의 수신 GET 3회는 FE에서 fetch를 세 번 호출한 결과가 아니다. 관측한 네이티브 전송 계층의 재시도와 FE의 실패 POST 자동 재실행을 구분한다. 3회가 운영 재시도 정책이나 상한이라는 뜻이 아니며, 401·403·429·503 응답을 일괄 재시도하도록 구현하지 않았다.
 - `redirect: error`로 이동을 거절해도 최초 응답의 `Set-Cookie`가 적용될 수 있음을 두 OS에서 확인했다. 이것을 이동 차단 실패나 임의의 쿠키 롤백 요구로 해석하지 않는다. 4단계 인증 전환 설계와 5단계 경합 검증에서는 JS 준비 실패만으로 OS 쿠키가 그대로라고 가정하면 안 된다.
@@ -103,7 +105,30 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - 독립 진단 코드 검토에서 쿠키 관측 GET 성공 확인, 원래 POST의 조합·본문 길이 확인, 시간 초과 뒤 늦은 PASS 변경 방지를 보완한 뒤 최종 기기 시험을 다시 실행했다. 수정은 진단 코드에만 한정했다.
 - 최종 lint·typecheck, 전체 Jest **5 suite·113 tests**, 환경 주입 **14개 조합**, 온라인 Expo 호환성 검사와 일반 앱 Android/iOS export가 통과했다. 수신자의 latch·오류·목적지 사전 검사 및 보고 필드 allowlist 검사도 통과했다. 설치·네이티브 재컴파일은 변경이 없어 반복하지 않았다. 양 OS에서 진단 bundle 대신 기존 App 진입점으로 복귀한 화면을 확인하고, 이 작업이 실행한 앱·기기·Metro·두 수신 포트·adb reverse를 종료했다. 복귀 실행은 개인 환경 파일을 읽지 않는 조건이므로 환경 미설정 안내가 정상 표시됐다. real 모드 시작 무요청 회귀는 기존 Jest에서 재확인했다.
 
-재현은 3-A의 명령을 재사용하고 bundle 경로만 `scripts/native-session/cases.bundle`로 바꾼다. 기본 실행은 21개 사례이며 `post-loss`를 마지막에 포함한다. 연결 손실 사례만 확인하려면 Metro 프로세스에 진단 전용 `EXPO_PUBLIC_NATIVE_PROBE_CASE=post-loss`를 공급한다. 개인 환경 파일이나 제품 환경 설정에는 이 선택자를 추가하지 않는다. 수신자는 두 포트를 모두 제공한다. 앱 화면에는 사례별 PASS/FAIL만 표시하며, 실패 시 해당 OS의 나머지 사례는 자동 실행하지 않는다. 실제 결과 기록은 기존 작업 기록과 로컬 임시 증빙에 두고 별도 Subtask 문서를 만들지 않는다. 4단계 인증 갱신·5단계 인증 전환 경합은 아직 미착수이며 원격 CI·PR·Jira 변경은 하지 않았다.
+재현은 3-A의 명령을 재사용하고 bundle 경로만 `scripts/native-session/cases.bundle`로 바꾼다. 이 체크포인트의 기본 실행은 21개 사례이며 `post-loss`를 마지막에 포함했다. 현재 기본 행렬은 아래 보완에서 26개로 확장했다. 연결 손실 사례만 확인하려면 Metro 프로세스에 진단 전용 `EXPO_PUBLIC_NATIVE_PROBE_CASE=post-loss`를 공급한다. 개인 환경 파일이나 제품 환경 설정에는 이 선택자를 추가하지 않는다. 수신자는 두 포트를 모두 제공한다. 앱 화면에는 사례별 PASS/FAIL만 표시하며, 실패 시 해당 OS의 나머지 사례는 자동 실행하지 않는다. 실제 결과 기록은 기존 작업 기록과 로컬 임시 증빙에 두고 별도 Subtask 문서를 만들지 않는다. 4단계 인증 갱신·5단계 인증 전환 경합은 아직 미착수이며 원격 CI·PR·Jira 변경은 하지 않았다.
+
+### SCRUM-165 Android 중복 POST 보완 — 2026-10-25
+
+- 사용자가 실패 수정을 승인해 이 보완 단계만 진행했다. 4단계 인증 갱신은 아직 미착수다. 수정 전 Android에서 기존 연결 손실 POST가 2회·28바이트 수신됐고, 추가한 `503 + Retry-After: 0`도 JS POST 1회인데 수신 POST 2회·28바이트로 실패했다. 이 기대값을 바꾸거나 실패를 제외하지 않았다.
+- 실제 Gradle dependency insight에서 해석된 OkHttp **4.12.0**과 RN/Expo의 공개 client factory 연결을 확인했다. `plugins/withSingleUsePost.js`를 `app.json`에 등록하고, Kotlin `MainApplication.super.onCreate()` 직후·`loadReactNative()` 전에 factory를 설치한다. application interceptor에서 POST body만 `isOneShot=true`로 감싸며 `contentType`·`contentLength`·`writeTo`·`isDuplex`는 원래 body로 위임한다. `client.ts`·`csrf.ts`는 수정하지 않았다.
+- factory는 요청마다가 아니라 client 생성마다 기본 context builder로 새 client를 만든다. Expo의 쿠키 bridge·timeout을 유지하고 GET 재시도 설정은 바꾸지 않는다. 적용 범위는 이 factory를 사용하는 **Android RN/Expo POST 전체**이며 특정 운영 주소를 가정하지 않는다. RN의 context 없는 client 생성 경로에도 context builder의 HTTP cache가 추가될 수 있지만, Expo는 기존에도 context builder를 사용했다. 전역 `retryOnConnectionFailure(false)`·fetch 교체·`node_modules` 수정·새 의존성은 적용하지 않았다.
+- 실제 Expo MainApplication mod의 등록 순서·반복 적용·지원하지 않는 Java/초기화 템플릿 거절을 검사하는 4개 Jest 테스트를 먼저 실패시킨 뒤 구현해 통과시켰다. 실제 `CI=1 EXPO_NO_DOTENV=1 npx --no-install expo prebuild --platform android --no-install`도 두 번 실행해 생성된 MainApplication이 byte 단위로 같고 factory가 한 번만 등록됨을 확인했다. 이전에 보존한 네이티브 소스 18개 중 MainApplication만 달라졌다. 생성된 네이티브 파일은 추적하지 않는다.
+- `receiver.mjs`·`cases.tsx`에 빈 본문·JSON·바이너리·multipart의 연결 손실과 `503 + Retry-After: 0`을 추가했다. 본문은 합성 값이며 원문 대신 일치 boolean·수신 횟수·길이만 보고한다. multipart는 실제 boundary와 필드 내용으로 비교하며 특정 길이를 통과 조건으로 고정하지 않는다.
+
+| 수정 후 실제 네이티브 검사 | Android API 36 | iOS 26.5 |
+| --- | --- | --- |
+| 전체 행렬 | 26/26 통과 | 26/26 통과 |
+| 기존 POST 연결 손실 | 수신 POST 1회·14바이트, `transport_error` | 동일 |
+| 빈 본문·JSON·바이너리 연결 손실 | 각 POST 1회·0/21/4바이트, 본문 일치 | 동일 |
+| multipart 연결 손실 | POST 1회·본문/헤더 boundary 일치, 관측 151바이트 | 동일 |
+| POST `503 + Retry-After: 0` | POST 1회·14바이트, 503 응답 그대로 전달 | 동일 |
+| 기존 쿠키·CSRF·동시 최초 발급·만료·이동 차단 | 전부 통과 | 전부 통과 |
+| CSRF GET 소켓 단절 | JS fetch 1회·수신 GET 3회·POST 0회 | 동일 |
+
+- Android는 수정 APK를 다시 빌드해 `adb install -r`로 데이터 보존 설치한 뒤 시험했다. iOS는 같은 SDK의 기존 native runtime과 새 진단 JS로 회귀했고 iOS native 코드·정책은 변경하지 않았다. 양 플랫폼의 실제 global Expo fetch를 사용했으며 우회 전송 구현을 넣지 않았다. 모든 사례에서 정리 완료·redirect 실제 목적지 수신 0회를 확인했다. CSRF 302의 Set-Cookie 적용 관측도 그대로 유지된다.
+- Node **24.20.0**·npm **11.19.0**에서 `npm run lint`, `npm run typecheck`, 전체 Jest **6 suite·117 tests**, `npm run test:env` **14개 조합**, 온라인 `expo install --check`, 일반 앱 Android/iOS export가 통과했다. Android JDK 17·SDK 36의 `./gradlew :app:assembleDebug --no-daemon --console=plain`은 `BUILD SUCCESSFUL`, iOS Simulator의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/scrum165-repair-ios-derived-data CODE_SIGNING_ALLOWED=NO build`는 `BUILD SUCCEEDED`였다. 새 의존성이 없어 npm 설치는 반복하지 않았다. 독립 코드 검토에서 수정이 필요한 P1/P2 지적은 없었다. 원격 CI는 이번 커밋에서 실행하지 않았다.
+- 현재 재현은 3-A의 수신자·Metro 명령과 `scripts/native-session/cases.bundle` 진입점을 사용한다. Android는 먼저 위 prebuild와 앱 재빌드·설치가 필요하다. 선택자 없이 OS별 26개를 실행하고, 한 사례만 보려면 Metro 프로세스에 `EXPO_PUBLIC_NATIVE_PROBE_CASE=post503-zero` 또는 알려진 사례명을 공급한다. 개인 `.env`·제품 설정에는 추가하지 않는다. 증빙은 로컬 임시 파일 `native-results-green.json`의 52개 고유 결과와 빌드 로그에 보관한다.
+- 이 보완은 **본문이 전송된 POST의 네이티브 재전송 차단**이다. 전송 시작 전 연결 경로 재시도까지 금지하거나 서버 업무의 exactly-once 처리를 보장하지 않는다. 연결 손실은 계속 `transport_error`이며 성공·`not_sent`로 바꾸거나 자동 재실행하지 않는다. 4단계 인증 전환·5단계 기기 경합, SCRUM-129 실제 BE·HTTPS·OAuth 통합 검증은 남아 있다. 양 OS를 진단 bundle에서 일반 App 화면으로 복귀시켰고, 개인 환경 파일을 읽지 않아 환경 미설정 안내가 정상 표시됐다. 이 작업의 앱·시뮬레이터·Metro·두 수신 포트·adb reverse를 종료했다. 기존 작업 공간·개인 변경을 보존하고 push·PR·병합·Jira 변경은 하지 않았다.
 
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 

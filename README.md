@@ -143,7 +143,8 @@ HTTP 상태를 보여주고, real에서는 시작 시 서버 요청 없이 모�
 생성만으로 요청하지 않으며, 쿠키 문맥마다 같은 client를 재사용합니다. `prepareCsrf()`는
 `GET /auth/csrf`의 wrapper 없는 응답을 검증해 token을 메모리에 보관하고 준비 결과만 반환합니다.
 POST는 초기 발급이 필요하면 기다리고, 준비 실패 시 전송하지 않습니다. 준비된 token은 재사용하며
-JS 계층에서 실패한 POST를 재호출하지 않습니다. 네이티브 중복 전송 제약은 아래 3-B 기록을 따릅니다. mock은 `/auth/csrf`·`/auth/me` 예제만 제공하고,
+JS 계층에서 실패한 POST를 재호출하지 않습니다. Android 네이티브 재전송 차단은 아래 정책을 따릅니다.
+mock은 `/auth/csrf`·`/auth/me` 예제만 제공하고,
 미등록 요청을 실제 네트워크로 넘기지 않습니다.
 
 ```ts
@@ -166,9 +167,17 @@ export async function requestAccountExample() {
   보내지 않았다는 뜻이고, `transport_error`는 서버 처리 여부를 단정할 수 없는 통신 실패입니다.
 - **현재는 초기 발급 단계입니다.** 로그인·로그아웃 뒤 갱신과 인증 전환 중 요청 차단은4단계에서 구현합니다.
   3-A에서 Android·iOS 개발 빌드의 초기 CSRF 발급·쿠키 재전송·최초 POST 왕복을 로컬 수신자로 확인했습니다.
-  3-B의 기본 행렬은 양 OS 각20개가 통과했지만, 추가 연결 손실 시험에서 Android의 POST 중복 수신을 재현했습니다.
-  **3-B 전체는 미통과이며 네이티브 재전송 정책 보완 전 다음 기능 단계로 진행하지 않습니다.** 제품 코드는 아직 수정하지 않았습니다.
-  이동 거절 후에도 최초 응답 쿠키는 반영될 수 있습니다. 이 로컬 결과는 운영 HTTPS·OAuth·실제 서버 연동129의 성공이 아닙니다.
+  3-B에서 재현한 Android POST 중복 전송을 보완한 뒤 양 OS 각26개, **총52개 네이티브 검사가 통과**했습니다.
+  로그인·로그아웃 갱신 구현은 아직 시작하지 않았습니다.
+- Android는 `plugins/withSingleUsePost.js`를 prebuild에 적용해 RN/Expo의 OkHttp client 생성 전에
+  factory를 등록하고, 요청 전송 시 POST 본문을 `isOneShot=true`로 감쌉니다. 연결 손실과 `503 + Retry-After: 0`에서 본문 재전송을 막으며,
+  본문·Content-Type·길이와 기본 쿠키 bridge를 보존합니다. GET의 재시도 설정은 바꾸지 않습니다.
+  이 정책은 해당 factory를 사용하는 Android RN/Expo POST 전체에 적용됩니다. 설정 변경 후에는
+  `npx --no-install expo prebuild --platform android --no-install`과 Android 앱 재빌드가 필요합니다.
+  일반 JS reload나 기존 development build에는 네이티브 변경이 적용되지 않습니다.
+- 이동 거절 후에도 최초 응답 쿠키는 반영될 수 있고, 통신 실패 후 서버 처리 여부는 알 수 없습니다.
+  로컬 결과·한 번의 전송 관측을 운영 HTTPS·OAuth·실제 서버 연동129의 성공이나 exactly-once 보장으로 확대하지 않습니다.
+  재현 조건·이전 실패와 수정 후 결과는 [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)에 남깁니다.
 
 ## 로컬 검사와 플랫폼별 빌드
 

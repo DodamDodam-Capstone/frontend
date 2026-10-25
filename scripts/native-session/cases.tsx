@@ -3,11 +3,14 @@ import { Platform, Text, View } from 'react-native';
 import { registerRootComponent } from 'expo';
 import { createApiClient, type ApiFetch, type ApiResult } from '../../src/api/client';
 
-// 전송 손실의 추가 확인만 재현할 때 사용하는 진단 전용 선택자다.
-const cases = process.env.EXPO_PUBLIC_NATIVE_PROBE_CASE === 'post-loss' ? ['post-loss'] : ['reuse', 'concurrent', 'http401', 'http403', 'http429', 'http503', 'invalid-json', 'network', 'expire', 'csrf302',
-  ...[301, 302, 303, 307, 308].flatMap((status) => [`post${status}-same`, `post${status}-cross`]), 'post-loss'];
+// 알려진 한 사례만 재현할 수 있는 진단 전용 선택자다. 제품 환경 설정에는 추가하지 않는다.
+const bodyCases = ['post-loss-empty', 'post-loss-json', 'post-loss-binary', 'post-loss-multipart', 'post503-zero'];
+const allCases = ['reuse', 'concurrent', 'http401', 'http403', 'http429', 'http503', 'invalid-json', 'network', 'expire', 'csrf302',
+  ...[301, 302, 303, 307, 308].flatMap((status) => [`post${status}-same`, `post${status}-cross`]), 'post-loss', ...bodyCases];
+const selectedCase = process.env.EXPO_PUBLIC_NATIVE_PROBE_CASE;
+const cases = selectedCase && allCases.includes(selectedCase) ? [selectedCase] : allCases;
 type Counts = { csrf: number; get: number; post: number };
-type Snapshot = Counts & { sourceBytes: number; cookieMatches: boolean; cookieNamePresent: boolean; postPairsMatch: boolean; sameSink: number; crossSink: number; positiveSame: number; positiveCross: number };
+type Snapshot = Counts & { sourceBytes: number; sourceBodyMatches?: boolean; cookieMatches: boolean; cookieNamePresent: boolean; postPairsMatch: boolean; sameSink: number; crossSink: number; positiveSame: number; positiveCross: number };
 type Outcome = { kind: ApiResult['kind']; status?: number; reason?: string; csrfReason?: string; csrfStatus?: number };
 type Report = {
   platform: string; stage: '3b'; pass: boolean; fetchCalls: number; cleanup: boolean;
@@ -75,6 +78,29 @@ async function runCase(name: string): Promise<boolean> {
         const state: Snapshot = await control('snapshot');
         return result.kind === 'transport_error' && report.fetchCalls === 2 && state.csrf === 1
           && state.post === 1 && state.postPairsMatch && state.sourceBytes === 14;
+      } else if (bodyCases.includes(name)) {
+        let body: BodyInit | undefined = 'synthetic-body';
+        let headers: HeadersInit | undefined;
+        let expectedBytes: number | undefined = 14;
+        if (name === 'post-loss-empty') { body = undefined; expectedBytes = 0; }
+        else if (name === 'post-loss-json') {
+          body = JSON.stringify({ probe: 'synthetic' }); headers = { 'Content-Type': 'application/json' }; expectedBytes = 21;
+        } else if (name === 'post-loss-binary') {
+          body = new Uint8Array([0, 127, 128, 255]).buffer; headers = { 'Content-Type': 'application/octet-stream' }; expectedBytes = 4;
+        } else if (name === 'post-loss-multipart') {
+          body = new FormData(); body.append('probe', 'synthetic');
+          // boundary 길이는 가정하지 않고 수신자의 필드·boundary 일치 검사로 보존을 확인한다.
+          expectedBytes = undefined;
+        }
+        const result = await client.request({ method: 'POST', path: '/probe', body, headers });
+        report.outcome = outcome(result);
+        const expectedOutcome = name === 'post503-zero'
+          ? result.kind === 'response' && result.response.status === 503 && result.response.headers.get('Retry-After') === '0'
+            && (await result.response.json()).error?.code === 'SYNTHETIC_FAILURE'
+          : result.kind === 'transport_error';
+        const state: Snapshot = await control('snapshot');
+        return expectedOutcome && report.fetchCalls === 2 && state.csrf === 1 && state.get === 0 && state.post === 1
+          && state.postPairsMatch && (expectedBytes === undefined ? state.sourceBytes > 0 : state.sourceBytes === expectedBytes) && state.sourceBodyMatches === true;
       } else if (name === 'expire') {
         const prepared = await client.prepareCsrf(); report.preparation = prepared;
         if (!prepared.ok) throw new Error('probe_incomplete');
