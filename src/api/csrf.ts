@@ -1,5 +1,5 @@
 export type CsrfFailure =
-  | { ok: false; reason: 'network' | 'invalid_response' }
+  | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' }
   | { ok: false; reason: 'http'; status: number; requestId?: string };
 export type CsrfResult = { ok: true } | CsrfFailure;
 
@@ -50,5 +50,9 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
     return pending;
   }
 
-  return { prepare, token: () => token };
+  return {
+    prepare, token: () => token,
+    settlePending: () => pending,
+    invalidate: () => { token = undefined; },
+  };
 }

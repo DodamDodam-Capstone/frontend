@@ -130,6 +130,30 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - 현재 재현은 3-A의 수신자·Metro 명령과 `scripts/native-session/cases.bundle` 진입점을 사용한다. Android는 먼저 위 prebuild와 앱 재빌드·설치가 필요하다. 선택자 없이 OS별 26개를 실행하고, 한 사례만 보려면 Metro 프로세스에 `EXPO_PUBLIC_NATIVE_PROBE_CASE=post503-zero` 또는 알려진 사례명을 공급한다. 개인 `.env`·제품 설정에는 추가하지 않는다. 증빙은 로컬 임시 파일 `native-results-green.json`의 52개 고유 결과와 빌드 로그에 보관한다.
 - 이 보완은 **본문이 전송된 POST의 네이티브 재전송 차단**이다. 전송 시작 전 연결 경로 재시도까지 금지하거나 서버 업무의 exactly-once 처리를 보장하지 않는다. 연결 손실은 계속 `transport_error`이며 성공·`not_sent`로 바꾸거나 자동 재실행하지 않는다. 4단계 인증 전환·5단계 기기 경합, SCRUM-129 실제 BE·HTTPS·OAuth 통합 검증은 남아 있다. 양 OS를 진단 bundle에서 일반 App 화면으로 복귀시켰고, 개인 환경 파일을 읽지 않아 환경 미설정 안내가 정상 표시됐다. 이 작업의 앱·시뮬레이터·Metro·두 수신 포트·adb reverse를 종료했다. 기존 작업 공간·개인 변경을 보존하고 push·PR·병합·Jira 변경은 하지 않았다.
 
+### SCRUM-165 4단계 — 인증 전환·로그인/로그아웃 뒤 CSRF 갱신 · 2026-10-25
+
+- 이 단계의 시작점은 로컬 `4246f65`다. 원격 FE development는 `6bddb664069884543e7968209c579c722dddedf7`, BE development는 `752e7ebca2a758f57970f36fdafa3cac2d2851d2`로 재확인했다. Jira165는 고영준·해야 할 일로 기존 AC와 같았다. 기존 3개 작업 공간의 HEAD·브랜치·status·변경 파일 SHA-256을 보존했다. PR·push·병합·Jira 변경은 하지 않았다.
+- 적용 근거는 BE OpenAPI **3.1.0**, [`01-common.md` §3·§5.1](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/01-common.md), [`02-auth.md` §6.1·6.5·6.7](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/02-auth.md), [`DEVELOPMENT_SETUP.md` §10.2·10.4·10.5](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/DEVELOPMENT_SETUP.md#L483-L597)다. 로그인 503은 이전 권한 폐기 등 일부 부작용 뒤 발생할 수 있으므로 모든 비-2xx를 세션 유지로 처리하지 않는다. 현재 BE의 이메일 로그인·API logout은 후속 구현이며 기본 `/logout` 302를 계약상 `/api/v1/auth/logout` 204로 대신하지 않았다.
+- `client.ts`에 `authTransition(request, classify)`를 추가했다. 125의 classifier가 복제된 응답을 `changed/unchanged/csrf_invalid/unknown`으로 판정하고 공통 계층은 그 판정의 CSRF 처리만 수행한다. 원래 Response·인증 결과와 CSRF 갱신 성공/실패를 분리한다. 업무 DTO·오류 의미를 이 계층에 새로 정의하지 않았고 실제 화면·로그인 상태 연결도125에 남겼다. 일반 `request()`의 업무 응답에 이 수명주기를 자동 적용하지 않는다.
+- 공통 계층은 인증 전환 시작 즉시 gate와 세대를 갱신하고 기존 CSRF 발급을 drain한 뒤 내부 인증 POST를 보낸다. 공개 bypass는 없고, 주소·헤더·본문·CSRF 설정을 기존 공통 경로로 검증한다. 전환 중 일반 GET/POST·준비·중첩 인증은 대기열 없이 반환하고, 초기 CSRF 대기 중 세대를 가로지른 POST도 보내지 않는다. 이미 보낸 요청의 늦은 응답은 `stale_response`이며 `not_sent`나 자동 재실행 대상으로 표시하지 않는다.
+- 성공/CSRF_INVALID 뒤에는 이전 token 준비를 비우고 GET 완료까지 gate를 유지한다. 갱신 실패 시에도 원래 인증 결과는 유지하고 이전 token을 복구하지 않는다. 확정 세션·CSRF 유지 실패만 `unchanged`로 처리한다. 전송 실패·취소 후 전송 결과 불명·판정 예외·잘못된 판정은 `unknown`으로 token 준비를 해제한다. gate는 `finally`로 해제한다. 이후 명시적 새 준비/요청은 가능하나 실패했던 POST를 자동 반복하지 않는다.
+- `ApiRequest.signal`을 추가했다. 전송 전 취소는 미전송으로, 실제 fetch 호출 뒤 실패는 처리 여부 불명의 `transport_error`로 전달한다. 공유 CSRF GET 중 취소는 그 호출의 대기/listener만 해제하며 발급 자체는 취소하지 않는다. 다음 인증은 남아 있는 발급을 먼저 drain한다. 운영 timeout·동작 모드·새 BE 필드·의존성·네이티브 설정은 추가하지 않았다.
+
+| 4단계 테스트 응답 검증 | 기대 결과·실제 결과 |
+| --- | --- |
+| 로그인 성공 / 로그아웃 204 | 새 CSRF 적용, logout 본문·Content-Type 자동 생성 없음, 원래 응답 재독해 가능 |
+| 확정 LOGIN_FAILED / CSRF_INVALID | 전자는 기존 준비 유지, 후자는 갱신하되 실패 POST 반복 없음 |
+| 갱신 HTTP·network·invalid JSON 실패 | 인증 결과 유지·실패 전달·이전 token 미복구. 후속 명시적 요청의 재준비도 실패하면 POST 미전송 |
+| auth 503 unknown·통신 실패·판정 예외/미정의 판정 | 인증 실패로 추측하지 않음·이전 token 준비 해제·gate 해제 |
+| 중첩 인증·전환 중 요청·기존 CSRF 대기 | 자동 queue 없음·CSRF 선행 drain·이전 세대 POST 미전송 |
+| 이미 보낸 GET/POST의 늦은 응답 | `stale_response`, 실제 전송을 미전송으로 표시하지 않음 |
+| 전송 전/중 취소·공유 GET 대기 취소 | 미전송/unknown 구분, 취소 대기 즉시 해제, 다음 인증도 기존 GET drain |
+| 주소·보안 헤더·민감값 | 기존 검증 유지, token·비밀번호·PIN·예외 원문 URL/결과/콘솔 복사 없음 |
+
+- 새 인증 테스트 30개를 기능 부재로 실패시킨 뒤 구현해 통과시켰다. 이어 공유 CSRF 대기 중 취소 반환이 늦는 경우를 테스트 2개에서 재현했다(기존 1개 강화·1개 추가, 29통과·2실패). 대기만 취소하도록 고친 뒤 최종 인증 **31개**, 전체 Jest **7 suite·148 tests**가 통과했다. 테스트의 1초 상한은 취소 반환 확인용이며 운영 timeout이 아니다. 타입 검사 초기에 테스트의 readonly table/async 반환 타입 표기 2곳을 수정했으며 기대값은 낮추지 않았다.
+- 최종 `npm test` **7 suite·148 tests**, `npm run typecheck`, `npm run lint`, `npm run test:env` **14개 조합**, 온라인 `expo install --check`, 일반 App 진입점 Android/iOS JS export가 모두 통과했다. 기존 CI는 전체 Jest를 발견·실행하므로 새 테스트가 포함되며, 이번 커밋의 원격 CI는 실행하지 않는다. 네이티브 의존성·설정 변경이 없어 설치·Gradle/Xcode 재컴파일은 반복하지 않는다.
+- 독립 소스 검토에서 확정 P1/P2는 없었다. 취소 대기 보완은 추가 RED→GREEN으로 검증했다. 5단계에서는 실제 OS 쿠키·Abort 이후 종료·지연 CSRF·인증 경합을 확인해야 한다. JS 응답 폐기는 OS Set-Cookie 원복을 뜻하지 않는다. 같은 쿠키 문맥의 client 재사용, 이미 반환한 응답의 화면 반영과 실제 classifier는125/167 연결 시 확인한다. OAuth 외부 복귀126/129, 실서버·HTTPS 연동129는 이번 단계의 성공으로 보고하지 않는다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.
