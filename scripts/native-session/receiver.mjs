@@ -12,6 +12,8 @@ const result = (value) => {
   if (['response', 'not_sent', 'transport_error'].includes(value?.kind)) safe.kind = value.kind;
   if (['network', 'invalid_response', 'http', 'invalid_request', 'csrf_unavailable'].includes(value?.reason)) safe.reason = value.reason;
   if (Number.isInteger(value?.status) && value.status >= 100 && value.status <= 599) safe.status = value.status;
+  if (['network', 'invalid_response', 'http'].includes(value?.csrfReason)) safe.csrfReason = value.csrfReason;
+  if (Number.isInteger(value?.csrfStatus) && value.csrfStatus >= 100 && value.csrfStatus <= 599) safe.csrfStatus = value.csrfStatus;
   return safe;
 };
 const safeReport = (value) => ({
@@ -27,7 +29,17 @@ const safeReport = (value) => ({
   ...(value.issue ? { issue: ['probe_transport_failure', 'observation_deadline'].includes(value.issue) ? value.issue : 'invalid_report_issue' } : {}),
 });
 
-const server = createServer(async (request, response) => {
+const modes = ['basic', 'reuse', 'concurrent', 'http401', 'http403', 'http429', 'http503', 'invalid-json', 'network', 'post-loss', 'expire', 'csrf302',
+  ...[301, 302, 303, 307, 308].flatMap((status) => [`post${status}-same`, `post${status}-cross`])];
+const safeCaseReport = (value) => ({
+  pass: value.pass === true, outcome: result(value.outcome), secondOutcome: result(value.secondOutcome),
+  preparation: result(value.preparation), beforeRelease: counts(value.beforeRelease),
+  pendingBoth: value.pendingBoth === true, cookiePresentBefore: value.cookiePresentBefore === true,
+  cookiePresentAfter: value.cookiePresentAfter === true, cookieMatchesAfterRejectedResponse: value.cookieMatchesAfterRejectedResponse === true,
+  positiveSame: value.positiveSame === true, positiveCross: value.positiveCross === true,
+  fetchCalls: number(value.fetchCalls), cleanup: value.cleanup === true, issue: value.issue ? 'probe_incomplete' : undefined,
+});
+const handler = async (request, response) => {
   const url = new URL(request.url, 'http://127.0.0.1');
   const match = /^\/runs\/((?:android|ios)-[a-z0-9-]+)\/(.*)$/.exec(url.pathname);
   const reply = (status, data, headers = {}) => {
@@ -38,12 +50,43 @@ const server = createServer(async (request, response) => {
   const [, id, route] = match;
   const cookiePath = `/runs/${id}/api/v1`;
   if (route === 'start' && request.method === 'GET') {
-    runs.set(id, { token: randomUUID(), cookie: randomUUID(), csrf: 0, get: 0, post: 0, cookieMatches: false, csrfMatches: false, csrfHadCacheQuery: false });
+    const mode = url.searchParams.get('mode') ?? 'basic';
+    if (!modes.includes(mode)) return reply(400, { error: 'unsupported_probe_mode' });
+    runs.set(id, { token: randomUUID(), cookie: randomUUID(), mode, csrf: 0, get: 0, post: 0,
+      cookieMatches: false, cookieNamePresent: false, csrfMatches: false, csrfHadCacheQuery: false,
+      postPairsMatch: true, sameSink: 0, crossSink: 0, positiveSame: 0, positiveCross: 0,
+      sourceBytes: 0, lastSink: null, csrfWaiters: [], releases: [], held: mode === 'concurrent' });
     return reply(200, { ok: true }, { 'Set-Cookie': `SCRUM165_PROBE=; Path=${cookiePath}; HttpOnly; Max-Age=0` });
   }
   const run = runs.get(id);
   if (!run) return reply(409, { error: 'probe_not_started' });
-  const snapshot = () => ({ csrf: run.csrf, get: run.get, post: run.post, cookieMatches: run.cookieMatches, csrfMatches: run.csrfMatches, csrfHadCacheQuery: run.csrfHadCacheQuery });
+  const snapshot = () => ({ csrf: run.csrf, get: run.get, post: run.post, cookieMatches: run.cookieMatches, csrfMatches: run.csrfMatches, csrfHadCacheQuery: run.csrfHadCacheQuery,
+    ...(run.mode !== 'basic' ? { cookieNamePresent: run.cookieNamePresent, postPairsMatch: run.postPairsMatch,
+      sameSink: run.sameSink, crossSink: run.crossSink, positiveSame: run.positiveSame, positiveCross: run.positiveCross,
+      sourceBytes: run.sourceBytes, lastSink: run.lastSink } : {}) });
+  if (route === 'wait-csrf' && request.method === 'GET') {
+    if (run.csrf > 0) return reply(200, { ok: true });
+    run.csrfWaiters.push(() => { if (!response.destroyed) reply(200, { ok: true }); });
+    return;
+  }
+  if (route === 'release' && request.method === 'GET') {
+    run.held = false;
+    run.releases.splice(0).forEach((release) => release());
+    return reply(200, { ok: true });
+  }
+  if (route === 'sink' || route === 'api/v1/sink') {
+    const cross = request.socket.localPort === 48592;
+    if (request.headers['x-probe-control'] === 'reachability') {
+      if (cross) run.positiveCross += 1; else run.positiveSame += 1;
+      return reply(200, { ok: true });
+    }
+    let bytes = 0;
+    for await (const chunk of request) bytes += chunk.length;
+    if (cross) run.crossSink += 1; else run.sameSink += 1;
+    run.lastSink = { method: ['GET', 'POST'].includes(request.method) ? request.method : 'other',
+      hasCookie: !!request.headers.cookie, hasCsrf: !!request.headers['x-xsrf-token'], bytes };
+    return reply(200, { data: { received: true } });
+  }
   if (route === 'health' && request.method === 'GET') return reply(200, { ok: true });
   if (route === 'snapshot' && request.method === 'GET') return reply(200, snapshot());
   if (route === 'finish' && request.method === 'GET') {
@@ -52,18 +95,43 @@ const server = createServer(async (request, response) => {
   if (route === 'api/v1/auth/csrf' && request.method === 'GET') {
     run.csrf += 1;
     run.csrfHadCacheQuery = url.searchParams.has('_');
-    return reply(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: run.token }, {
+    run.csrfWaiters.splice(0).forEach((wake) => wake());
+    if (run.mode.startsWith('http')) return reply(Number(run.mode.slice(4)), { error: { code: 'SYNTHETIC_FAILURE' } });
+    if (run.mode === 'invalid-json') {
+      response.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      return response.end('{');
+    }
+    if (run.mode === 'network') return request.socket.destroy();
+    if (run.mode === 'csrf302') return reply(302, {}, {
+      Location: `/runs/${id}/api/v1/sink`,
       'Set-Cookie': `SCRUM165_PROBE=${run.cookie}; Path=${cookiePath}; HttpOnly`,
     });
+    const issue = () => {
+      if (!response.destroyed) reply(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: run.token }, {
+        'Set-Cookie': `SCRUM165_PROBE=${run.cookie}; Path=${cookiePath}; HttpOnly`,
+      });
+    };
+    if (run.held) { run.releases.push(issue); return; }
+    return issue();
   }
   if (route === 'api/v1/probe') {
-    run.cookieMatches = (request.headers.cookie ?? '').split(';').some((cookie) => cookie.trim() === `SCRUM165_PROBE=${run.cookie}`);
+    const cookies = (request.headers.cookie ?? '').split(';').map((cookie) => cookie.trim());
+    run.cookieMatches = cookies.includes(`SCRUM165_PROBE=${run.cookie}`);
+    run.cookieNamePresent = cookies.some((cookie) => cookie.startsWith('SCRUM165_PROBE='));
     if (request.method === 'GET') run.get += 1;
     else if (request.method === 'POST') {
       run.post += 1;
       run.csrfMatches = request.headers['x-xsrf-token'] === run.token;
+      run.postPairsMatch = run.postPairsMatch && run.cookieMatches && run.csrfMatches;
+      for await (const chunk of request) run.sourceBytes += chunk.length;
+      if (run.mode === 'post-loss') return request.socket.destroy();
+      if (run.mode.startsWith('post')) {
+        const target = new URL(`http://${request.headers.host}/runs/${id}/sink`);
+        if (run.mode.endsWith('cross')) { target.port = '48592'; target.pathname = `/runs/${id}/api/v1/sink`; }
+        return reply(Number(run.mode.slice(4, 7)), {}, { Location: target.href });
+      }
     } else return reply(405, { error: 'unsupported_probe_method' });
-    return reply(200, { data: { cookieMatches: run.cookieMatches, csrfMatches: run.csrfMatches } });
+    return reply(200, { data: { cookieMatches: run.cookieMatches, csrfMatches: run.csrfMatches, cookieNamePresent: run.cookieNamePresent } });
   }
   if (route === 'report' && request.method === 'POST') {
     let data = '';
@@ -74,7 +142,12 @@ const server = createServer(async (request, response) => {
     // 진단 진입점은 원문 URL·헤더·본문·token을 이 endpoint로 보내지 않는다.
     try {
       const report = JSON.parse(data);
-      if (report.platform !== id.split('-')[0] || !Array.isArray(report.observations)) throw new Error();
+      if (report.platform !== id.split('-')[0]) throw new Error();
+      if (report.stage === '3b' && run.mode !== 'basic') {
+        process.stdout.write(`${JSON.stringify({ stage: '3b', platform: report.platform, case: run.mode, report: safeCaseReport(report), receiver: snapshot() })}\n`);
+        return reply(200, { ok: true });
+      }
+      if (!Array.isArray(report.observations)) throw new Error();
       process.stdout.write(`${JSON.stringify({ platform: id.split('-')[0], report: safeReport(report), receiver: snapshot() })}\n`);
       return reply(200, { ok: true });
     } catch {
@@ -82,6 +155,9 @@ const server = createServer(async (request, response) => {
     }
   }
   return reply(404, { error: 'unknown_probe_route' });
+};
+const servers = [48591, 48592].map((port) => createServer(handler).listen(port, '127.0.0.1', () => process.stdout.write(`SCRUM-165 receiver ready on loopback:${port}\n`)));
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+  runs.forEach((run) => run.releases.splice(0).forEach((release) => release()));
+  servers.forEach((server) => server.close());
 });
-server.listen(48591, '127.0.0.1', () => process.stdout.write('SCRUM-165 stage3a receiver ready on loopback:48591\n'));
-for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => server.close(() => process.exit(0)));

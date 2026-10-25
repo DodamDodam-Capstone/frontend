@@ -76,6 +76,35 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - iOS: 동일 경로의 `platform=ios` URL을 인코딩해 `xcrun simctl openurl <시험 UDID> 'exp+dodamdodam://expo-development-client/?url=<인코딩한 URL>'`로 전달한다. Android도 같은 개발 scheme을 사용하며 `adb shell am start`의 VIEW intent로 연다.
 - 일반 앱 복귀 URL은 진단 bundle 경로가 없는 `http://127.0.0.1:8082`다. real 모드 복귀 검증에 사용한 API 주소는 로컬 시험 수신자의 별도 경로이며 프로세스 환경에만 공급했다. 수신자 집계·화면·실행 결과는 로컬 임시 증빙에 보관하며 합성 값 원문은 포함하지 않는다.
 
+### SCRUM-165 3-B — 네이티브 경계 검증·Android 중복 POST 재현 · 2026-10-25
+
+- 사용자 승인 범위는 3-B 검증까지다. 제품 `client.ts`·`csrf.ts`, 일반 앱 진입점, 개인 환경 파일, 패키지·네이티브 설정은 바꾸지 않았다. 기존 `receiver.mjs`를 확장하고 별도 개발 진입점 `scripts/native-session/cases.tsx`를 추가했다. 합성 값만 사용하며 일반 앱에서는 두 진단 진입점을 import하지 않는다.
+- 3-A와 같은 Expo `57.0.31`·React Native `0.86.3` 기본 fetch, Android Pixel Tablet/API 36, iPad Pro 11형 M5/iOS 26.5 개발 빌드를 재사용했다. 두 플랫폼은 별도로 실행했다. 기본 행렬은 각 OS **20개, 합계 40개 사례**가 통과했다. GET의 전송 계층 재시도 관측으로 추가한 POST 연결 손실 사례는 Android 실패·iOS 통과였다. 최종 **42개 고유 검사 중 41개 통과·1개 실패**이며, Android POST 중복 방지 미충족으로 다음 기능 단계 진입을 보류한다.
+
+| 사례 | 양 OS의 실제 결과 |
+| --- | --- |
+| 연속 POST | CSRF GET 1회·POST 2회, 두 POST의 세션/토큰 조합 일치 |
+| 동시 최초 POST | 서버 latch 해제 전 CSRF 1회·POST 0회·두 호출 미완료, 해제 후 CSRF 1회·POST 2회·두 조합 일치 |
+| CSRF HTTP 401·403·429·503 | 각 사례 JS fetch 1회·수신 GET 1회·POST 0회, 해당 HTTP 상태의 실패 전달 |
+| CSRF 잘못된 JSON | `invalid_response`, POST 0회 |
+| CSRF 소켓 단절 | `network`, JS fetch 호출 1회·수신 GET 3회·POST 0회 |
+| POST 본문 수신 직후 소켓 단절 추가 검사 | Android: JS POST 호출 1회인데 수신 POST 2회·28바이트로 실패. iOS: POST 1회·14바이트로 통과. 둘 다 `transport_error` |
+| 합성 쿠키 만료 | 만료 전 이름 존재, 만료 응답 후 Set-Cookie 없는 GET에서 이름 부재. CSRF 추가 발급·POST 없음 |
+| CSRF 302 + Set-Cookie | 준비 실패로 POST 0회·redirect 목적지 0회. 후속 GET에서 302가 발급한 합성 쿠키는 존재 |
+| POST 301·302·303·307·308, 각 same/cross origin | 원래 POST 1회·쿠키/CSRF 일치·합성 본문 14바이트 확인 후 `transport_error`. 두 목적지에 대한 직접 접근 대조는 성공했고 실제 redirect 수신은 0회 |
+
+- **차단 사항:** 합성 POST 본문을 전부 받은 뒤 응답 없이 소켓을 끊는 조건에서 Android의 중복 POST를 재현했다. JS 전송 함수 호출은 CSRF GET 1회 + POST 1회였지만 서버의 POST 수신은 2회였고 두 조합과 총 28바이트를 확인했다. iOS 동일 조건은 POST 1회였다. 제품 코드는 고치지 않았으며 재전송 정책 보완 승인 전 4단계로 진행하지 않는다. 기존 40개 행렬 통과나 Jest 통과로 이 실패를 덮지 않는다.
+- JS `RequestInit`에는 현재 native retry 설정이 없다. 읽기 전용 조사상 Expo client 생성 전에 RN 공개 `OkHttpClientProvider.setOkHttpClientFactory()`를 등록하는 조정 접점은 있다. `retryOnConnectionFailure(false)`나 POST body의 `isOneShot()` 처리는 후속 수정 후보이며, 다른 요청·쿠키 jar·503/421 follow-up 영향과 지속 가능한 Expo prebuild 반영을 확인해야 한다. 이번에는 적용하거나 해결됐다고 판단하지 않았다. JS 재호출 방지·사후 Abort·미확정 `clientRequestId` 추가로 해결했다고 보지 않는다.
+- 소켓 단절의 수신 GET 3회는 FE에서 fetch를 세 번 호출한 결과가 아니다. 관측한 네이티브 전송 계층의 재시도와 FE의 실패 POST 자동 재실행을 구분한다. 3회가 운영 재시도 정책이나 상한이라는 뜻이 아니며, 401·403·429·503 응답을 일괄 재시도하도록 구현하지 않았다.
+- `redirect: error`로 이동을 거절해도 최초 응답의 `Set-Cookie`가 적용될 수 있음을 두 OS에서 확인했다. 이것을 이동 차단 실패나 임의의 쿠키 롤백 요구로 해석하지 않는다. 4단계 인증 전환 설계와 5단계 경합 검증에서는 JS 준비 실패만으로 OS 쿠키가 그대로라고 가정하면 안 된다.
+- 두 수신 포트 `48591`·`48592`는 모두 `127.0.0.1`에만 바인딩한다. 포트 변경은 다른 origin 시험이며 다른 cookie host/Domain/SameSite 격리 증거가 아니다. 이번 결과는 HTTP loopback의 해당 개발 빌드와 시험한 응답에 한정하며 운영 HTTPS·다른 호스트·OAuth 쿠키 공유·SCRUM-129 실제 BE 연동 검증을 대신하지 않는다.
+- 리디렉션은 기존 대표 302/307 확인과 함께 같은 fixture로 301/303/308도 매개변수 대조했다. 상태 코드별 목적지 직접 접근과 실제 redirect 요청을 별도 집계하며, 수신자에는 쿠키·토큰·본문 원문 대신 enum·boolean·횟수·길이만 기록한다. HTTP 오류 fixture는 발급 실패 전달 시험이며 업무 `error.code`별 의미·복구 정책 검증은167에 남긴다.
+- 각 사례는 새 client와 고유 쿠키 경로로 시작한다. 사례 관찰 상한 15초, 제어·정리·보고 요청 상한 3초는 진단용 값이며 제품 timeout 계약이 아니다. 상한 후 새 API 전송은 차단하고, 미결 전송이 있으면 정리 성공으로 판정하지 않는다. 기본 40개와 추가 2개 검사 모두 상한에 도달하지 않았다.
+- 독립 진단 코드 검토에서 쿠키 관측 GET 성공 확인, 원래 POST의 조합·본문 길이 확인, 시간 초과 뒤 늦은 PASS 변경 방지를 보완한 뒤 최종 기기 시험을 다시 실행했다. 수정은 진단 코드에만 한정했다.
+- 최종 lint·typecheck, 전체 Jest **5 suite·113 tests**, 환경 주입 **14개 조합**, 온라인 Expo 호환성 검사와 일반 앱 Android/iOS export가 통과했다. 수신자의 latch·오류·목적지 사전 검사 및 보고 필드 allowlist 검사도 통과했다. 설치·네이티브 재컴파일은 변경이 없어 반복하지 않았다. 양 OS에서 진단 bundle 대신 기존 App 진입점으로 복귀한 화면을 확인하고, 이 작업이 실행한 앱·기기·Metro·두 수신 포트·adb reverse를 종료했다. 복귀 실행은 개인 환경 파일을 읽지 않는 조건이므로 환경 미설정 안내가 정상 표시됐다. real 모드 시작 무요청 회귀는 기존 Jest에서 재확인했다.
+
+재현은 3-A의 명령을 재사용하고 bundle 경로만 `scripts/native-session/cases.bundle`로 바꾼다. 기본 실행은 21개 사례이며 `post-loss`를 마지막에 포함한다. 연결 손실 사례만 확인하려면 Metro 프로세스에 진단 전용 `EXPO_PUBLIC_NATIVE_PROBE_CASE=post-loss`를 공급한다. 개인 환경 파일이나 제품 환경 설정에는 이 선택자를 추가하지 않는다. 수신자는 두 포트를 모두 제공한다. 앱 화면에는 사례별 PASS/FAIL만 표시하며, 실패 시 해당 OS의 나머지 사례는 자동 실행하지 않는다. 실제 결과 기록은 기존 작업 기록과 로컬 임시 증빙에 두고 별도 Subtask 문서를 만들지 않는다. 4단계 인증 갱신·5단계 인증 전환 경합은 아직 미착수이며 원격 CI·PR·Jira 변경은 하지 않았다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.
