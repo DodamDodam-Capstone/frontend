@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-159·160 완료, SCRUM-161 로컬 구현·검증 완료**. 160은 PR #30의 병합 커밋 `137098b`가 development에 반영됐다. 161의 로컬 결과와 PR의 원격 CI·리뷰·Jira 상태는 구분하며 실제 서버 검증은 SCRUM-129 범위다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-165 최종 확인: 2026-10-26 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-159~161은 development `6bddb664`에 반영, SCRUM-165는 6단계까지 로컬 구현·검증 완료**. 2026-10-26 확인 시 Jira165는 해야 할 일, 부모123은 진행 중이다. 원격 CI·GitHub PR 리뷰·병합·Jira 완료 및 실제 서버 검증129와 구분한다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업은 [SCRUM-161](https://dodamdodam.atlassian.net/browse/SCRUM-161)의 mock·실제 API 모드 분리와 전체 재현이다.** FE는 팀장 결정에 따라 최신 변경의 GPT 리뷰·지적 사항 처리·필수 CI·대화 해결을 확인한다. 2026-10-16 development Ruleset의 승인 수 0·마지막 push 승인 해제를 재확인했다. main 및 다른 저장소에는 확대하지 않는다. 161과 부모 AC 확인 전에는 부모121을 완료하지 않는다.
+**현재 확인 대상은 [SCRUM-165](https://dodamdodam.atlassian.net/browse/SCRUM-165)의 세션·CSRF 수명주기다.** 2026-10-26 최종 로컬 검증과 AC 대조는 아래 6단계 기록을 따른다. 아래159~161 기록은 당시 실행 이력으로 보존한다. FE의 GitHub PR 리뷰·필수 CI·대화 해결은 후속 PR에서 최신 커밋을 기준으로 확인하며, 이번 로컬 완료로 부모123이나 다른 Subtask를 완료하지 않는다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -133,7 +133,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 ### SCRUM-165 4단계 — 인증 전환·로그인/로그아웃 뒤 CSRF 갱신 · 2026-10-25
 
 - 이 단계의 시작점은 로컬 `4246f65`다. 원격 FE development는 `6bddb664069884543e7968209c579c722dddedf7`, BE development는 `752e7ebca2a758f57970f36fdafa3cac2d2851d2`로 재확인했다. Jira165는 고영준·해야 할 일로 기존 AC와 같았다. 기존 3개 작업 공간의 HEAD·브랜치·status·변경 파일 SHA-256을 보존했다. PR·push·병합·Jira 변경은 하지 않았다.
-- 적용 근거는 BE OpenAPI **3.1.0**, [`01-common.md` §3·§5.1](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/01-common.md), [`02-auth.md` §6.1·6.5·6.7](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/02-auth.md), [`DEVELOPMENT_SETUP.md` §10.2·10.4·10.5](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/DEVELOPMENT_SETUP.md#L483-L597)다. 로그인 503은 이전 권한 폐기 등 일부 부작용 뒤 발생할 수 있으므로 모든 비-2xx를 세션 유지로 처리하지 않는다. 현재 BE의 이메일 로그인·API logout은 후속 구현이며 기본 `/logout` 302를 계약상 `/api/v1/auth/logout` 204로 대신하지 않았다.
+- 적용 근거는 BE [`Integrated_OpenAPI.yaml`](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/Integrated_OpenAPI.yaml)의 **API 문서 `info.version=3.1.0`·OpenAPI 규격 `openapi=3.0.3`**, [`01-common.md` §3·§5.1](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/01-common.md), [`02-auth.md` §6.1·6.5·6.7](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/p0/api/02-auth.md), [`DEVELOPMENT_SETUP.md` §10.2·10.4·10.5](https://github.com/DodamDodam-Capstone/backend/blob/752e7ebca2a758f57970f36fdafa3cac2d2851d2/docs/DEVELOPMENT_SETUP.md#L483-L597)다. 로그인 503은 이전 권한 폐기 등 일부 부작용 뒤 발생할 수 있으므로 모든 비-2xx를 세션 유지로 처리하지 않는다. 현재 BE의 이메일 로그인·API logout은 후속 구현이며 기본 `/logout` 302를 계약상 `/api/v1/auth/logout` 204로 대신하지 않았다.
 - `client.ts`에 `authTransition(request, classify)`를 추가했다. 125의 classifier가 복제된 응답을 `changed/unchanged/csrf_invalid/unknown`으로 판정하고 공통 계층은 그 판정의 CSRF 처리만 수행한다. 원래 Response·인증 결과와 CSRF 갱신 성공/실패를 분리한다. 업무 DTO·오류 의미를 이 계층에 새로 정의하지 않았고 실제 화면·로그인 상태 연결도125에 남겼다. 일반 `request()`의 업무 응답에 이 수명주기를 자동 적용하지 않는다.
 - 공통 계층은 인증 전환 시작 즉시 gate와 세대를 갱신하고 기존 CSRF 발급을 drain한 뒤 내부 인증 POST를 보낸다. 공개 bypass는 없고, 주소·헤더·본문·CSRF 설정을 기존 공통 경로로 검증한다. 전환 중 일반 GET/POST·준비·중첩 인증은 대기열 없이 반환하고, 초기 CSRF 대기 중 세대를 가로지른 POST도 보내지 않는다. 이미 보낸 요청의 늦은 응답은 `stale_response`이며 `not_sent`나 자동 재실행 대상으로 표시하지 않는다.
 - 성공/CSRF_INVALID 뒤에는 이전 token 준비를 비우고 GET 완료까지 gate를 유지한다. 갱신 실패 시에도 원래 인증 결과는 유지하고 이전 token을 복구하지 않는다. 확정 세션·CSRF 유지 실패만 `unchanged`로 처리한다. 전송 실패·취소 후 전송 결과 불명·판정 예외·잘못된 판정은 `unknown`으로 token 준비를 해제한다. gate는 `finally`로 해제한다. 이후 명시적 새 준비/요청은 가능하나 실패했던 POST를 자동 반복하지 않는다.
@@ -187,6 +187,34 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - CSRF 단절의 전송 계층 GET 시도 수는 OS·연결 상태에 따라 달랐다. 최종 `refresh-network` 사례는 초기·실패2회·복구 단계를 합쳐 wire GET Android6회/iOS8회였고 JS 전송 호출은각6회, auth POST는각1회였다. 이 관측을 운영 GET 재시도 상한으로 정하지 않는다. HTTP401/403/429/503을 일괄 자동 재시도하거나 실패 POST를 재실행하지 않았다.
 - Node24.20.0/npm11.19.0의 최종 `npm test`는 **8 suite·160 tests**(인증33·수신자10 포함), `npm run typecheck`·`npm run lint`도 통과했다. 기존 CI의 전체 Jest가 새 수신자 테스트를 발견한다. 이번 단계는 네이티브 설정·의존성 변경이 없어 패키지 의존성 설치·prebuild·Gradle/Xcode 재컴파일을 반복하지 않았고, 원격 CI도 실행하지 않았다. 일반 App은 각 플랫폼의 실제 Metro로 로드해 양 OS의 화면 복귀를 확인했다. 6단계의 최종 AC 대조·필요 회귀/빌드 확인은 별도 승인 뒤 수행한다.
 - 재현은3-A의 수신자/Metro 명령과 `scripts/native-session/auth.bundle`을 사용한다. 선택자 없이 OS별26개, `EXPO_PUBLIC_NATIVE_PROBE_CASE=late-csrf`면 해당 사례만 실행한다. 관찰20초·제어/정리3초와 event-loop 확인용0ms timer는 진단 값이며 운영 정책이 아니다. 상한 후 새 제품 요청을 막고 정리 실패를 PASS로 바꾸지 않는다. 실제 운영 host·HTTPS·Secure/Domain/SameSite·OAuth·BE129 통합으로 확대하지 않는다.
+
+### SCRUM-165 6단계 — 최종 AC·재현·검토 · 2026-10-26
+
+- 시작 HEAD `69c64dde6a1e7c417dc0b29a563b95faca9870bc`의 제품 코드·설정·lockfile은 유지했다. ponytail 원칙으로 추가 기능·추상화·의존성 없이 최종 검증과 기존 문서만 정리했다. 독립 코드 검토와 AC 대조에서 추가 구현 결함은 발견하지 못했다. 이 로컬 검토는 GitHub PR 코드 리뷰를 대신하지 않는다.
+- Jira165·부모123과 명세를 다시 읽었다. 원격 FE development는 `6bddb664069884543e7968209c579c722dddedf7`, BE development는 위 명세 링크의 `752e7ebca2a758f57970f36fdafa3cac2d2851d2`로 유지됐다. 미확정 DTO·운영값은 추가하지 않았다.
+
+| SCRUM-165 완료 기준 | 로컬 구현·검증 근거 |
+| --- | --- |
+| 적용 명세·쿠키 포함·모든 POST CSRF | 4단계의 고정 commit 명세·절 링크, [`client.ts`](../src/api/client.ts)·[`csrf.ts`](../src/api/csrf.ts), [`client.test.ts`](../src/api/client.test.ts)의 초기/동시 발급·POST·헤더 보호 검사 |
+| 초기 및 로그인·로그아웃 후 갱신과 성공/실패 전달 | [`authTransition.test.ts`](../src/api/authTransition.test.ts)의 인증 결과/갱신 결과 분리·갱신 실패·이전 token 미복구, 5단계 양 OS 인증26개/OS의 쿠키 세대·경합·취소 검사 |
+| FE token/session의 URL·로그·영속 저장 금지, 실패 POST 자동 반복 금지 | 내부 메모리 보관·노출 방지 단위 검사, 네이티브 보고 allowlist·cookie/header 조합·수신 횟수, Android one-shot 본문 보존 및503/연결 손실의 POST 재전송 차단 검사 |
+
+다음 명령은 지정 Node `24.20.0`·npm `11.19.0`으로 이번 단계에 새로 실행했다. Expo 명령은 개인 `.env`를 읽지 않는 `EXPO_NO_DOTENV=1`로 실행했고, prebuild·export에 `CI=1`을 적용했다. iOS 빌드는 서명 없이 수행했다.
+
+| 명령·환경 | 결과 |
+| --- | --- |
+| `npm ci`, `node .github/scripts/validate_frontend_project.mjs`, 온라인 `expo install --check` | 종료0, 호환성 정상 |
+| `npm run lint`, `npm run typecheck`, `npm test` | 모두 종료0, **8 suite·160 tests** |
+| `npm run test:env` | Android/iOS **14개 조합** 통과 |
+| `expo export --platform android`, `--platform ios` | 일반 `index.ts` 양 플랫폼 번들 생성 성공 |
+| 각 플랫폼 `expo prebuild --platform … --no-install`, 문서 편집 전 `git diff --exit-code` | 양 플랫폼 성공·추적 파일 추가 변경0 |
+| JDK `17.0.20.1`·SDK36 `./gradlew :app:assembleDebug --no-daemon --console=plain` | `BUILD SUCCESSFUL`, Debug APK 생성 |
+| CocoaPods `1.16.2`의 `pod install`, Xcode `26.6`의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath <임시 경로> CODE_SIGNING_ALLOWED=NO build` | 설치 종료0, `BUILD SUCCEEDED`, Simulator `.app` 생성 |
+
+- 네이티브 런타임 **104개 PASS(52/OS)**는 제품 코드·네이티브 정책·의존성 변경이 없는 **2026-10-25의 5단계 증거**다. 이번에 재생성한 앱에서104개를 다시 실행하지 않았다. 선택한30개 생성 파일 해시 중29개와 Podfile.lock은 동일하고, 재생성된 `project.pbxproj`는 달라 전체 생성물의 바이트 동일성은 주장하지 않는다. 이번 결과는 새 prebuild·네이티브 컴파일·JS export의 재현 증거다.
+- 원격 문서와 실제 설정을 구분했다. development `6bddb664`와 이 브랜치의 팀/Jira 문서는 다른 Write 권한자 승인1건을 요구하고, main `f06a1f36` 문서는 1인 담당의 별도 승인 불요를 설명한다. 세션에 제공된 AGENTS의 10/16 FE 결정은 최신 변경의 GPT/Codex GitHub PR 리뷰를 요구한다. 실제 development Ruleset은 승인0·마지막 push 승인 해제·strict 필수3검사·대화 해결·squash이며, main은 마지막 push 승인 요구·merge다. 이번에 팀 문서나 보호 설정을 변경하지 않았다.
+- 기존3개 작업 공간의 HEAD·브랜치·status·변경 파일 SHA-256을 보존했다. 설치 감사의 **high5건은 남아 있으며** 강제 갱신하지 않았다. 실행 로그는 로컬 임시 증빙 `scrum165-stage6-20261026`에, 네이티브104개 원본은5단계 증빙에 보관한다.
+- **로컬 6단계 완료**이며 push·PR·병합·Jira 변경은 수행하지 않았다. 공통 DoD의 GitHub PR 리뷰·대화 해결·최신 필수 원격 CI·development squash 병합과 Jira 반영 확인은 별도 요청 후 진행한다. 실제 인증 호출부125, 직렬화/응답166, 오류·인증 만료167, 확대 계약/비저장168, 실서버/HTTPS129·OAuth126/129는 각 작업 경계를 유지한다.
 
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 

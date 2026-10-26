@@ -167,8 +167,9 @@ export async function requestAccountExample() {
   보내지 않았다는 뜻이고, `transport_error`는 서버 처리 여부를 단정할 수 없는 통신 실패입니다.
   `stale_response`는 전송 후 인증 전환을 가로질러 도착한 응답입니다. 이를 이전 사용자 상태에 반영하거나
   미전송으로 간주해 POST를 자동 재실행하지 않습니다.
-- **4단계 인증 전환·갱신 구현과 5단계 네이티브 경합 검증을 로컬 완료했습니다.** 125의 실제 로그인·로그아웃 연결과
-  6단계 최종 회귀·완료 기준 대조는 남아 있습니다. 최신 기기 결과는 아래 검증 기록을 따릅니다.
+- **SCRUM-165의 6단계까지 로컬 구현·검증을 완료했습니다(2026-10-26).** 최종 검사와 AC별 근거는
+  [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)의 6단계에 있습니다. 실제 로그인·로그아웃 호출부 연결은125,
+  실서버 검증은129 범위입니다. 원격 CI·GitHub PR 리뷰·병합·Jira 완료는 별도입니다.
   3-A에서 Android·iOS 개발 빌드의 초기 CSRF 발급·쿠키 재전송·최초 POST 왕복을 로컬 수신자로 확인했습니다.
   3-B에서 재현한 Android POST 중복 전송을 보완한 뒤 양 OS 각26개, **총52개 네이티브 검사가 통과**했습니다.
 - Android는 `plugins/withSingleUsePost.js`를 prebuild에 적용해 RN/Expo의 OkHttp client 생성 전에
