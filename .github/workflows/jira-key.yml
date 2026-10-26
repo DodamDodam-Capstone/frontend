@@ -16,7 +16,9 @@ jobs:
       PR_TITLE: ${{ github.event.pull_request.title }}
       HEAD_REF: ${{ github.head_ref }}
       BASE_REF: ${{ github.base_ref }}
-      ACTOR: ${{ github.actor }}
+      PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+      HEAD_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name }}
+      REPOSITORY: ${{ github.repository }}
     steps:
       - name: Jira 키와 저장소 접두어 검사
         shell: bash
@@ -25,7 +27,9 @@ jobs:
           import os
           import re
 
-          actor = os.environ["ACTOR"]
+          author = os.environ["PR_AUTHOR"]
+          head_repository = os.environ["HEAD_REPOSITORY"]
+          repository = os.environ["REPOSITORY"]
           head = os.environ["HEAD_REF"]
           title = os.environ["PR_TITLE"]
           base = os.environ["BASE_REF"]
@@ -34,7 +38,14 @@ jobs:
               print("main 대상 PR은 development 브랜치에서만 생성할 수 있습니다.")
               raise SystemExit(1)
 
-          if actor == "dependabot[bot]" or head.startswith("bot/"):
+          # 사용자 이벤트로 실행돼도 PR 작성자와 출처로 Dependabot을 판별한다.
+          is_dependabot_pr = (
+              author == "dependabot[bot]"
+              and bool(repository)
+              and head_repository == repository
+              and head.startswith("dependabot/")
+          )
+          if is_dependabot_pr or head.startswith("bot/"):
               print("자동화 PR은 Jira 키 검사를 건너뜁니다.")
               raise SystemExit(0)
 
