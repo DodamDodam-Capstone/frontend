@@ -19,6 +19,10 @@ npm --version
 npm ci
 ```
 
+현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)을 적용합니다.
+원본 버전·파일이 달라지면 설치를 중단합니다. 감사 잔여 항목과 공식 버전 전환 시 제거 조건은
+[검증 기록](docs/FE_TEST_CI_PLAN.md)을 확인합니다.
+
 Metro만 열어 볼 때는 `npm start`를 실행합니다. 아래 `npm run android`와
 `npm run ios`도 개발 서버를 시작하므로 플랫폼 검증은 하나씩 진행하고 이전 서버를
 종료한 뒤 다음 플랫폼을 실행합니다.

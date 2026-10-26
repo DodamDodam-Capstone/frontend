@@ -226,6 +226,17 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - 전체 및 `--omit=dev` 감사는 **high5 → high4, critical0**이며 Zod 항목은 사라졌다. 남은 `node-forge`, `@expo/code-signing-certificates`, `@expo/cli`, `expo`는 Forge 취약점과 그 영향이다. Forge 패치는 이 단계에서 적용하지 않았다. 원래 보안 진단6개는5개 통과·Forge 기대값1개 실패로 바뀌었으며 해당 실패 원본을 보존했다. 감사 전체 통과로 보고하지 않는다.
 - 검증 증빙은 로컬 임시 `scrum165-security-zod4-r6qpadh4`에 보관한다. 기존 작업 공간의 사용자 변경을 보존하고 PR·push·병합·Jira 변경은 수행하지 않았다. 공식 Expo CLI가 수정된 Zod를 직접 지원하면 override 제거 후 같은 호환성 검사를 실행한다. 다음 단계는 별도 진행 확인 후 Forge의 최소 패치·정상 서명/인증서 회귀 검사다.
 
+### SCRUM-165 의존성 보안 보완 — Forge 설치 후 패치 · 2026-10-26
+
+- 기준 HEAD는 `072c0f4b58c38ffa708df20a1a33d2c7e007b4f8`다. 공식 npm 최신 Forge는 `1.4.0`이고 수정 PR은 미병합이다. [고정 공개 수정안](https://github.com/digitalbazaar/forge/commit/85446800199c4995d3cd4b0ab5a8409df4455859)의 nested DigestAlgorithm 개수·빈 NULL 검사를 독립 검증한 뒤 최소 기능 변경만 로컬 적용했다. RSA 산술·패딩 정책·패키지 이름·버전은 바꾸지 않았다.
+- [patchForge.cjs](../scripts/security/patchForge.cjs)를 root `postinstall`에서 실행한다. lockfile의 모든 Forge 경로를 대상으로 잠금/설치 버전 `1.4.0`, 정규 경로·심볼릭 링크, 원본 SHA-256 또는 검증된 패치 후 SHA-256을 확인한다. 모든 사본을 먼저 검사한 뒤 변경하며 예상 밖 경로·버전·소스 또는 대상 부재는 설치 실패로 처리한다. 이미 패치된 사본은 재실행해도 유지한다. 새 의존성 없이 Node 기본 모듈만 사용하며 lockfile 변경은 root의 `hasInstallScript`뿐이다.
+- [forgeCompatibility.test.js](../scripts/security/forgeCompatibility.test.js)의 공개 fixture·실제 CLI/인증서 해석 경로와 정상 서명·SHA NULL 생략/존재·기존 MD5 조건·Expo 인증서/manifest 검증을 확인했다. 수정 전20개 중7개 실패, 개수 검사만 적용하면 NULL 내용 검사1개 실패, 개수와 빈 NULL 검사 후20개 모두 통과했다. [patchForge.test.js](../scripts/security/patchForge.test.js)는 다중 사본·재실행·알 수 없는 소스·버전·대상 부재·경로 탈출·심볼릭 링크를8개 검사로 확인한다. 실제 private key는 테스트 실행 중 메모리에서만 생성하며 저장·로그하지 않는다.
+- 격리 공간에서 일반 `npm ci`와 별도 `npm ci --omit=dev`가 각각 root postinstall을 실행하고 동일한 패치 후 파일 해시를 만들었다. 원래 보안 진단6개는 두 설치 모드 모두 **6/6 통과**, 이전 Forge 실패도 통과했다. Node `24.20.0`·npm `11.19.0`의 전체 Jest는 **11 suite·201 tests**, lint·typecheck·환경 주입14개 조합·온라인 Expo 검사와 일반 앱 Android/iOS export가 통과했다.
+- 격리 프로젝트의 Android/iOS prebuild는 성공했고 app.json·manifest·lockfile에 추가 변경이 없었다. 루프백 개발 서버 `/status` HTTP200을 확인하고 종료했다. 네이티브 SDK·플러그인·앱 설정 변경이 없어 Gradle/Xcode 재컴파일·기기 시험은 반복하지 않았으며, 실서버129·OAuth·앱 원격 악용 검증으로 확대하지 않는다.
+- 전체 및 `--omit=dev` 재감사는 **high4·critical0, 종료1**이다. `node-forge`와 상위 `@expo/code-signing-certificates`·`@expo/cli`·`expo` 항목은 공식 버전 `1.4.0`에 대한 감사 판정으로 남는다. 로컬 파일 보완을 감사 DB가 인식하지 않으므로 보안 감사 통과로 표시하거나 제외 규칙·가짜 버전으로 숨기지 않았다. 회귀 증거는 알려진 비정상 DigestInfo 수용 차단이며 개인키 없는 위조나 모든 암호 취약점 해소를 입증하지 않는다.
+- 현재 지원하는 설치 경계는 이 lockfile의 `npm ci` 트리다. 실제 두 소비자의 해석 경로가 잠금 대상에 속하는지도 검사한다. 공식 수정 릴리스가 나오면 API·보안 회귀와 감사 결과를 확인하며 해당 버전을 lockfile에 반영하고 임시 postinstall·패치 설치기를 제거한다. 알 수 없는 버전/소스에서 설치를 우회하지 않는다.
+- 원본 실패·개수만 보완한 비교 실패·최종 성공·설치/감사 로그는 로컬 임시 `scrum165-security-forge-68kfxcim`에 보존한다. 기존 작업 공간의 사용자 변경을 보존했고 push·PR·병합·Jira 변경은 하지 않았다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.

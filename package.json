@@ -16,7 +16,8 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit",
     "test": "jest --ci --runInBand",
-    "test:env": "node .github/scripts/check_public_env.mjs"
+    "test:env": "node .github/scripts/check_public_env.mjs",
+    "postinstall": "node scripts/security/patchForge.cjs"
   },
   "jest": {
     "preset": "jest-expo"
