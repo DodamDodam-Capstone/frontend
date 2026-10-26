@@ -19,6 +19,10 @@ npm --version
 npm ci
 ```
 
+현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)을 적용합니다.
+원본 버전·파일이 달라지면 설치를 중단합니다. 감사 잔여 항목과 공식 버전 전환 시 제거 조건은
+[검증 기록](docs/FE_TEST_CI_PLAN.md)을 확인합니다.
+
 Metro만 열어 볼 때는 `npm start`를 실행합니다. 아래 `npm run android`와
 `npm run ios`도 개발 서버를 시작하므로 플랫폼 검증은 하나씩 진행하고 이전 서버를
 종료한 뒤 다음 플랫폼을 실행합니다.
@@ -46,6 +50,7 @@ Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네
 | 변수 | 용도·검증 시점 |
 | --- | --- |
 | `EXPO_PUBLIC_APP_ENV` | `development` / `test` / `production` 중 명시적으로 선택. 누락·오타에 기본값 없음 |
+| `EXPO_PUBLIC_API_MODE` | `mock` / `real` 중 명시적으로 선택. `production`에서 `mock`은 거절 |
 | `EXPO_PUBLIC_API_BASE_URL` | `resolveApiConfig()` 사용 시 필수. 절대 URL, test/production은 HTTPS만 허용 |
 | `EXPO_PUBLIC_OAUTH_REDIRECT_URI` | `resolveOAuthConfig()` 사용 시 필수. API 주소와 독립적으로 검증 |
 
@@ -105,16 +110,139 @@ if (config.ok) {
 실행 가능한 최소 수신자 예제는
 [`prepareDestinationExample`](src/examples/configuredDestination.ts)입니다. 설정이 유효하면
 선택한 공통 경로와 API 설정을 반환하고, 누락되면 오류를 반환합니다. 예제는 화면 이동·인증
-판단·네트워크 요청을 하지 않으며 접근 제어에 쓰지 않습니다. App의 첫 화면은 그대로입니다.
+판단·네트워크 요청을 하지 않으며 접근 제어에 쓰지 않습니다.
+
+## mock·실제 API 모드 — SCRUM-161
+
+개발 중 `.env.local`에서 앱 환경·API 모드·공개 API 주소를 명시적으로 선택합니다.
+mock 검증에는 `EXPO_PUBLIC_APP_ENV=test`, `EXPO_PUBLIC_API_MODE=mock`,
+`EXPO_PUBLIC_API_BASE_URL=https://api.example.invalid/api/v1` 같은 **가상 주소**를
+사용할 수 있습니다. `production`과 `mock`의 조합은 설정 오류입니다.
+
+[`createExampleTransport`](src/api/exampleTransport.ts)는 현재 테스트 수신자인
+`GET /auth/me`만 지원합니다. mock 모드에서는 로컬 handler가 명세 기반 200 계정 상태를
+반환하고, 테스트에서 `signedOut` 시나리오를 주면 401 `AUTHENTICATION_REQUIRED`를
+반환합니다. 등록하지 않은 요청은 네트워크로 넘기지 않고 거절합니다. real 모드는
+mock handler를 등록·실행하지 않으며, 수신자가 요청할 때에만 `fetch`를 호출합니다.
+후속 API를 추가할 때 해당 요청의 mock handler와 실제 전송 경계를 이 위치에서 확장합니다.
+테스트의 가상 응답은 실제 서버·세션·쿠키 동작을 검증한 결과가 아닙니다.
+
+개발 빌드의 첫 화면은 선택한 모드를 간단히 표시합니다. mock에서는 위 가상 응답의
+HTTP 상태를 보여주고, real에서는 시작 시 서버 요청 없이 모드 선택만 표시합니다.
+실제 서버 왕복·인증·쿠키·CSRF 확인은 SCRUM-129와 해당 기능 작업에서 수행합니다.
+`.env.local` 변경 후 앱을 다시 로드하고, 셸 환경을 변경했다면 Metro를 재시작하세요.
 
 ### 검증과 후속 연결
 
 - `npm test`: 설정 정상·오류·경계와 공통 정의를 참조하는 예제 사용처를 검사합니다.
 - `npm run test:env`: 설치된 Expo Babel preset으로 **실제 설정 모듈**을 Android/iOS별
-  변환한 뒤 런타임 환경값이 없는 상태에서 실행합니다. 미설정·개발·테스트·운영 8개 조합을
+  변환한 뒤 런타임 환경값이 없는 상태에서 실행합니다. 미설정과 환경·API 모드 14개 조합을
   확인합니다. 이는 변환 경계 검사이며 전체 Metro export·기기 실행은 별도로 확인합니다.
 - 기존 CI의 JS job에서 두 명령과 양 플랫폼 export를 실행합니다. 네이티브 빌드·집계 게이트를 유지합니다.
-- SCRUM-161은 mock/실제 모드 분리와 전체 재현, 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다.
+- 123/124/125는 실제 요청·화면·인증 사용처를 연결합니다. 서버 왕복 검증은 129에서 수행합니다.
+
+## 세션·CSRF 공통 요청 — SCRUM-165
+
+`src/api/client.ts`의 `createApiClient()`는 기존 환경·API 모드 검증을 재사용합니다.
+생성만으로 요청하지 않으며, 쿠키 문맥마다 같은 client를 재사용합니다. `prepareCsrf()`는
+`GET /auth/csrf`의 wrapper 없는 응답을 검증해 token을 메모리에 보관하고 준비 결과만 반환합니다.
+POST는 초기 발급이 필요하면 기다리고, 준비 실패 시 전송하지 않습니다. 준비된 token은 재사용하며
+JS 계층에서 실패한 POST를 재호출하지 않습니다. Android 네이티브 재전송 차단은 아래 정책을 따릅니다.
+mock은 `/auth/csrf`·`/auth/me` 예제만 제공하고,
+미등록 요청을 실제 네트워크로 넘기지 않습니다.
+
+```ts
+import { createApiClient } from './src/api/client';
+
+const client = createApiClient(); // 설정 검증만 수행하며 네트워크 요청은 하지 않습니다.
+export async function requestAccountExample() {
+  if (!client.ok) return client;
+  return client.value.request({ method: 'GET', path: '/auth/me' });
+}
+```
+
+- `request()`의 경로는 API base 뒤의 `/auth/me` 같은 ASCII segment이며 query를 붙일 수 있습니다.
+  절대 URL·경로 이탈·encoded separator·fragment는 거절합니다. CSRF endpoint는 `prepareCsrf()`로만 호출합니다.
+- `GET`·`POST`만 지원하며, caller의 `Cookie`·`Authorization`·`X-XSRF-TOKEN` 헤더는 거절합니다.
+  `credentials: include`, `cache: no-store`, `redirect: error`를 적용하고 쿠키·token을 별도 저장하거나 기록하지 않습니다.
+- 본문은 전달받은 값 그대로 보내고 빈 객체나 Content-Type을 자동 생성하지 않습니다.
+  일반 응답 해석·직렬화는166, HTTP/code별 복구·인증 만료 판단은167에서 확장합니다.
+- 결과의 `kind=response`는 HTTP 응답 수신을 뜻하며 4xx·5xx도 포함합니다. `not_sent`는 요청을
+  보내지 않았다는 뜻이고, `transport_error`는 서버 처리 여부를 단정할 수 없는 통신 실패입니다.
+  `stale_response`는 전송 후 인증 전환을 가로질러 도착한 응답입니다. 이를 이전 사용자 상태에 반영하거나
+  미전송으로 간주해 POST를 자동 재실행하지 않습니다.
+- **SCRUM-165의 6단계까지 로컬 구현·검증을 완료했습니다(2026-10-26).** 최종 검사와 AC별 근거는
+  [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)의 6단계에 있습니다. 실제 로그인·로그아웃 호출부 연결은125,
+  실서버 검증은129 범위입니다. 원격 CI·GitHub PR 리뷰·병합·Jira 완료는 별도입니다.
+  3-A에서 Android·iOS 개발 빌드의 초기 CSRF 발급·쿠키 재전송·최초 POST 왕복을 로컬 수신자로 확인했습니다.
+  3-B에서 재현한 Android POST 중복 전송을 보완한 뒤 양 OS 각26개, **총52개 네이티브 검사가 통과**했습니다.
+- Android는 `plugins/withSingleUsePost.js`를 prebuild에 적용해 RN/Expo의 OkHttp client 생성 전에
+  factory를 등록하고, 요청 전송 시 POST 본문을 `isOneShot=true`로 감쌉니다. 연결 손실과 `503 + Retry-After: 0`에서 본문 재전송을 막으며,
+  본문·Content-Type·길이와 기본 쿠키 bridge를 보존합니다. GET의 재시도 설정은 바꾸지 않습니다.
+  이 정책은 해당 factory를 사용하는 Android RN/Expo POST 전체에 적용됩니다. 설정 변경 후에는
+  `npx --no-install expo prebuild --platform android --no-install`과 Android 앱 재빌드가 필요합니다.
+  일반 JS reload나 기존 development build에는 네이티브 변경이 적용되지 않습니다.
+- 이동 거절 후에도 최초 응답 쿠키는 반영될 수 있고, 통신 실패 후 서버 처리 여부는 알 수 없습니다.
+  로컬 결과·한 번의 전송 관측을 운영 HTTPS·OAuth·실제 서버 연동129의 성공이나 exactly-once 보장으로 확대하지 않습니다.
+  재현 조건·이전 실패와 수정 후 결과는 [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)에 남깁니다.
+
+### 로그인·로그아웃의 CSRF 갱신
+
+125 호출부는 인증 상태를 바꾸는 POST에 `authTransition(request, classify)`를 사용합니다.
+일반 `request()`는 업무 응답을 해석해 인증 수명주기를 자동 실행하지 않습니다. 같은 OS 쿠키 문맥에서는
+하나의 client를 재사용해야 gate와 token을 공유합니다. 여러 client 간 동기화는 제공하지 않습니다.
+
+`classify`는 복제된 Response의 HTTP/code·확정 DTO를 읽고 아래 판정만 반환합니다. 원래 Response는
+`operation`에 남아 있어 다시 읽을 수 있습니다. 구체적인 로그인 성공·실패/503 분류와 화면 상태는125가 소유하며,
+비-2xx라는 이유만으로 `unchanged`를 반환하지 않습니다. 판정 중 추가 요청은 gate에서 거절됩니다.
+
+| 호출부 판정 | 공통 계층 동작 |
+| --- | --- |
+| `changed` | 이전 token 준비를 해제하고 새 CSRF GET 완료까지 기다림 |
+| `unchanged` | 세션·CSRF가 유지된 확정 실패에만 사용. 성공 정리·추가 발급 없음 |
+| `csrf_invalid` | 이전 token 해제·GET 재획득. 원래 실패 POST는 반복하지 않음 |
+| `unknown` | 이전 token 준비 해제. 인증 성공/실패를 추측하거나 자동 발급·POST 재전송하지 않음 |
+
+반환값의 `operation`과 `refresh`를 별도로 확인합니다. 인증 성공 후 `refresh.ok=false`여도
+인증 실패로 바꾸지 않으며 이전 token을 복구하지 않습니다. `refresh`가 없으면 갱신을 시도하지 않은 것입니다.
+초기 준비 실패·전송 전 취소·중첩 전환은 `outcome=not_attempted`와 미전송 사유를 반환합니다.
+전송 실패·판정 예외·정의되지 않은 판정은 `unknown`으로 정리하고 gate를 해제합니다.
+
+```ts
+// 204 성공만 판정하는 예제. 실제 오류 code별 분류는125에서 연결합니다.
+async function logoutExample() {
+  if (!client.ok) return client;
+  return client.value.authTransition(
+    { method: 'POST', path: '/auth/logout' },
+    (response) => response.status === 204 ? 'changed' : 'unknown',
+  );
+}
+```
+
+전환을 시작하면 진행 중인 CSRF 발급과 **이미 시작된 일반 요청의 응답 헤더 수신**을 먼저 기다린 뒤 인증 POST를 전송합니다.
+일반 POST의 403도 CSRF 쿠키를 발급할 수 있어, JS 응답 폐기만으로 늦은 쿠키 덮어쓰기를 막을 수 없기 때문입니다.
+응답이 늦으면 인증 시작도 지연됩니다. `signal`로 인증 대기를 취소할 수 있으며 원래 요청은 강제로 취소하지 않습니다.
+다음 인증도 남은 요청을 먼저 기다립니다. 전환 중 GET·POST·`prepareCsrf()` 및 겹친 인증 전환은 자동 대기열에 넣지 않습니다.
+전환 이전 CSRF를 기다리던 POST도 `not_sent/auth_transition`으로 반환합니다.
+
+`ApiRequest.signal`로 취소할 수 있습니다. POST 전 취소는 `not_sent/cancelled`, 전송 호출 뒤 실패는
+`transport_error`로 구분합니다. 공유 CSRF GET을 기다리던 호출을 취소하면 그 대기와 listener만 해제하며,
+GET 자체는 유지합니다. 다음 인증 전환도 남은 응답을 먼저 기다립니다. 네이티브에서 헤더 수신 전 취소와
+헤더 수신 후 본문 읽기 취소를 구분해 검사합니다. 이미 적용된 쿠키를 JS 세대 검사로 원복한다고 가정하지 않습니다. 이미 반환한 Response의
+후속 화면 반영은125/167에서 현재 인증 문맥과 함께 확인해야 합니다. OAuth 외부 복귀는126/129 범위입니다.
+
+### 네이티브 인증 검증 재현
+
+개발 전용 `scripts/native-session/auth.tsx`는 합성 loopback 수신자와 실제 Expo global fetch로 동작합니다.
+일반 앱에서 import하지 않으며 `index.ts`·`App.tsx`·개인 환경 파일을 바꾸지 않습니다. 로그인 body의
+`synthetic-auth`와 응답의 `synthetic` 표시는 시험 수신자 전용이며 실제 API DTO가 아닙니다.
+
+기존 수신자와 Metro를 실행한 뒤 개발 클라이언트의 `url`에
+`http://127.0.0.1:8082/scripts/native-session/auth.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`를
+URL 인코딩해 전달합니다. iOS는 `platform=ios`를 사용합니다. 수신자·개발 scheme·adb reverse 실행법은
+[테스트 기록](docs/FE_TEST_CI_PLAN.md)의 3-A 절을 따릅니다. 알려진 단일 사례는 Metro 프로세스에만
+`EXPO_PUBLIC_NATIVE_PROBE_CASE=late-csrf`처럼 공급하고 개인 `.env`에는 넣지 않습니다.
+진단 후에는 bundle 경로 없는 일반 Metro URL로 복귀합니다. 수정 후 Android/iOS 각52개(인증26·기존회귀26), **총104개가 통과**했습니다. 실제 BE·운영 HTTPS·OAuth 검증과 구분한 상세 결과는 5단계 기록에 남깁니다.
 
 ## 로컬 검사와 플랫폼별 빌드
 

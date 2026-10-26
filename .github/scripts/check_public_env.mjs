@@ -12,13 +12,19 @@ const root = path.resolve(import.meta.dirname, '../..');
 const filename = path.join(root, 'src/config/env.ts');
 const sourceRequire = createRequire(filename);
 const preset = require.resolve('babel-preset-expo', { paths: [require.resolve('expo/package.json')] });
-const keys = ['EXPO_PUBLIC_APP_ENV', 'EXPO_PUBLIC_API_BASE_URL', 'EXPO_PUBLIC_OAUTH_REDIRECT_URI'];
+const keys = ['EXPO_PUBLIC_APP_ENV', 'EXPO_PUBLIC_API_MODE', 'EXPO_PUBLIC_API_BASE_URL', 'EXPO_PUBLIC_OAUTH_REDIRECT_URI'];
 const saved = keys.map((key) => process.env[key]);
+const scenarios = [
+  [undefined, undefined],
+  ['development', 'mock'], ['development', 'real'],
+  ['test', 'mock'], ['test', 'real'],
+  ['production', 'real'], ['production', 'mock'],
+];
 
 try {
   for (const platform of ['android', 'ios']) {
-    for (const appEnv of [undefined, 'development', 'test', 'production']) {
-      const values = appEnv ? [appEnv, `https://${appEnv}.example.invalid/api/v1`, 'dev.dodamdodamcapstone.dodamdodam://oauth/callback'] : [];
+    for (const [appEnv, apiMode] of scenarios) {
+      const values = appEnv ? [appEnv, apiMode, `https://${appEnv}.example.invalid/api/v1`, 'dev.dodamdodamcapstone.dodamdodam://oauth/callback'] : [];
       keys.forEach((key, i) => {
         if (values[i] === undefined) delete process.env[key];
         else process.env[key] = values[i];
@@ -33,10 +39,11 @@ try {
       const module = { exports: {} };
       vm.runInNewContext(code, { module, exports: module.exports, require: sourceRequire, URL, process: { env: {} } }, { timeout: 5000 });
       const actual = JSON.parse(JSON.stringify(module.exports.readEnvironment()));
-      assert.deepEqual(actual, appEnv ? { appEnv, apiBaseUrl: values[1], oauthRedirectUri: values[2] } : {});
+      assert.deepEqual(actual, appEnv ? { appEnv, apiMode, apiBaseUrl: values[2], oauthRedirectUri: values[3] } : {});
       assert.equal(module.exports.resolveApiConfig().ok, !!appEnv);
       assert.equal(module.exports.resolveOAuthConfig().ok, !!appEnv);
-      console.log(`${platform}: ${appEnv ?? 'unset'} public config injection passed`);
+      assert.equal(module.exports.resolveApiMode().ok, !!appEnv && !(appEnv === 'production' && apiMode === 'mock'));
+      console.log(`${platform}: ${appEnv ?? 'unset'}/${apiMode ?? 'unset'} public config injection passed`);
     }
   }
 } finally {
