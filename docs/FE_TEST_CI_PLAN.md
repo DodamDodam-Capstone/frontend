@@ -216,6 +216,16 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 - 기존3개 작업 공간의 HEAD·브랜치·status·변경 파일 SHA-256을 보존했다. 설치 감사의 **high5건은 남아 있으며** 강제 갱신하지 않았다. 실행 로그는 로컬 임시 증빙 `scrum165-stage6-20261026`에, 네이티브104개 원본은5단계 증빙에 보관한다.
 - **로컬 6단계 완료**이며 push·PR·병합·Jira 변경은 수행하지 않았다. 공통 DoD의 GitHub PR 리뷰·대화 해결·최신 필수 원격 CI·development squash 병합과 Jira 반영 확인은 별도 요청 후 진행한다. 실제 인증 호출부125, 직렬화/응답166, 오류·인증 만료167, 확대 계약/비저장168, 실서버/HTTPS129·OAuth126/129는 각 작업 경계를 유지한다.
 
+### SCRUM-165 의존성 보안 보완 — Zod 4.6.7 · 2026-10-26
+
+- 기준 HEAD는 `bd55d1d85495f4fe00cfba20a453c392bd75d54d`다. `package.json`의 전역 override로 Zod를 `3.25.76 → 4.6.7`에 고정했다. Expo CLI뿐 아니라 ESLint 경로에도 이전 사본이 남지 않도록 설치 트리를 확인했다. lockfile 변경은 `node_modules/zod`의 version·resolved·integrity 세 필드뿐이며 Expo `57.0.31`·CLI `57.0.32`·RN `0.86.3`은 유지했다.
+- [보안 권고](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5)의 수정 버전 범위와 [수정 PR](https://github.com/colinhacks/zod/pull/6652)을 대조했다. [zodCompatibility.test.js](../scripts/security/zodCompatibility.test.js)는 실제 CLI가 해석하는 Zod, 플러그인 descriptor·명령 schema·출력/오류/일반 텍스트 처리와 실제 ESLint의 Hook·Compiler 진단을 검사한다. 기존 Zod에서 조기 거부 검사1개 실패·나머지12개 통과 후 교체했고, 새 버전에서는13개 모두 통과했다.
+- 상한2·입력1000개의 합성 배열은 기존1000개 처리/1001개 오류에서 **원소 처리0개/오류1개**로 바뀌었다. 이 숫자는 시험 fixture이며 운영 상한이 아니다. 현재 CLI의 상한 없는 출력 배열은 그대로이며, 이 결과를 모든 큰 입력의 메모리 제한이나 앱의 원격 악용 차단으로 확대하지 않는다. 미설치인 선택적 MCP의 실제 등록·전송 경계도 검증하지 않았다.
+- Node `24.20.0`·npm `11.19.0`에서 `npm ci`, 온라인 `expo install --check`, lint·typecheck, 전체 Jest **9 suite·173 tests**, 환경 주입 **14개 조합**, 일반 진입점 Android/iOS export를 확인했다. 격리 프로젝트의 Android/iOS `prebuild --no-install`도 성공했고 app.json·manifest·lockfile에 추가 변경이 없었다. 네이티브 의존성·플러그인·앱 설정 변경이 없어 Gradle/Xcode 재컴파일은 반복하지 않았다.
+- 격리 프로젝트의 `expo start --dev-client --localhost`를 임시 포트에서 실행해 `/status` HTTP200·Metro 준비 상태를 확인하고 해당 서버를 종료했다. 개인 환경 파일은 읽지 않았고, 일반 앱·기기·실제 API 서버 검증으로 취급하지 않는다.
+- 전체 및 `--omit=dev` 감사는 **high5 → high4, critical0**이며 Zod 항목은 사라졌다. 남은 `node-forge`, `@expo/code-signing-certificates`, `@expo/cli`, `expo`는 Forge 취약점과 그 영향이다. Forge 패치는 이 단계에서 적용하지 않았다. 원래 보안 진단6개는5개 통과·Forge 기대값1개 실패로 바뀌었으며 해당 실패 원본을 보존했다. 감사 전체 통과로 보고하지 않는다.
+- 검증 증빙은 로컬 임시 `scrum165-security-zod4-r6qpadh4`에 보관한다. 기존 작업 공간의 사용자 변경을 보존하고 PR·push·병합·Jira 변경은 수행하지 않았다. 공식 Expo CLI가 수정된 Zod를 직접 지원하면 override 제거 후 같은 호환성 검사를 실행한다. 다음 단계는 별도 진행 확인 후 Forge의 최소 패치·정상 서명/인증서 회귀 검사다.
+
 ### SCRUM-161 로컬 구현·검증 — 2026-10-17
 
 - 명시적 `EXPO_PUBLIC_API_MODE=mock|real`을 추가하고 `production/mock`을 거절한다. `GET /auth/me`의 200·401 가상 응답만 제공한다. real 모드에서는 mock handler를 등록·실행하지 않고, 미지원 요청과 전송 실패를 성공 응답으로 바꾸지 않는다. 개발 화면은 real 모드에서 시작 시 요청을 보내지 않는다.
