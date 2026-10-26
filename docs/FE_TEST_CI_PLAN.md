@@ -363,6 +363,13 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 | [176](https://dodamdodam.atlassian.net/browse/SCRUM-176) 권한·녹음·재생 | 기기에서 마이크 허용/거부, 녹음, 재생을 확인하고 아동 정보가 없는 시험 음성의 MIME/codec/sample rate/channels/duration/bytes를 기록한다. Jest의 네이티브 mock은 이 결과를 대신하지 않는다. |
 | [177](https://dodamdodam.atlassian.net/browse/SCRUM-177) 호환성 정리 | 환경별 성공/실패/차단/미검증 표와 권장 방식을 남긴다. D13/D14의 미확정 제한값은 임의 숫자로 채우지 않고 확인 담당·다음 확인 시점을 남긴다. |
 
+## SCRUM-179: Dependabot Jira 검사 회귀 — 2026-10-26
+
+- `jira-issue-key`는 실행자 대신 PR 작성자 `dependabot[bot]`, 현재 저장소와 동일한 head 저장소, `dependabot/` 브랜치를 함께 확인한다. 사람이 PR을 갱신해도 기존 Dependabot 예외가 유지된다.
+- `.github/scripts/test_jira_key.py`는 실제 `jira-key.yml`의 env 매핑과 검사 스크립트를 실행한다. 사람/봇 이벤트, 위장 브랜치·다른 저장소·누락 메타데이터, 일반 Jira 키·파트 표기, main 승격 및 기존 `bot/` 정책을 검증한다.
+- 로컬 재현: `python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v`. 기존 JS CI에서 같은 명령을 실행하며 실패는 `frontend-quality` 실패로 연결된다. 필수 검사 이름·읽기 권한·이벤트 종류는 유지한다.
+- 수정 PR을 development에 반영한 뒤 PR #28·#32를 최신화해 새 `synchronize` 실행의 필수 검사를 확인한다. 과거 실패 run 재실행이나 로컬 통과를 새 원격 CI 통과로 간주하지 않는다.
+
 ## CI를 어떻게 바꿀 것인가
 
 이 절은 **향후 구현 기준**이다. 현재 workflow가 이미 아래처럼 동작한다는 뜻이 아니다.

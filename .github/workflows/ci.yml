@@ -39,6 +39,9 @@ jobs:
       - name: Validate project manifest
         run: node .github/scripts/validate_frontend_project.mjs
 
+      - name: Test Jira key workflow
+        run: python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v
+
       - name: Pin npm version
         run: |
           expected="$(node -p "require('./package.json').engines.npm")"
