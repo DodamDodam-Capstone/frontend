@@ -186,6 +186,32 @@ export async function requestAccountExample() {
   로컬 결과·한 번의 전송 관측을 운영 HTTPS·OAuth·실제 서버 연동129의 성공이나 exactly-once 보장으로 확대하지 않습니다.
   재현 조건·이전 실패와 수정 후 결과는 [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)에 남깁니다.
 
+### 요청 본문 준비 — SCRUM-166 2단계
+
+`src/api/requestBody.ts`의 `prepareRequestBody(input, headers?)`는 전송 전에 본문과
+헤더를 준비합니다. 성공은 `{ ok: true, value: { headers, body? } }`, 실패는
+`{ ok: false, reason }`입니다. 실패하면 client를 호출하지 않습니다. 기존 raw
+`client.request()`는 그대로이며, 준비 함수 자체는 CSRF 발급이나 네트워크 요청을 하지 않습니다.
+
+| 입력 | 준비 결과 |
+| --- | --- |
+| `{ kind: 'json', value: dto }` | JSON 문자열과 기본 `application/json`. 기존 JSON/UTF-8 헤더는 유지합니다. |
+| `{ kind: 'none' }` | body와 기본 Content-Type을 생략합니다. 명시한 JSON/UTF-8 헤더는 허용합니다. |
+| `{ kind: 'formData', value: formData }` | 같은 FormData를 전달합니다. Content-Type은 런타임이 boundary와 함께 정하므로 수동 지정은 거절합니다. |
+
+JSON Content-Type은 `application/json`과 선택적인 UTF-8 charset 형태를 지원합니다.
+JSON 입력의 undefined·배열 빈 슬롯·비유한 숫자·BigInt·순환·함수·Symbol·사용자 클래스와
+getter/custom toJSON 등은 `invalid_body`로 거절합니다. 선택 필드는 DTO 생성 시 생략합니다.
+이 함수는 endpoint별 DTO validator가 아닙니다. 허용 필드·필수값·null은 호출부에서 검증하며,
+현재 요청 계약에는 null 허용 필드가 없습니다. 일반 JSON null을 변환하거나 자동 생성하지 않습니다.
+JSON은 준비 시점의 값으로 고정하지만 FormData는 같은 객체이므로 전송 완료 전 변경하지 않습니다.
+
+준비 결과에는 전송할 본문이 있으므로 로그·URL·영구 저장소로 복사하지 않습니다.
+실패 결과에는 입력·원문 예외가 없으며 `invalid_body`, `invalid_headers`,
+`invalid_content_type`만 반환합니다. Cookie/Authorization/CSRF 헤더 보호는 기존 client가
+계속 담당합니다. 정상 준비 결과도 전송 성공을 뜻하지 않으며 기존 `ApiResult`를 확인해야 합니다.
+응답 parser와 code별 복구 정책은 각각166의 다음 단계와167에 남아 있습니다.
+
 ### 로그인·로그아웃의 CSRF 갱신
 
 125 호출부는 인증 상태를 바꾸는 POST에 `authTransition(request, classify)`를 사용합니다.
@@ -209,11 +235,15 @@ export async function requestAccountExample() {
 전송 실패·판정 예외·정의되지 않은 판정은 `unknown`으로 정리하고 gate를 해제합니다.
 
 ```ts
+import { prepareRequestBody } from './src/api/requestBody';
+
 // 204 성공만 판정하는 예제. 실제 오류 code별 분류는125에서 연결합니다.
 async function logoutExample() {
   if (!client.ok) return client;
+  const prepared = prepareRequestBody({ kind: 'none' });
+  if (!prepared.ok) return prepared;
   return client.value.authTransition(
-    { method: 'POST', path: '/auth/logout' },
+    { method: 'POST', path: '/auth/logout', ...prepared.value },
     (response) => response.status === 204 ? 'changed' : 'unknown',
   );
 }

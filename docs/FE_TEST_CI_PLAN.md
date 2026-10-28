@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 1단계 작업 공간·계약 기준을 정리했다.** 2026-10-28 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166 기능 구현·원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
+상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 2단계 요청 본문 준비까지 로컬 구현·검증했다.** 2026-10-28 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의 응답 처리 등 남은 단계·원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
 
 ## 목표와 현재 상태
 
@@ -30,7 +30,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
-이 절은 SCRUM-166 구현 전에 합의한 계약과 검증 계획이다. 아래 2~5단계의 기능·테스트는 아직 구현하지 않았다. 기존 SCRUM-165 기록은 당시 실행 이력으로 보존한다.
+이 절은 SCRUM-166 구현 전에 합의한 계약과 검증 계획이다. 1단계 당시 2~5단계의 기능·테스트는 미구현이었으며, 이후 실행 결과는 아래 단계별 기록을 따른다. 기존 SCRUM-165 기록은 당시 실행 이력으로 보존한다.
 
 #### 작업 기준과 근거
 
@@ -93,6 +93,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 새 작업 공간에서 Node `24.20.0`·npm `11.19.0`로 `npm ci --no-audit --no-fund` 성공, 기존 Forge postinstall 검증 성공. `fsevents`·`unrs-resolver` install-script 미승인 경고는 유지하고 승인 설정/의존성을 변경하지 않았다. 감사 명령은 실행하지 않았으므로 이번 설치를 새 취약점 감사 결과로 보고하지 않는다.
 - `CI=true npm test`: **11개 suite·201개 테스트 통과**. 이는 기존 코드 기준선이며 아직 작성하지 않은 166 테스트의 통과가 아니다. 이번 1단계에는 기능·CI·의존성 변경이 없으므로 네이티브 빌드/런타임·실서버 검증을 재실행하지 않았다.
 - 완료 지점: 전용 작업 공간, 계약 적용 범위와 결과 경계, 단계별 테스트 기준. 다음 한 가지: 승인 후 2단계 요청 준비의 실패 테스트부터 작성. PR 생성·push·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 2단계 — 요청 본문 준비·client 연결 · 2026-10-28
+
+- 착수 시 FE development `3d402b58`·BE development `f9a86e91` 및 Jira166 진행 중을 재확인했다.1단계의 고정 계약을 유지하며 전용 worktree에서 진행했다.
+- `src/api/requestBody.ts`에 순수 준비 함수 `prepareRequestBody()`와 `RequestBody`/`RequestBodyResult`를 추가했다. JSON·none·FormData를 구분하고 성공 시 body/headers만 전달한다. 실패는 `invalid_body`/`invalid_headers`/`invalid_content_type`이며 client를 호출하지 않는 사용법을 README에 기록했다. raw client와 CSRF·인증 전환 구현은 변경하지 않았다.
+- JSON은 plain 값의 복사본에서 직렬화하여 준비 후 원본 DTO 변경의 영향을 차단한다. undefined·hole·비유한 숫자·BigInt·순환·getter/custom toJSON·숨은/추가 속성 등의 생략·암묵 변환을 거절한다. endpoint별 필드·null 허용은 호출부 책임이고, serializer가 일반 JSON null을 허용한다는 이유로 현재 DTO의 null을 허용한 것은 아니다.
+- none은 body/기본 Content-Type을 만들지 않으며 명시된 JSON/UTF-8 헤더는 유지한다. FormData는 같은 객체를 보내고 수동 Content-Type을 거절한다. FormData의 전송 중 변경 금지는 호출부 책임으로 명시했다. MIME·용량·TTL 등 미확정 운영값이나 새 의존성을 추가하지 않았다.
+- 최초52개 계약/연결 테스트는 최소 뼈대에서 **43개 실패·9개 통과**를 확인한 뒤 구현해 모두 통과했다. 기존 동작 보존·민감값 비노출·인증 전환 연결 사례를 보강하여 새 테스트는57개다. 실제 준비 함수→기존 real 모드 client→주입 fetch의 최종 URL/body/headers를 확인하며, 실패 시 CSRF/POST0회, logout 뒤 CSRF 재획득,401/403/429/503의 POST 자동 재전송 없음도 검사한다.
+- 보안 검증은 합성 password/PIN/code/token의 JSON 운반, URL 비노출, console 비기록, localStorage/sessionStorage 쓰기 없음, 실패 결과의 원문 예외 미포함과 기존 인증 헤더 보호를 확인했다. 준비 성공 결과는 본문을 포함하므로 로그나 영구 저장 대상으로 사용하지 않는다. 네이티브 영구 저장소 전체를 계측한 시험으로 확대하지 않으며 제품 모듈에 저장 API/import를 추가하지 않았다.
+- 검증 환경은 Node `24.20.0`·npm `11.19.0`이다. 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **12개 suite·258개 테스트**, `git diff --check`가 통과했다. 최초 타입 검사의 테스트 afterEach 반환형 오류1개는 반환값 없는 block으로 수정 후 재검증했다.
+- 제품 mock 확장·App/일반 진입점·의존성·CI·네이티브 설정 변경은 없다. 이번 단계는 Jest 연결 검사까지이며 설치·온라인 Expo·환경 주입·export·네이티브 빌드/런타임·실서버·원격 CI는 재실행하지 않았다. 양 OS의 실제 multipart boundary/0바이트 관측 등은5단계, 실제 서버는129 책임이다.
+- 완료 지점: 요청 준비와 연결·보안 회귀. 다음 한 가지: 승인 후3단계 JSON/204/오류 응답 parser의 실패 테스트부터 작성. push·PR·병합·Jira 변경은 하지 않았다.
 
 ### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
 
