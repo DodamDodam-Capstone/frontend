@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-165 최종 확인: 2026-10-26 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-159~161은 development `6bddb664`에 반영, SCRUM-165는 6단계까지 로컬 구현·검증 완료**. 2026-10-26 확인 시 Jira165는 해야 할 일, 부모123은 진행 중이다. 원격 CI·GitHub PR 리뷰·병합·Jira 완료 및 실제 서버 검증129와 구분한다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 5단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 Jira 진행 중이며 5단계까지 로컬 구현·재현·네이티브 검증을 완료했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 원격 CI·PR/병합·실제 서버 검증129와 보안 감사 잔여 항목은 미완료다. 로컬 단계 완료를 Jira/부모123 완료로 해석하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 확인 대상은 [SCRUM-165](https://dodamdodam.atlassian.net/browse/SCRUM-165)의 세션·CSRF 수명주기다.** 2026-10-26 최종 로컬 검증과 AC 대조는 아래 6단계 기록을 따른다. 아래159~161 기록은 당시 실행 이력으로 보존한다. FE의 GitHub PR 리뷰·필수 CI·대화 해결은 후속 PR에서 최신 커밋을 기준으로 확인하며, 이번 로컬 완료로 부모123이나 다른 Subtask를 완료하지 않는다.
+**현재 작업 대상은 [SCRUM-166](https://dodamdodam.atlassian.net/browse/SCRUM-166)의 요청 직렬화·응답 형식 처리다.** 아래 166의 1단계 기록을 착수 기준으로 삼는다. 159~165 기록은 당시 실행 이력으로 보존하며, 새 기능과 검증은 승인한 단계별로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,163 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
+
+이 절은 SCRUM-166 구현 전에 합의한 계약과 검증 계획이다. 1단계 당시 2~5단계의 기능·테스트는 미구현이었으며, 이후 실행 결과는 아래 단계별 기록을 따른다. 기존 SCRUM-165 기록은 당시 실행 이력으로 보존한다.
+
+#### 작업 기준과 근거
+
+- 전용 branch: `feature/SCRUM-166-request-response`. 시작점은 FE development [`3d402b58bf0d91191b8caf7b87a81da26a7bdb2c`](https://github.com/DodamDodam-Capstone/frontend/commit/3d402b58bf0d91191b8caf7b87a81da26a7bdb2c)다. 기존 checkout·번역·SCRUM-178·165·179 worktree의 변경을 가져오지 않는다.
+- Jira [SCRUM-166](https://dodamdodam.atlassian.net/browse/SCRUM-166): 담당 고영준, 진행 중, 부모 123 진행 중. 계획 번호 123-S2, 부모 선행 121, 별도 Subtask 선행 없음. 165는 완료이며 [PR #33](https://github.com/DodamDodam-Capstone/frontend/pull/33)으로 development에 반영됐다. 166 완료가 부모 123 완료를 뜻하지 않는다.
+- BE development는 [`f9a86e91f70a42faaee63b4e9c69368498376478`](https://github.com/DodamDodam-Capstone/backend/commit/f9a86e91f70a42faaee63b4e9c69368498376478)이다. 아래 링크는 모두 이 커밋에 고정한다. API 계약 v3.1, OpenAPI 문법 `3.0.3`·`info.version: 3.1.0`을 구분한다. BE Draft PR #46은 병합 전이므로 구현 기준이나 새 선행으로 삼지 않는다.
+
+| 적용 파일·절 | 이 작업의 근거 |
+| --- | --- |
+| [공통 계약 §3·3.2·5](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/api/01-common.md) | JSON UTF-8, envelope, 0바이트 POST, null·추가 필드, 오류·추적 헤더·민감값 비기록 |
+| [인증 §6.1·6.7·6.17·6.18](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/api/02-auth.md) / [보호자 §6.13](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/api/04-guardian.md) | CSRF 전용 응답, logout/lock 204, OAuth framework 경로·302 예외 |
+| [대화 §7.1·7.3·7.7](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/api/06-conversations.md) | 시작409 확장, resume/end 0바이트 요청, end200/202 응답 |
+| [음성 §4.11·7.4~7.8](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/api/07-voice.md) | multipart, JSON201/202, 성공200 바이너리와 JSON 오류 구분 |
+| [OpenAPI paths·components/schemas](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/Integrated_OpenAPI.yaml) / [Decision Record §1·2](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/docs/p0/Decision_Record.md) | 정확한 상태·필드·UUID와 D13/D14/D17 미확정 범위 |
+| [LogoutRequestGuardFilter](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/src/main/java/com/dodamdodam/backend/auth/session/LogoutRequestGuardFilter.java) / [LogoutContractTests](https://github.com/DodamDodam-Capstone/backend/blob/f9a86e91f70a42faaee63b4e9c69368498376478/src/test/java/com/dodamdodam/backend/LogoutContractTests.java) | 현재 BE 구현은 Content-Type 없음·`application/json`·`application/json;charset=UTF-8` 각각의 0바이트 logout을 허용한다. 소스 확인이며 이번 FE 작업에서 BE 테스트를 실행한 것은 아니다. |
+
+명세와 설정의 차이도 유지한다. OpenAPI `ApiError.required`에는 `fields`가 있지만 공통 §3과 FE 작업 규칙은 누락 시 `[]`를 요구하므로 이 호환 동작을 적용한다. `fields`가 OpenAPI에서 선택이라고 문서를 바꾸지 않는다. development의 팀/Jira 가이드에는 사람 승인 1건 문구가 남아 있으나, README·10/16 팀 결정·원래 경로의 AGENTS 및 10/28 조회한 Ruleset은 승인 수 0, 마지막 push 승인 불필요, strict 필수 검사 3개·대화 해결·squash다. 팀 결정의 최신 GitHub 코드 리뷰는 여전히 필요하며 이 문서 작업으로 검사나 정책을 변경하지 않는다. main 설정이나 오래된 로컬 159 문서를 development 설정으로 간주하지 않는다.
+
+#### 구현 경계와 결과 형태
+
+기존 [`client.ts`](../src/api/client.ts)의 raw `request()`/`ApiResult`, [`csrf.ts`](../src/api/csrf.ts)의 전용 parser, `authTransition()`을 보존한다. 작은 `src/api/requestBody.ts`, `src/api/response.ts`와 테스트를 후속 단계에서 추가한다. 새 HTTP 라이브러리·범용 schema framework·모든 endpoint DTO validator를 도입하지 않는다.
+
+| 경계 | 후속 구현에서 지킬 형태·책임 |
+| --- | --- |
+| 요청 준비 | `json` / `none` / `formData`를 명시적으로 선택한다. 준비 성공은 기존 client에 넘길 body·headers, 실패는 입력 원문 없는 고정 사유다. 실패하면 client/CSRF/fetch를 호출하지 않는다. 기존 전송 결과에 새 미전송 사유를 섞지 않는다. |
+| JSON | JSON-compatible plain 값만 직렬화한다. 선택 필드 생략과 DTO별 허용 필드·필수값·null은 호출부 책임이다. 현재 요청 DTO에는 null 허용 필드가 없으며 임의 null을 생성하지 않는다. NaN/Infinity, 배열 undefined·hole, BigInt, 순환, Date/custom `toJSON` 등 손실·암묵 변환 입력은 전송 전 실패시킨다. JSON Content-Type을 맞추고 잘못된 MIME/charset 조합은 거절한다. 비밀번호/PIN/token을 trim하거나 정규화하지 않는다. |
+| none | `body`를 생략한다. `{}`·`null` 문자열·공백도 만들지 않는다. Content-Type을 자동 추가하지 않되 유효한 JSON/UTF-8 Content-Type을 일괄 거절하지 않는다. logout/lock/resume/end에 같은 0바이트 원칙을 적용한다. Part1 16,384바이트 제한을 Part2 전체의 공통 상한으로 확대하지 않는다. |
+| FormData | 같은 FormData를 전달한다. 호출자가 Content-Type/boundary를 수동 지정한 충돌은 준비 실패로 처리하고 실제 boundary 생성은 런타임에 맡긴다. multipart 필드·파일 제약은 해당 호출부/확정 음성 계약 책임이다. |
+| 응답 해석 입력 | 응답의 예상 종류와 허용 성공 HTTP 상태를 호출부가 명시한다. parser는 raw `ApiResult.kind=response`일 때만 호출하며, 다른 기존 결과는 그대로 인계한다. 204는 해당 endpoint 계약에서 허용할 때만 성공이고 본문을 읽지 않는다. |
+| 성공 결과 | JSON은 HTTP 상태·메타데이터와 `data: unknown`, 무본문은 별도 empty 결과, 바이너리는 별도 bytes 결과로 구분한다. JSON200/201/202는 `{data:…}` 존재·형식을 검사하되 업무 DTO 검증이나 `as T`로 타입 안전성을 주장하지 않는다. 응답 DTO의 nullable 값은 보존한다. |
+| HTTP 오류 | 4xx/5xx는 바이너리보다 JSON 오류 처리를 우선한다. `code`, `message`, UUID `requestId`, `{field,reason}[]`를 전달한다. `fields` 누락만 `[]`; null·문자열·잘못된 항목은 형식 실패다. 일반 오류에 임의 필드를 펼치지 않는다. 시작 endpoint의409 `ACTIVE_CONVERSATION_EXISTS`에서만 UUID `activeConversationId`를 별도 보존한다. |
+| 메타데이터 | HTTP 상태와 필요한 `X-Request-ID`, `Location`, `Retry-After`, Content-Type을 본문 읽기 전에 확보하여 형식/읽기 실패에도 접근할 수 있게 한다. 누락·잘못된 값은 임의 ID나 대기시간으로 채우지 않는다. 오류 body의 requestId와 서버 헤더를 구분해 대조할 수 있게 하고 업무 중복키 clientRequestId와 혼합하지 않는다. 헤더·Location 원문도 로그/영구 저장소에 복사하지 않는다. |
+| 형식 실패·읽기 실패 | 빈2xx(204 제외), 잘못된 JSON/MIME/envelope는 format failure다. 이미 소비한 본문, 헤더 이후 읽기 취소·통신 실패는 별도 body-read failure로 분류한다. HTTP 응답을 받은 뒤의 실패를 미전송으로 표시하지 않는다. 원문 body·예외 메시지를 진단 결과에 넣지 않는다. |
+| 본문 소유권 | parser는 전달받은 Response의 본문을 최대 한 번 읽는다. 원본 보존이 필요한 호출부만 clone하며 모든 바이너리를 무조건 복제하지 않는다. `authTransition()` classifier가 받는 clone과 반환되는 원본, 인증 결과와 CSRF refresh 결과의 분리를 유지한다. |
+| 인증 문맥 | 기존 세대 검사는 헤더 수신까지다. parser는 세션/UI 상태를 바꾸지 않는다. 늦은 body 결과의 상태 반영 전 현재 인증 문맥 확인은125/167 책임이다. auth gate를 모든 body 읽기까지 확장하지 않는다. |
+| OAuth | 검증된 API 설정의 서버 origin과 `/oauth2/authorization/google`로 시작 주소를 만든다(`/api/v1` 밖). 임의 URL/query/비밀값을 받지 않는다. 3xx는 JSON 오류와 분리하고 Location을 자동 탐색하지 않는다. 기존 fetch `redirect:error`를 유지하며 이때 통신 실패를 관측302로 바꾸지 않는다. 합성302 시험은 네이티브302 접근 증거가 아니다. 외부 브라우저 실행·callback/쿠키 연동은126/129다. |
+| 167 인계 | 정상/HTTP 오류/redirect/format failure/body-read failure와 기존 not_sent/transport_error/stale_response를 구분할 수 있게 한다. code별 복구·인증 만료 상태·Retry-After 적용·재시도 결정은167에서 한다. 166은 401/403/429/503이나 CSRF 갱신 뒤 POST를 자동 반복하지 않는다. |
+
+#### 단계별 테스트와 완료 지점
+
+각 단계는 2~3시간 단위 중간 저장 지점이며 소요시간 보장이 아니다. 최소 동작마다 실패 테스트→구현→관련 테스트 및 전체 Jest를 실행한다. 실제 변경만 해당 166 키로 커밋하고 결과 보고 후 다음 단계 승인을 받는다.
+
+| 단계 | 예정 파일·검증 | 완료 지점 |
+| --- | --- | --- |
+| 1 작업 공간·계약 | 기존 파일 보존 비교, 최신 FE/BE/Jira·문서·CI 대조, 고정 환경 설치와 기존 Jest 기준선 | 이 절과 계약/책임/테스트 행렬 확정. 제품 코드 미변경 |
+| 2 요청 준비 | `requestBody.ts`·인접 테스트. JSON 정상/UTF-8/암묵 변환 실패, none의 네 경로·헤더 허용/오류, FormData/수동 Content-Type 충돌. serializer→실제 client→주입 fetch에서 최종 body·헤더·전송 횟수를 확인 | 준비 실패 때 CSRF·POST 모두 0회, 0바이트에 body 없음, POST CSRF 적용. 합성 비밀번호/PIN/token의 URL·로그·영구 저장 비노출 |
+| 3 JSON·204·오류 | `response.ts`·인접 테스트.200/201/202,204 무읽기,204 예상 밖 상태, 빈/잘못된 JSON·MIME·envelope, fields 누락/잘못된 타입, 시작409 확장 제한, requestId·Location·Retry-After 보존 | serializer→client→parser 연결. 기존 authTransition clone/원본·refresh 성공/실패 회귀. bodyUsed·읽기 취소/단절·늦은 결과와 인증 문맥 경계 검증 |
+| 4 바이너리·OAuth | `response.ts`와 작은 OAuth 주소 helper·인접 테스트. 합성 음성 bytes 보존, 음성 요청의 JSON4xx/5xx, 잘못된 MIME,3xx 별도 분류, origin·framework 경로/임의 query 차단 | 비밀값 없는 OAuth handoff, 자동 이동/재전송 없음. 음성 MIME·TTL 예시를 운영 확정값으로 고정하지 않음 |
+| 5 연결·네이티브·인계 | 기존 `scripts/native-session` 수신자/개발 전용 probe를 필요한 만큼 확장. 양 OS에서0바이트·JSON·multipart·바이너리·읽기 취소·redirect 거절과 Android POST1회 회귀. 기존 README와 이 기록 갱신 | 로컬 전체 검사·양 플랫폼 export/필요 빌드·런타임 결과 구분,167/168 인계 및 PR 준비. 실제 서버129 성공이나 PR 완료로 보고하지 않음 |
+
+- 기존 `client.test.ts`의 0바이트/FormData 통과 사례와 Android one-shot 보완을 재사용한다. parser를 거치는 정상 fixture에는 JSON Content-Type을 명시하되 누락 MIME의 실패 fixture는 남긴다. `src/examples/apiModeReceiver.test.ts`의 연결도 필요한 단계에서 보강한다.
+- 제품 mock은 GET csrf/me 예제만 유지한다. 추가 POST/204/바이너리 사례는 real 모드의 주입 fetch 또는 격리 loopback 수신자로 시험하며, 운영 mock에 미구현 API 전체를 추가하지 않는다. App/index의 일반 진입점에서 진단 모듈을 import하지 않는다.
+- 보안 검증은 2단계부터 각 기능에 포함하며 168까지 미루지 않는다. 합성 데이터만 쓰고 원문 요청/응답, cookie/token/PIN, 원본 대화·음성을 로그·결과·증빙·영구 저장소로 복사하지 않는다.
+- 로컬 기본 명령은 `npm run lint`, `npm run typecheck`, `CI=true npm test`; 최종 검증은 온라인 `npx --no-install expo install --check`, `npm run test:env`, Android/iOS export 및 필요한 네이티브 빌드·런타임 검사다. 의존성 변경 또는 깨끗한 재현이 필요할 때 `npm ci`를 다시 실행한다.
+- 현재 PR CI는 전체 Jest를 수집하므로 새 인접 `*.test.ts`가 포함되는지 실제 실행에서 확인한다. JS job은 manifest·Jira 검사 회귀·고정 npm·설치·온라인 Expo·lint·typecheck·Jest·환경 주입·양 플랫폼 export, 후속 job은 Android/iOS 빌드이며 세 job 성공을 `frontend-quality`가 집계한다. CI 빌드는 네이티브 probe 실행을 대신하지 않는다. PR을 요청받은 뒤에는 최신 commit의 실제 원격 검사 로그를 별도로 확인한다.
+
+#### 2026-11-04 재확인·남은 단계 실행 계획
+
+- FE development `3d402b58bf0d91191b8caf7b87a81da26a7bdb2c`는 동일하며, 전용 branch는 2단계 커밋 `7c1575d`에서 이어간다. Jira166은 담당 고영준·진행 중, 부모123 진행 중이다. 기존 작업 공간은 보존한다.
+- BE development는 [`bb11afdd2a26888ce05feae29b11df73366fdb7e`](https://github.com/DodamDodam-Capstone/backend/commit/bb11afdd2a26888ce05feae29b11df73366fdb7e)로 갱신됐다. 이전 기준 이후 docs/p0 변경은 없고 OpenAPI info.version `3.1.0`과 D13/D14/D17 미확정 범위는 유지된다. 위 표의 고정 링크는 10/28 근거이며 최신 소스와 구별한다.
+- 최신 BE의 `auth/api/AuthLogoutController`와 `global/web/Part1JsonRequestGuardFilter`를 적용 근거로 사용한다. 0바이트 logout/204 계약은 동일하다. 새 guard의16KiB/JSON 제한은 POST logout·children에 한정하며 음성/모든 API로 확대하지 않는다. 자녀 등록의201+상대 Location,409 CHILD_LIMIT_REACHED,500/503 오류는 공통 파서의 실제 구현 기반 fixture로 활용한다. Location으로 자동 GET·화면 이동하지 않는다.
+
+| 중간 완료 지점 | 구체적인 구현·검증 기준 |
+| --- | --- |
+| 3-A JSON·204와 실패 경계 | `parseApiResponse(response, expectation)`에 예상 `json`/`empty`와 허용 성공 상태를 명시한다. JSON200/201/202의 data는 unknown,204는 허용한 경우에만 empty이며 읽지 않는다. 읽기 전에 HTTP 상태와 X-Request-ID/Location/Retry-After/Content-Type만 메타데이터로 확보한다. `text()` 읽기와 `JSON.parse()`를 나누어 본문 소비/읽기 실패와 JSON 형식 오류를 구분한다. 읽기 예외의 취소 원인을 추정하지 않고 고정 사유만 반환한다. |
+| 3-B 오류·연결·회귀 | 오류의 code/message/requestId/fields를 검증·전달한다. `errorContext: 'conversation_start'`를 지정한409 ACTIVE_CONVERSATION_EXISTS에만 UUID activeConversationId를 요구·보존한다. 동일 status/code라도 일반 호출은 확장을 반환하지 않는다. 요청 준비→real client→parser,201 상대 Location,204/오류,이미 읽은 본문,읽기 거절,authTransition의 clone/원본·refresh 실패 분리,늦은 본문과 인증 문맥 경계를 검증한다. 전체 Jest·lint·typecheck 및 diff 확인 후3단계 커밋·보고한다. |
+| 4 바이너리·OAuth | 승인 후200 bytes 보존과 JSON4xx/5xx 우선 처리,명세가 허용한 MIME 판단,관측3xx 별도 결과와 OAuth 시작 주소 helper를 구현한다. `redirect:error` 전송 실패를 관측302로 위장하지 않는다. 운영 음성 MIME/제한은 미확정으로 유지한다. |
+| 5-A 로컬·CI 준비 | 새 테스트의 전체 Jest 수집을 확인하고 설치 재현·온라인 Expo·환경 주입·양 플랫폼 export/필요 빌드를 실행한다. 실제 실행 명령과 결과를 기록하며 기존 CI 검사를 우회하지 않는다. |
+| 5-B 새 파서의 네이티브 검증·인계 | 기존 loopback 수신자와 개발 probe를 확장해 합성 바이너리 응답 수신,본문 지연·단절·취소를 새 parser로 통과시킨다. 양 OS에서 결과·메타데이터 보존을 확인한다. 기존 post-loss-binary는 업로드/재전송, cancel-body는 인증 classifier 검사이므로 새 파서 증거를 대신하지 않는다. 런타임이 헤더/본문 경계를 노출하는지 실제로 확인하고 관측 불가한 경우를 성공으로 표기하지 않는다. 기존0바이트·multipart·redirect·Android POST1회는 회귀로 유지한다. README/이 기록 및167/168 인계를 마무리한다. |
+
+- 각 행은2~3시간 단위 중간 완료 지점이며 소요시간 보장이 아니다. 이번 승인은3단계까지 실행하고, 사용자의 기존 단계별 승인 요청에 따라 완료 보고 후4단계로 넘어간다. PR·push·병합·Jira 변경과 원격 CI 실행은 이번 범위에 포함하지 않는다.
+- 공통 parser는 전체 OpenAPI/업무 DTO validator가 아니다. 확인한 필드를 새 결과로 구성하며 미정의 error/envelope 필드를 그대로 펼치지 않는다. fields 누락만[]이며 null/잘못된 항목은 형식 실패다. generic data 보존 시험은 해당 endpoint가 primitive/null DTO를 허용한다는 증거가 아니다.
+- JSON MIME은 application/json과 선택적인 UTF-8 charset을 수용한다. requestId는 UUID 형식만 확인하며 v4로 제한하지 않는다. body requestId와 헤더 원문은 별도로 유지해 불일치를 호출부가 확인할 수 있게 한다. 헤더 누락/잘못된 값을 생성·보정하거나 Retry-After 재시도 정책을 여기서 적용하지 않는다.
+- 결과 종류는 JSON·empty·HTTP 오류·형식 실패·본문 읽기 실패를 구별한다. 기존 ApiResult의 미전송/통신 실패/stale은 그대로 인계하며 parser는 raw response일 때만 호출한다. 인증 세대·UI 상태 변경은 하지 않는다. 원문 payload/예외를 실패 진단에 넣거나 어떤 결과든 일괄 로그·영구 저장하지 않는다.
+- 종전11/3 목표는 지났다. 남은 구현·기기·리뷰·원격 CI·병합 결과를 확인해 일정을 판단하며 이 기록으로 Jira 일정/상태를 변경하지 않는다.
+
+#### 미확정 사항과 1단계 실행 기록
+
+- D13/D14의 실제 MIME·codec·크기·길이·AI 기한·TTL, D17의 운영 origin·callback·쿠키/CORS·제한은 미확정이다. 현재 단계의 형식 처리 개발은 명세 fixture로 진행할 수 있으나 실제 음성·OAuth·서버 통합 완료는 해당 확정값과129 환경이 필요하다. 다음 기능 단계 시작 시 계약 변경 여부를 다시 대조하고, 필요한 값이 여전히 없으면 해당 통합 검증을 미확인으로 남긴다.
+- 새 작업 공간에서 Node `24.20.0`·npm `11.19.0`로 `npm ci --no-audit --no-fund` 성공, 기존 Forge postinstall 검증 성공. `fsevents`·`unrs-resolver` install-script 미승인 경고는 유지하고 승인 설정/의존성을 변경하지 않았다. 감사 명령은 실행하지 않았으므로 이번 설치를 새 취약점 감사 결과로 보고하지 않는다.
+- `CI=true npm test`: **11개 suite·201개 테스트 통과**. 이는 기존 코드 기준선이며 아직 작성하지 않은 166 테스트의 통과가 아니다. 이번 1단계에는 기능·CI·의존성 변경이 없으므로 네이티브 빌드/런타임·실서버 검증을 재실행하지 않았다.
+- 완료 지점: 전용 작업 공간, 계약 적용 범위와 결과 경계, 단계별 테스트 기준. 다음 한 가지: 승인 후 2단계 요청 준비의 실패 테스트부터 작성. PR 생성·push·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 2단계 — 요청 본문 준비·client 연결 · 2026-10-28
+
+- 착수 시 FE development `3d402b58`·BE development `f9a86e91` 및 Jira166 진행 중을 재확인했다.1단계의 고정 계약을 유지하며 전용 worktree에서 진행했다.
+- `src/api/requestBody.ts`에 순수 준비 함수 `prepareRequestBody()`와 `RequestBody`/`RequestBodyResult`를 추가했다. JSON·none·FormData를 구분하고 성공 시 body/headers만 전달한다. 실패는 `invalid_body`/`invalid_headers`/`invalid_content_type`이며 client를 호출하지 않는 사용법을 README에 기록했다. raw client와 CSRF·인증 전환 구현은 변경하지 않았다.
+- JSON은 plain 값의 복사본에서 직렬화하여 준비 후 원본 DTO 변경의 영향을 차단한다. undefined·hole·비유한 숫자·BigInt·순환·getter/custom toJSON·숨은/추가 속성 등의 생략·암묵 변환을 거절한다. endpoint별 필드·null 허용은 호출부 책임이고, serializer가 일반 JSON null을 허용한다는 이유로 현재 DTO의 null을 허용한 것은 아니다.
+- none은 body/기본 Content-Type을 만들지 않으며 명시된 JSON/UTF-8 헤더는 유지한다. FormData는 같은 객체를 보내고 수동 Content-Type을 거절한다. FormData의 전송 중 변경 금지는 호출부 책임으로 명시했다. MIME·용량·TTL 등 미확정 운영값이나 새 의존성을 추가하지 않았다.
+- 최초52개 계약/연결 테스트는 최소 뼈대에서 **43개 실패·9개 통과**를 확인한 뒤 구현해 모두 통과했다. 기존 동작 보존·민감값 비노출·인증 전환 연결 사례를 보강하여 새 테스트는57개다. 실제 준비 함수→기존 real 모드 client→주입 fetch의 최종 URL/body/headers를 확인하며, 실패 시 CSRF/POST0회, logout 뒤 CSRF 재획득,401/403/429/503의 POST 자동 재전송 없음도 검사한다.
+- 보안 검증은 합성 password/PIN/code/token의 JSON 운반, URL 비노출, console 비기록, localStorage/sessionStorage 쓰기 없음, 실패 결과의 원문 예외 미포함과 기존 인증 헤더 보호를 확인했다. 준비 성공 결과는 본문을 포함하므로 로그나 영구 저장 대상으로 사용하지 않는다. 네이티브 영구 저장소 전체를 계측한 시험으로 확대하지 않으며 제품 모듈에 저장 API/import를 추가하지 않았다.
+- 검증 환경은 Node `24.20.0`·npm `11.19.0`이다. 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **12개 suite·258개 테스트**, `git diff --check`가 통과했다. 최초 타입 검사의 테스트 afterEach 반환형 오류1개는 반환값 없는 block으로 수정 후 재검증했다.
+- 제품 mock 확장·App/일반 진입점·의존성·CI·네이티브 설정 변경은 없다. 이번 단계는 Jest 연결 검사까지이며 설치·온라인 Expo·환경 주입·export·네이티브 빌드/런타임·실서버·원격 CI는 재실행하지 않았다. 양 OS의 실제 multipart boundary/0바이트 관측 등은5단계, 실제 서버는129 책임이다.
+- 완료 지점: 요청 준비와 연결·보안 회귀. 다음 한 가지: 승인 후3단계 JSON/204/오류 응답 parser의 실패 테스트부터 작성. push·PR·병합·Jira 변경은 하지 않았다.
+
+### SCRUM-166 3단계 — JSON·204·오류 응답과 연결 회귀 · 2026-11-04
+
+- 재확인·구체화한 계획에 따라 `src/api/response.ts`에 `parseApiResponse()`와 입력/결과 타입을 추가했다. 기존 client/CSRF/요청 준비 구현은 보존했다. 성공 JSON의 data:unknown,204 무읽기,HTTP 오류,형식 실패,본문 읽기 실패를 구분한다. HTTP 상태와 선택 헤더를 본문 읽기 전에 확보하며 예외·원문 본문을 실패 결과에 넣지 않는다.
+- 대화 시작을 명시한409 ACTIVE_CONVERSATION_EXISTS에만 UUID activeConversationId를 요구·보존한다. fields 누락만[]로 호환하고 잘못된 타입은 거절한다. 알려진 필드만 새 객체로 구성한다. code/message에 명세에 없는 minLength를 부과하거나 UUID를 v4로 제한하지 않는다. 전체 DTO/schema 검증,재시도/인증 만료 정책은 추가하지 않았다.
+- 새 단위82개·연결13개,총95개 테스트를 추가했다. JSON/204/MIME/읽기 실패의 최초37개는 최소 뼈대에서31개 실패·6개 통과,HTTP 오류 확장 후82개는44개 실패·38개 통과를 확인하고 구현했다. 3-A 전체295개,3-B 전체340개를 거쳐 최종 전체353개가 통과했다.
+- 구현 중 실패도 수정 후 확인했다. MIME 정상 사례3개 실패는 테스트 fixture에 대소문자가 다른 Content-Type 키를 중복 구성해 값이 합쳐진 원인이었으며 Headers.set으로 수정했다. 타입 검사2개 오류는 Jest29의 it.each와 readonly tuple 선언 간 불일치였고 명시적 tuple 타입으로 수정했다. children/end fixture는 최종 OpenAPI의 필수 DTO 필드와 KST 시각 형식에 맞춰 보완했다. 제품 파서의 검증 기준을 느슨하게 하거나 실패 검사를 제외하지 않았다.
+- 실제 요청 준비→real client→parser에서201 상대 Location,0바이트 요청의204와 JSON200/202 차이,401/403/429/503 자동 재전송 없음,응답 수신 후 읽기 거절을 확인했다. authTransition clone 소비 후 원본 보존과 CSRF refresh503 분리,일반 본문이 늦어도 인증 전환을 막지 않는 책임 경계도 검사했다. 예제 real fixture에 MIME과 파서 확인을 추가했다. Jest의 주입 transport/본문 지연 시험은 양 OS의 실제 읽기 취소 성공을 뜻하지 않는다.
+- Node `24.20.0`·npm `11.19.0`에서 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **14개 suite·353개 테스트**, `git diff --check`가 통과했다. 읽기 전용 별도 코드 리뷰에서 이번 범위에 추가 조치가 필요한 결함은 발견하지 못했다. 기존 CI의 전체 Jest 명령이 새 테스트를 수집하는 것을 로컬에서 확인했으며 원격 CI를 실행한 것은 아니다.
+- 기존 checkout·한국어 주석·SCRUM-178·165·179의5개 작업 공간은 착수 전후 HEAD/status와 변경 파일 해시가 동일했다. 일반 App/index·운영 mock·의존성·CI·네이티브 설정은 변경하지 않았다. 설치·온라인 Expo·환경 주입·export·기기 런타임·새 의존성 감사는 이번 단계에 재실행하지 않았고5단계/해당 별도 작업에 남는다.
+- 완료 지점: 3단계 로컬 구현·검증과 README/이 기록. 다음 한 가지: 사용자 승인 후4단계 바이너리·OAuth. 이번 단계의 로컬 커밋만 수행하며 push·PR 생성·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 4단계 — 바이너리·OAuth · 2026-11-04
+
+- 사용자 승인 후 전용 branch의3단계 커밋 `42451f9`에서 이어갔다. FE development `3d402b58`·BE development `bb11afdd` 및 Jira166 진행 중/담당 고영준이 동일함을 재확인했다. 위3단계 시점의 승인 기록과 이번4단계 승인을 구별한다.
+- 적용 계약은 BE `bb11afdd`의 [음성 §7.8](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/07-voice.md), [인증 §6.17·6.18](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/02-auth.md), OpenAPI `getTemporaryTurnAudio`/OAuth 시작 경로다. `audio/*`는 미정 MIME 초안이며 octet-stream 허용 근거가 없다. 음성 GET 오류 fixture는401 AUTHENTICATION_REQUIRED,403 CHILD_SESSION_REQUIRED,410 AUDIO_EXPIRED,429 RATE_LIMITED,503 AUTH_STATE_UNAVAILABLE를 사용했다.
+- `response.ts`에 binary200 기대값과 bytes/redirect 결과를 추가했다. audio 계열의 구체적 media type을 확인하고 arrayBuffer를 한번 읽어 변형/clone 없이 반환한다. JSON4xx/5xx 우선,읽기 전 MIME 거절,본문 소비/읽기 실패·메타데이터 보존을 유지한다.0바이트200의 empty_body는 승인된 FE 빈2xx 방어 규칙이며 BE 최소 음성 크기를 새로 정한 것이 아니다. 실제 codec·크기·길이·TTL·운영 allowlist는 D13/D14에 남는다.
+- 관측한301/302/303/307/308만 별도 redirect 결과로 반환하며 본문을 읽거나 Location을 열지 않는다.300/304/305/306은 예상 밖 상태다. Location 누락/미검증 원문은 메타데이터로만 보존한다. 기존 client의 redirect:error와 통신 실패 분류를 유지했으며 합성3xx와 실제 네이티브 관측을 구별했다.
+- `oauth.ts`의 `resolveOAuthStartUrl()`는 기존 환경/API URL 검증 뒤 서버 origin과 `/oauth2/authorization/google`을 조합한다. API base path·앱 복귀 주소·임의 query는 붙이지 않는다. helper는 네트워크/OS 이동을 하지 않으며 OAuth 화면·callback·쿠키 연동126/129를 구현한 것이 아니다.
+- 최초 바이너리/redirect37개 검사는16개 실패·21개 통과,OAuth20개는 최소 뼈대에서20개 실패를 확인하고 구현했다. client 연결·로그 비기록 회귀7개를 보강해 이번 새 검사는64개다. 음성 GET 쿠키 포함/CSRF 미발급,주입 POST3xx의 무재전송,redirect:error 전송 실패가 관측302로 변하지 않는 것을 검사했다.
+- OAuth 기본입력 검사에서1개 실패가 발생했다. Expo가 정적으로 치환한 환경값을 Jest 실행 중 process.env 교체로 바꾸려던 테스트 가정이 원인이었다. reader 이후 URL 생성은 readEnvironment 경계 주입으로,정적 치환은 기존 test:env로 나누어 확인했다. 환경/제품 검증을 끄거나 동적 환경 참조로 바꾸지 않았다.
+- Node24.20.0·npm11.19.0에서 최종 `CI=true npm test` **16개 suite·417개 테스트**, `npm run lint`, `npm run typecheck`, `npm run test:env` **Android/iOS14개 조합**, `git diff --check`가 통과했다. 별도 읽기 전용 리뷰에서도 이번 범위에 추가 조치가 필요한 결함을 발견하지 못했다. 기존5개 작업 공간의 HEAD/status/변경 파일 해시가 착수 전후 동일했다. 기존 App/index·client·CSRF·환경 모듈·의존성·CI·네이티브 설정을 변경하지 않았다. 설치·온라인 Expo·export/네이티브 빌드·기기 실행·실서버·원격 CI·새 의존성 감사는 이번 단계에 재실행하지 않았다.
+- 완료 지점:4단계 로컬 구현과 사용법. 다음 한 가지: 사용자 승인 후5단계 최종 재현·새 파서의 양 OS 네이티브 검사·인계. 로컬 단계 커밋만 수행하고 push·PR·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 5단계 — 최종 재현·네이티브 오류 보완·인계 · 2026-11-04
+
+- 전용 branch의4단계 `64e4325`에서 진행했다. 착수 때 FE development `3d402b58`·BE development `bb11afdd`와 Jira166 진행 중/담당 고영준을 다시 확인했다. API v3.1.0과 D13/D14/D17 미확정 경계를 유지하며 운영값·DTO를 새로 만들지 않았다.
+- 일반 App/index·제품 client/CSRF/parser를 변경하지 않고 `scripts/native-session/response.tsx`와 격리 수신자를 추가했다. 실제 global fetch로25개 사례를 실행한다. JSON201·204·202·0바이트·multipart boundary, 바이트 보존/빈 바이너리/JSON 오류,잘못된 JSON/MIME/fields, 본문 지연·취소·단절·읽기 전 단절·늦은 clone,redirect 차단·실제 POST1회,authTransition classifier clone/원본과CSRF 재획득을 구분한다. 수신자41개·설치15개 테스트를 추가했다.
+- 중간 실패를 통과로 처리하지 않았다. 최초 Android21개에서5개가 실패했다. 작은 고정 길이 JSON은 개발 Network Inspector의 본문 미리 읽기로 헤더 수신부터 대기했고, 취소/단절 바이너리는 Expo 원본 buffered reader가 부분 바이트를 성공으로 반환했다. iOS 원본 reader는 취소 후 Promise가 끝나지 않았다. 첫 패치 후 Android 원본 응답23개는 통과했으나, 추가한 늦은 clone 읽기는 양 OS에서 미완료 대기를 재현했다. 진단 보고서의 필수 platform/stage 누락도 실제 실행 중 발견해 수정했다.
+- `patchExpoFetch.cjs`를 기존 Forge postinstall 뒤에 연결했다. Expo57.0.31의 Android NativeResponse 오류 상태 보존, 양 OS text/arrayBuffer의 오류 상태 reject, startStreaming의 선행 오류 throw를3개 네이티브 파일에 적용한다. 공식 원본/최종 패치 SHA256만 허용하고 파일·버전·프로젝트·경로를 모두 검증한 뒤 쓴다. 원본/일부 적용/재실행,잘못된 소스·버전·cwd·심볼릭 링크·중간 패치 거절15개를 확인했다. 패키지 버전·lockfile·JS parser API를 바꾸지 않았다. Expo Go나 기존 바이너리에는 적용되지 않으므로 development build 재빌드가 필수다.
+- Android 지연 JSON은 chunked로 Inspector 간섭을 피한다. iOS에서 chunked의 서버 연결 종료가 정상 EOF로 전달되면 parser가 `invalid_json`을 반환하는 것을 관측했다. iOS의 본문 잘림 시험은 전체 Content-Length로 프레이밍 오류를 명확히 했고 바이너리는 두 OS 모두 전체 길이를 유지한다. 각 OS의 실제 헤더/단절 조건을 별도로 테스트했다. MIME/Accept를 속이거나 형식 실패를 성공으로 인정하지 않는다. 이 차이를 모든 네트워크 오류가 같은 kind로 전달된다는 주장으로 확대하지 않는다.
+- 최종 코드와 동일한7개 구현 파일을 `git archive 64e4325`의 깨끗한 임시 복사본에 반영하고 해시로 일치를 확인했다. Node24.20.0/npm11.19.0의 fresh `npm ci`에서 Forge·Expo 패치 적용과 최종3개 SHA를 재검증했다. 온라인 `npx --no-install expo install --check`, manifest, Jira workflow 회귀7개, `npm run lint`, `npm run typecheck`, 전체 Jest **18 suites·473 tests**, `npm run test:env` **14개 조합**, 일반 index의 Android/iOS export가 모두 종료0이었다. 별도 `npm audit`의 종료1은 아래 별도 기록과 구분한다.
+- 최종 `expo prebuild --platform android/ios --no-install` 후 기준76개 파일 변경이 없었다. JDK17.0.20.1/SDK36/NDK27.1의 `./gradlew :app:assembleDebug --no-daemon`은 BUILD SUCCESSFUL, CocoaPods1.16.2와 Xcode26.6의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`는 BUILD SUCCEEDED였다. export·설치·두 빌드를 앞선 실패 버전의 결과로 대체하지 않았다.
+- 최종 앱을 Android Pixel Tablet API36 에뮬레이터와 iPad Pro11형 M5/iOS26.5 시뮬레이터에 설치했다. 각 OS **새 응답25개 + 기존 요청26개 + 인증26개 =77개**, 합계 **154개** 고유 사례의 pass·cleanup을 확인했다. 단절 후 늦은 clone도 read_failed로 종료했고 기존 CSRF·redirect·0바이트/multipart·POST 단일 전송·인증 전환 회귀도 통과했다. 원문 데이터 대신 허용된 enum/횟수/boolean만 보고했다.
+- 독립 코드 리뷰 후 추가 수정이 필요한 결함이 없음을 확인했다. 기존 CI는 `npm ci`의 새 설치 패치, 전체 Jest의 신규 테스트, 양 플랫폼 export/컴파일을 실행하도록 이미 연결돼 있어 workflow를 바꾸지 않았다. **CI가 준비돼 있다는 뜻이며 실제 원격 CI는 실행하지 않았다.** CI 컴파일이 로컬 probe154개 실행을 대신하지도 않는다.
+- 기존 checkout·한국어 주석·SCRUM-178·165·179의5개 작업 공간은 HEAD/status와 미커밋17개 파일 해시가 시작 전과 같았다. 개인 `.env`를 로드하지 않고 검증했으며, 일반 App 복귀에서는 정상적으로 환경 설정 필요 안내가 나타났다. 이는 실서버 연결 완료 증거가 아니다.
+- 완료 지점:166의5단계 로컬 구현·재현·네이티브 검증 및 인계. 다음 한 가지: 별도 요청에 따라 남은 Forge 보안 권고의 공식 수정/호환성 대책을 확인하고 PR 준비 여부를 판단한다. push·PR 생성/병합·Jira 변경은 하지 않았다. 일반 App 복귀 후 이번에 실행한 서버·장치·adb reverse를 정리했다. 이 단계의 변경만 로컬 커밋으로 저장한다.
+
+후속 작업은 아래 경계를 이어받는다.
+
+| 담당 범위 | 인계 내용 |
+| --- | --- |
+| SCRUM-167 | ApiResult의 미전송/통신/오래된 응답과 ParsedApiResponse의 HTTP/형식/읽기 실패를 먼저 구분한다. code·fields·requestId와 관측 헤더를 사용하되401·403·429·503 일괄 재시도나 실패 POST 재실행을 하지 않는다. Retry-After 원문 해석·인증 만료 상태·화면 반영 정책을 구현한다. 헤더 뒤 늦은 본문 반영은 현재 인증 문맥을 확인한다. |
+| SCRUM-168 | 기존 계약 테스트를 확장하고 민감값이 URL·console·영구 저장소에 남지 않는 경계를 검증한다. parser 결과 전체와 FormData/준비 본문도 로그 대상으로 삼지 않는다. 설치 패치·기존 one-shot POST를 포함한 CI 및 실제 native 회귀의 증빙을 구분한다. |
+| SCRUM-125·126·129 | 호출부의 확정 DTO·null/필드 허용을 검사한다. OAuth helper는 시작 주소 생성만 제공하며 브라우저/callback은126,실제 BE·HTTPS·쿠키/CORS와 확정 음성 정책 검증은129다. 합성 auth/음성/loopback 통과를 업무 API·실서버 성공으로 사용하지 않는다. |
+
+- 아래 Forge 공식 버전 전환 전의 `npm audit --json`은 종료1, **49개(low6·moderate42·high1·critical0)**를 보고했다. high1은 `node-forge@1.4.0` 패키지 집계이며 high 권고6개를 포함한다. 기존 [DigestInfo 보완](https://github.com/advisories/GHSA-86w9-cpqp-85rv)의 적용 해시는 일치하지만 [PEM](https://github.com/advisories/GHSA-7wch-p9px-956x), [PKCS#12](https://github.com/advisories/GHSA-jc66-7q78-782g), [TLS 분할](https://github.com/advisories/GHSA-8hrf-8g6f-7xwp), [TLS 스택](https://github.com/advisories/GHSA-hqq3-7jhf-c5jx), [X.509](https://github.com/advisories/GHSA-5x38-2vff-x55p)는 그 패치 범위 밖이다. npm은 fixAvailable을 보고하므로 공식 수정 버전과 Expo 경로의 호환성을 별도 확인해야 한다. 이번 응답 처리 패치를 보안 감사 전체 해결로 보고하지 않는다. 의존 경로는 Expo→@expo/cli→node-forge와 @expo/code-signing-certificates이며 강제 upgrade/audit fix는 실행하지 않았다.
+
+### SCRUM-166 후속 보완 — Forge 공식 수정 버전 전환 · 2026-11-04
+
+- 사용자 승인에 따라 `e5452b0` 이후 같은 전용 작업 브랜치에서 진행했다. FE development `3d402b58`과 Jira166 진행 중/담당 고영준을 재확인했다. Expo SDK57.0.31과 제품 API 코드는 유지한다.
+- 공식 npm의 최신 `node-forge@1.4.3`을 확인하고 `npm update node-forge --package-lock-only --ignore-scripts`로 해당 잠금 항목만 갱신했다. Expo CLI와 `@expo/code-signing-certificates`의 기존 허용 범위 `^1.3.3`을 만족하므로 새 직접 의존성이나 override는 추가하지 않았다. [공식 변경 기록](https://github.com/digitalbazaar/forge/blob/main/CHANGELOG.md) 및 [이름 제약 수정 공지](https://github.com/digitalbazaar/forge/security/advisories/GHSA-3cc4-3294-vgjf)를 확인했다.
+- 임시 `patchForge.cjs`와 해당 설치기 전용 테스트8개를 제거하고 postinstall은 Expo 본문 오류 패치만 유지한다. 기존 `forgeCompatibility.test.js`의20개 보안·실제 Expo 소비자 호환성 검사와 공개 fixture는 변경하지 않았다. 설치 시 Forge 소스를 별도로 수정하지 않는다.
+- `forgeSecurity.test.js`에 제한된 자식 프로세스의 PEM 거부 검사와 합성 인증서의 허용/금지 이름 검사를 추가했다. 기존 임시 패치가 적용된1.4.0에서2개 모두 실패(PEM 제한시간 초과, 허용 범위 밖 인증서 수용)했고 공식1.4.3에서2개 모두 통과했다. 키는 실행 중 메모리에서만 생성하며 저장·로그하지 않는다. 이 두 사례로 모든 암호 취약점이나 앱의 원격 악용 가능성을 입증한 것은 아니다.
+- Node24.20.0/npm11.19.0에서 격리 복사본과 작업 공간의 `npm ci --no-audit --no-fund`, 별도 격리 `npm ci --omit=dev --no-audit --no-fund`가 성공했다. 두 Expo 소비자가 공식1.4.3을 해석하는지 확인했으며 남겨둔 Expo 네이티브 패치도 정상 적용됐다.
+- `npm run lint`, `npm run typecheck`, `npm test` **18 suites·467 tests**, `npm run test:env` **14개 조합**, manifest 검사, 온라인 `npx --no-install expo install --check`, Android/iOS `expo export`가 모두 통과했다. 기존473개에서 설치기 검사8개를 제거하고 보안 회귀2개를 추가한 결과다. 기존 CI는 전체 Jest를 수집하므로 신규 검사도 포함되며 workflow는 변경하지 않았다.
+- 격리 복사본에서 `expo prebuild --no-install`·`pod install` 후 Android `:app:assembleDebug --no-daemon --console=plain`과 서명 없는 iOS Simulator Debug `xcodebuild`가 모두 성공했다. 앱·API·네이티브 패치 소스가 그대로이므로 이전154개 기기 probe는 이번에 반복하지 않았다. 이 기록은 원격 PR CI·실기기·실제 서버 검증을 대신하지 않는다.
+- 전환 후 전체 `npm audit --json`은 **low6·moderate42·high0·critical0**, `--omit=dev`는 **low1·moderate18·high0·critical0**이며 두 결과에서 Forge 항목이 사라졌다. 잔여 low/moderate 때문에 두 감사 명령은 종료1이다. high/critical 해소와 전체 감사 통과를 구분하며 제외 규칙이나 가짜 버전을 적용하지 않았다.
+- 변경 diff의 독립 검토에서 추가 수정이 필요한 결함은 발견하지 못했다. 설치·검사·빌드 로그는 로컬 `/private/tmp/scrum166-forge-logs`, 감사 결과는 `/tmp/scrum166-forge-audit.json` 및 `/tmp/scrum166-forge-audit-production.json`에 있다. 기존 다른 작업 공간은 보존하며 push·PR·병합·Jira 변경은 하지 않는다. 다음 한 가지는 사용자 요청 시 최신 커밋의 PR CI·GitHub 코드 리뷰다.
 
 ### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
 
@@ -229,8 +386,8 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 ### SCRUM-165 의존성 보안 보완 — Forge 설치 후 패치 · 2026-10-26
 
 - 기준 HEAD는 `072c0f4b58c38ffa708df20a1a33d2c7e007b4f8`다. 공식 npm 최신 Forge는 `1.4.0`이고 수정 PR은 미병합이다. [고정 공개 수정안](https://github.com/digitalbazaar/forge/commit/85446800199c4995d3cd4b0ab5a8409df4455859)의 nested DigestAlgorithm 개수·빈 NULL 검사를 독립 검증한 뒤 최소 기능 변경만 로컬 적용했다. RSA 산술·패딩 정책·패키지 이름·버전은 바꾸지 않았다.
-- [patchForge.cjs](../scripts/security/patchForge.cjs)를 root `postinstall`에서 실행한다. lockfile의 모든 Forge 경로를 대상으로 잠금/설치 버전 `1.4.0`, 정규 경로·심볼릭 링크, 원본 SHA-256 또는 검증된 패치 후 SHA-256을 확인한다. 모든 사본을 먼저 검사한 뒤 변경하며 예상 밖 경로·버전·소스 또는 대상 부재는 설치 실패로 처리한다. 이미 패치된 사본은 재실행해도 유지한다. 새 의존성 없이 Node 기본 모듈만 사용하며 lockfile 변경은 root의 `hasInstallScript`뿐이다.
-- [forgeCompatibility.test.js](../scripts/security/forgeCompatibility.test.js)의 공개 fixture·실제 CLI/인증서 해석 경로와 정상 서명·SHA NULL 생략/존재·기존 MD5 조건·Expo 인증서/manifest 검증을 확인했다. 수정 전20개 중7개 실패, 개수 검사만 적용하면 NULL 내용 검사1개 실패, 개수와 빈 NULL 검사 후20개 모두 통과했다. [patchForge.test.js](../scripts/security/patchForge.test.js)는 다중 사본·재실행·알 수 없는 소스·버전·대상 부재·경로 탈출·심볼릭 링크를8개 검사로 확인한다. 실제 private key는 테스트 실행 중 메모리에서만 생성하며 저장·로그하지 않는다.
+- [당시 patchForge.cjs](https://github.com/DodamDodam-Capstone/frontend/blob/3d402b58bf0d91191b8caf7b87a81da26a7bdb2c/scripts/security/patchForge.cjs)를 root `postinstall`에서 실행한다. lockfile의 모든 Forge 경로를 대상으로 잠금/설치 버전 `1.4.0`, 정규 경로·심볼릭 링크, 원본 SHA-256 또는 검증된 패치 후 SHA-256을 확인한다. 모든 사본을 먼저 검사한 뒤 변경하며 예상 밖 경로·버전·소스 또는 대상 부재는 설치 실패로 처리한다. 이미 패치된 사본은 재실행해도 유지한다. 새 의존성 없이 Node 기본 모듈만 사용하며 lockfile 변경은 root의 `hasInstallScript`뿐이다.
+- [forgeCompatibility.test.js](../scripts/security/forgeCompatibility.test.js)의 공개 fixture·실제 CLI/인증서 해석 경로와 정상 서명·SHA NULL 생략/존재·기존 MD5 조건·Expo 인증서/manifest 검증을 확인했다. 수정 전20개 중7개 실패, 개수 검사만 적용하면 NULL 내용 검사1개 실패, 개수와 빈 NULL 검사 후20개 모두 통과했다. [당시 patchForge.test.js](https://github.com/DodamDodam-Capstone/frontend/blob/3d402b58bf0d91191b8caf7b87a81da26a7bdb2c/scripts/security/patchForge.test.js)는 다중 사본·재실행·알 수 없는 소스·버전·대상 부재·경로 탈출·심볼릭 링크를8개 검사로 확인한다. 실제 private key는 테스트 실행 중 메모리에서만 생성하며 저장·로그하지 않는다.
 - 격리 공간에서 일반 `npm ci`와 별도 `npm ci --omit=dev`가 각각 root postinstall을 실행하고 동일한 패치 후 파일 해시를 만들었다. 원래 보안 진단6개는 두 설치 모드 모두 **6/6 통과**, 이전 Forge 실패도 통과했다. Node `24.20.0`·npm `11.19.0`의 전체 Jest는 **11 suite·201 tests**, lint·typecheck·환경 주입14개 조합·온라인 Expo 검사와 일반 앱 Android/iOS export가 통과했다.
 - 격리 프로젝트의 Android/iOS prebuild는 성공했고 app.json·manifest·lockfile에 추가 변경이 없었다. 루프백 개발 서버 `/status` HTTP200을 확인하고 종료했다. 네이티브 SDK·플러그인·앱 설정 변경이 없어 Gradle/Xcode 재컴파일·기기 시험은 반복하지 않았으며, 실서버129·OAuth·앱 원격 악용 검증으로 확대하지 않는다.
 - 전체 및 `--omit=dev` 재감사는 **high4·critical0, 종료1**이다. `node-forge`와 상위 `@expo/code-signing-certificates`·`@expo/cli`·`expo` 항목은 공식 버전 `1.4.0`에 대한 감사 판정으로 남는다. 로컬 파일 보완을 감사 DB가 인식하지 않으므로 보안 감사 통과로 표시하거나 제외 규칙·가짜 버전으로 숨기지 않았다. 회귀 증거는 알려진 비정상 DigestInfo 수용 차단이며 개인키 없는 위조나 모든 암호 취약점 해소를 입증하지 않는다.

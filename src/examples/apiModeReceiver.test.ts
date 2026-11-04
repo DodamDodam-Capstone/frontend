@@ -1,4 +1,5 @@
 import { describe, expect, it, jest } from '@jest/globals';
+import { parseApiResponse } from '../api/response';
 import * as mockHandlers from '../api/mockAuthMe';
 import { createExampleTransport, type ExampleFetch } from '../api/exampleTransport';
 
@@ -58,7 +59,7 @@ describe('SCRUM-161 API 모드 테스트 수신자', () => {
 
   it('real 모드는 mock handler를 등록·실행하지 않고 실제 전송 함수를 사용한다', async () => {
     const register = jest.spyOn(mockHandlers, 'registerExampleHandlers');
-    const fetchImpl = jest.fn<ExampleFetch>(async () => new Response('{"data":{}}', { status: 200 }));
+    const fetchImpl = jest.fn<ExampleFetch>(async () => new Response('{"data":{}}', { status: 200, headers: { 'Content-Type': 'application/json' } }));
     try {
       const request = ready(createExampleTransport({ ...config, apiMode: 'real' }, { fetchImpl, scenario: 'signedOut' }));
       expect(register).not.toHaveBeenCalled();
@@ -66,6 +67,7 @@ describe('SCRUM-161 API 모드 테스트 수신자', () => {
       const response = await request(authMe);
 
       expect(response.status).toBe(200);
+      expect(await parseApiResponse(response, { kind: 'json', statuses: [200] })).toMatchObject({ kind: 'json', data: {} });
       expect(fetchImpl).toHaveBeenCalledWith('https://api.example.invalid/api/v1/auth/me', expect.objectContaining({
         method: 'GET', credentials: 'include', cache: 'no-store', redirect: 'error',
       }));

@@ -19,8 +19,9 @@ npm --version
 npm ci
 ```
 
-현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)을 적용합니다.
-원본 버전·파일이 달라지면 설치를 중단합니다. 감사 잔여 항목과 공식 버전 전환 시 제거 조건은
+Forge는 공식 수정 버전 `1.4.3`을 lockfile로 설치하며 임시 Forge 패치는 제거했습니다.
+현재 `npm ci`는 설치 후 [Expo 본문 오류 보완](scripts/native-session/patchExpoFetch.cjs)을 적용합니다.
+이 Expo 보완은 원본 버전·파일이 달라지면 설치를 중단합니다. 보안 회귀·감사 결과는
 [검증 기록](docs/FE_TEST_CI_PLAN.md)을 확인합니다.
 
 Metro만 열어 볼 때는 `npm start`를 실행합니다. 아래 `npm run android`와
@@ -186,6 +187,155 @@ export async function requestAccountExample() {
   로컬 결과·한 번의 전송 관측을 운영 HTTPS·OAuth·실제 서버 연동129의 성공이나 exactly-once 보장으로 확대하지 않습니다.
   재현 조건·이전 실패와 수정 후 결과는 [기능별 테스트 기록](docs/FE_TEST_CI_PLAN.md)에 남깁니다.
 
+### 요청 본문 준비 — SCRUM-166 2단계
+
+`src/api/requestBody.ts`의 `prepareRequestBody(input, headers?)`는 전송 전에 본문과
+헤더를 준비합니다. 성공은 `{ ok: true, value: { headers, body? } }`, 실패는
+`{ ok: false, reason }`입니다. 실패하면 client를 호출하지 않습니다. 기존 raw
+`client.request()`는 그대로이며, 준비 함수 자체는 CSRF 발급이나 네트워크 요청을 하지 않습니다.
+
+| 입력 | 준비 결과 |
+| --- | --- |
+| `{ kind: 'json', value: dto }` | JSON 문자열과 기본 `application/json`. 기존 JSON/UTF-8 헤더는 유지합니다. |
+| `{ kind: 'none' }` | body와 기본 Content-Type을 생략합니다. 명시한 JSON/UTF-8 헤더는 허용합니다. |
+| `{ kind: 'formData', value: formData }` | 같은 FormData를 전달합니다. Content-Type은 런타임이 boundary와 함께 정하므로 수동 지정은 거절합니다. |
+
+JSON Content-Type은 `application/json`과 선택적인 UTF-8 charset 형태를 지원합니다.
+JSON 입력의 undefined·배열 빈 슬롯·비유한 숫자·BigInt·순환·함수·Symbol·사용자 클래스와
+getter/custom toJSON 등은 `invalid_body`로 거절합니다. 선택 필드는 DTO 생성 시 생략합니다.
+이 함수는 endpoint별 DTO validator가 아닙니다. 허용 필드·필수값·null은 호출부에서 검증하며,
+현재 요청 계약에는 null 허용 필드가 없습니다. 일반 JSON null을 변환하거나 자동 생성하지 않습니다.
+JSON은 준비 시점의 값으로 고정하지만 FormData는 같은 객체이므로 전송 완료 전 변경하지 않습니다.
+
+준비 결과에는 전송할 본문이 있으므로 로그·URL·영구 저장소로 복사하지 않습니다.
+실패 결과에는 입력·원문 예외가 없으며 `invalid_body`, `invalid_headers`,
+`invalid_content_type`만 반환합니다. Cookie/Authorization/CSRF 헤더 보호는 기존 client가
+계속 담당합니다. 정상 준비 결과도 전송 성공을 뜻하지 않으며 기존 `ApiResult`를 확인해야 합니다.
+응답 parser는 아래166의3·4단계에서 제공하며, code별 복구 정책은167에서 구현합니다.
+
+### 응답 해석 — SCRUM-166 3·4단계
+
+[`parseApiResponse(response, expectation)`](src/api/response.ts)는 기존 client의
+`kind: 'response'`를 받은 호출부에서 사용합니다. 기존 `not_sent`/`transport_error`/
+`stale_response`는 그대로 처리하며 parser에 넘기지 않습니다. 호출부는 endpoint 계약에 맞는
+성공 종류와 허용 상태를 명시합니다. JSON은200/201/202, empty는204, binary는200을 지원합니다.
+0바이트 POST라고 응답도 empty인 것은 아닙니다. resume는JSON200, end는JSON200/202입니다.
+
+```ts
+import { parseApiResponse } from './src/api/response';
+
+async function readAccountExample() {
+  if (!client.ok) return client;
+  const received = await client.value.request({ method: 'GET', path: '/auth/me' });
+  if (received.kind !== 'response') return received;
+  return parseApiResponse(received.response, { kind: 'json', statuses: [200] });
+}
+```
+
+| 결과 kind | 호출부가 받는 정보 |
+| --- | --- |
+| `json` | `data: unknown`. envelope만 확인하므로 실제 DTO는 호출부에서 검증합니다. |
+| `empty` | 허용한204이며 본문을 읽거나 JSON으로 변환하지 않습니다. |
+| `bytes` | 음성200의 `bytes: ArrayBuffer`. 바이트를 변형하거나 자동 재생하지 않습니다. |
+| `redirect` | 관측한301/302/303/307/308. Location은 메타데이터일 뿐 자동 이동하지 않습니다. |
+| `http_error` | 4xx/5xx의 `error: { code, message, requestId, fields }`. 기대 성공 종류와 관계없이 처리합니다. |
+| `format_error` | 예상 밖 상태·MIME·JSON·envelope·빈 바이너리의 고정 사유. 원문 본문/예외는 포함하지 않습니다. |
+| `body_read_error` | `already_used` 또는 `read_failed`. 응답 이후 실패를 미전송이나 확정 취소로 바꾸지 않습니다. |
+
+모든 결과의 `meta`에 HTTP `status`와 선택한 헤더만 있습니다.
+`meta.headers.requestId`, `location`, `retryAfter`, `contentType`은 받은 문자열 또는 누락 시null입니다.
+본문 읽기·형식 실패에도 유지하며, 잘못된 헤더 값을 임의 ID·대기시간으로 보정하지 않습니다.
+오류 body의 `error.requestId`는 UUID로 확인하되 헤더 ID와 서로 덮어쓰지 않습니다.
+`Retry-After` 해석·재시도·인증 만료 판단은167, Location으로 자동 탐색하는 기능은 제공하지 않습니다.
+
+`fields` 누락만[]로 처리하고 null/잘못된 배열 원소는 형식 오류입니다. 확인한 필드만 새 객체로
+구성하고 미정의 필드를 펼치지 않으며, 전체 OpenAPI schema 검증을 대신하지 않습니다.
+대화 시작 호출부는 `errorContext: 'conversation_start'`를 지정합니다. 이 문맥의409
+`ACTIVE_CONVERSATION_EXISTS`에서만 UUID `activeConversationId`를 요구·보존합니다.
+일반 요청·다른 상태/code에는 확장을 반환하지 않습니다.
+
+parser는 전달받은 본문을 최대 한번 읽습니다. 원본이 필요한 호출부만 미리 clone하며,
+`authTransition()` classifier의 clone과 반환된 원본은 각각 해석할 수 있습니다.
+인증 결과와 CSRF refresh 결과는 계속 분리합니다. parser는 세션/UI를 변경하지 않으며,
+헤더 수신 뒤 늦게 읽은 data의 반영 여부는125/167이 현재 인증 문맥과 함께 판단합니다.
+
+결과에는 응답 data/message/fields와 헤더 원문이 있으므로 전체를 URL·console·영구 저장소로
+복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 실제 Android/iOS의 새 파서 검증 결과와 재현 절차는 아래5단계 및
+[테스트 기록](docs/FE_TEST_CI_PLAN.md)에 구분해서 남깁니다. 실서버 연동은129의 책임입니다.
+
+### 바이너리·OAuth — SCRUM-166 4단계
+
+음성 GET의 raw Response에는 `{ kind: 'binary', statuses: [200] }`를 지정합니다.
+성공이면 `arrayBuffer()`로 한번 읽고 `kind: 'bytes'`로 반환합니다. JSON4xx/5xx는
+바이너리보다 먼저 공통 오류로 해석합니다. 누락/잘못된 MIME은 읽기 전에 거절하며,
+이미 소비한 본문과 읽기 거절도3단계와 같은 결과로 구분합니다.
+
+현재 `audio/*`는 실제 MIME이 미정인 명세 초안입니다. 파서는 구체적인 `audio/…` media type을
+확인하고 매개변수가 있는 헤더 원문도 보존합니다. literal `audio/*`와 `application/octet-stream`은
+성공 MIME으로 인정하지 않습니다. 이 검사는 codec·재생 가능 여부·운영 allowlist 검증이 아닙니다.
+빈200은 FE의 빈2xx 방어 규칙에 따라 `format_error/empty_body`로 반환합니다.
+BE의 음성 최소 크기나 확정 MIME·TTL 규정으로 해석하지 않으며 D13/D14 확정 후 대조해야 합니다.
+
+```ts
+import { resolveOAuthStartUrl } from './src/api/oauth';
+
+const start = resolveOAuthStartUrl(); // 검증된 환경 설정 → ConfigResult<string>
+// 성공 value는 서버 origin + /oauth2/authorization/google이며 query가 없습니다.
+// 이 호출은 브라우저 실행이나 네트워크 요청을 하지 않습니다.
+```
+
+OAuth 시작 경로는 `/api/v1` 밖입니다. helper는 기존 API 설정의 환경·URL 검증을 재사용하고
+origin/port를 유지하며 API base path는 붙이지 않습니다. 별도 target URL·query 인자를 받지 않고,
+앱 복귀 URI나 token/state/redirect_uri를 시작 주소에 추가하지 않습니다. 실제 프록시 배포 경로가
+달라지면 D17 계약과 함께 확인합니다. 주소 생성은 운영 host allowlist나 OS 링크 검증이 아닙니다.
+외부 브라우저 실행·앱 callback·세션 쿠키 연결은126/129에서 담당합니다.
+
+파서는 실제로 받은301/302/303/307/308을 `redirect`로 분류하고 본문을 읽지 않습니다.
+300/304/305/306은 `unexpected_status`이며 특히304를 OAuth 이동으로 간주하지 않습니다.
+`meta.headers.location`은 누락·미검증 값을 포함한 관측 원문이므로 바로 열거나 기록하지 않습니다.
+서버 allowlist 확인과 앱 이동 정책은 해당 호출부 책임입니다. 기존 `fetch`의 `redirect: 'error'`를
+유지하며, 이동 거절로 fetch가 실패하면 기존 `transport_error`입니다. 합성302 테스트의 통과는
+네이티브에서302를 읽었거나 실제 OAuth 로그인이 성공했다는 증거가 아닙니다.
+
+### 응답 파서 네이티브 검증 — SCRUM-166 5단계
+
+일반 `index.ts`와 분리한 `scripts/native-session/response.tsx`가 실제 global fetch로
+요청 준비→client→parser를 실행합니다. 기존 loopback 수신자에25개 응답 사례를 추가했습니다.
+JSON·204·202·multipart·바이너리·오류 envelope와 본문 지연/취소/단절, 파서 호출 전 단절과 늦은 clone 읽기,
+POST 재전송 없음, 인증 classifier clone/원본·CSRF 재획득을 검사합니다.
+합성 바이트와 `audio/x-synthetic`은 실제 음성 형식·codec 정책이 아닙니다.
+
+Expo `57.0.31`의 원본 native buffered reader에서 Android의 부분 본문 성공과 iOS의 오류 후
+미완료 대기를 재현했습니다. `npm ci`의 postinstall은
+[`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)를 적용합니다. Android의 오류 상태
+보존과 Android/iOS `text()`·`arrayBuffer()` 및 늦은 clone의 stream 시작 시 오류 reject를 변경합니다. 버전과3개 소스의
+원본/패치 SHA256을 모두 확인하며, 예상과 다르면 설치가 실패합니다. SDK 갱신 시 이 보완을
+그대로 우회하지 말고 공식 수정 여부와 아래 실제 네이티브 회귀를 확인한 뒤 제거/갱신합니다.
+이미 빌드한 앱·Expo Go에는 적용되지 않으므로 **설치 후 development build 재빌드가 필요합니다.**
+
+수신자 실행 후 `EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082`로
+Metro를 시작합니다. 진단용 bundle URL은
+`http://127.0.0.1:8082/scripts/native-session/response.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`이며
+iOS는 platform을 `ios`로 바꿉니다. 해당 URL을 URL-encode하여
+`exp+dodamdodam://expo-development-client/?url=…`로 엽니다. Android는 `adb reverse tcp:8082 tcp:8082`가
+필요하며 수신자 주소는 Android `10.0.2.2:48591`, iOS `127.0.0.1:48591`입니다.
+`scripts/native-session/cases.bundle`와 `auth.bundle`로 기존 회귀도 실행합니다.
+`EXPO_PUBLIC_NATIVE_PROBE_CASE`로 알려진 사례 하나를 선택할 수 있습니다.
+
+Android 지연 JSON은 chunked 전송으로 개발 Network Inspector의 본문 미리 읽기를 피합니다.
+iOS의 단절 시험은 전체 Content-Length로 잘림을 명확하게 만듭니다. iOS에서 chunked 연결 종료는
+정상 EOF로 전달되어 잘린 JSON이 `invalid_json`으로 분류되는 경우를 관측했습니다. 바이너리는 두 OS
+모두 전체 Content-Length를 유지합니다. MIME·Accept를 바꾸거나 오류 응답을 성공으로 인정하지 않습니다. HTTP/code/메타데이터 결과, 실제 요청 횟수와 쿠키 정리 boolean만
+기록하며 원문 URL·쿠키·토큰·본문·예외는 기록하지 않습니다. 진단의3초/20초 제한은 운영 timeout이 아닙니다.
+진단 종료 후 일반 Metro URL로 App에 복귀하고 해당 앱·서버·장치·adb reverse를 정리합니다.
+
+2026-11-04 최종 빌드에서 각 OS77개(새 응답25·기존 요청26·인증26), 총154개 사례가 통과했습니다.
+깨끗한 설치의 Jest473개·온라인 Expo·양 플랫폼 export/빌드도 통과했습니다. 이후 같은 날 Forge 공식 버전 전환에서는
+임시 설치기 검사8개를 제거하고 보안 회귀2개를 추가해 Jest467개가 통과했으며, 설치·export·양쪽 빌드를 다시 확인했습니다.
+
+이 검사는 에뮬레이터/시뮬레이터의 HTTP loopback 검사입니다. 운영 HTTPS·실기기·BE·OAuth callback,
+확정 음성 codec/크기/TTL 검증과 원격 PR CI는 별도로 수행해야 합니다.
+
 ### 로그인·로그아웃의 CSRF 갱신
 
 125 호출부는 인증 상태를 바꾸는 POST에 `authTransition(request, classify)`를 사용합니다.
@@ -209,11 +359,15 @@ export async function requestAccountExample() {
 전송 실패·판정 예외·정의되지 않은 판정은 `unknown`으로 정리하고 gate를 해제합니다.
 
 ```ts
+import { prepareRequestBody } from './src/api/requestBody';
+
 // 204 성공만 판정하는 예제. 실제 오류 code별 분류는125에서 연결합니다.
 async function logoutExample() {
   if (!client.ok) return client;
+  const prepared = prepareRequestBody({ kind: 'none' });
+  if (!prepared.ok) return prepared;
   return client.value.authTransition(
-    { method: 'POST', path: '/auth/logout' },
+    { method: 'POST', path: '/auth/logout', ...prepared.value },
     (response) => response.status === 204 ? 'changed' : 'unknown',
   );
 }

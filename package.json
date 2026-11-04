@@ -17,7 +17,7 @@
     "typecheck": "tsc --noEmit",
     "test": "jest --ci --runInBand",
     "test:env": "node .github/scripts/check_public_env.mjs",
-    "postinstall": "node scripts/security/patchForge.cjs"
+    "postinstall": "node scripts/native-session/patchExpoFetch.cjs"
   },
   "jest": {
     "preset": "jest-expo"
