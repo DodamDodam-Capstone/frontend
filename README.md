@@ -19,9 +19,9 @@ npm --version
 npm ci
 ```
 
-현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)과
-[Expo 본문 오류 보완](scripts/native-session/patchExpoFetch.cjs)을 적용합니다.
-원본 버전·파일이 달라지면 설치를 중단합니다. 감사 잔여 항목과 공식 버전 전환 시 제거 조건은
+Forge는 공식 수정 버전 `1.4.3`을 lockfile로 설치하며 임시 Forge 패치는 제거했습니다.
+현재 `npm ci`는 설치 후 [Expo 본문 오류 보완](scripts/native-session/patchExpoFetch.cjs)을 적용합니다.
+이 Expo 보완은 원본 버전·파일이 달라지면 설치를 중단합니다. 보안 회귀·감사 결과는
 [검증 기록](docs/FE_TEST_CI_PLAN.md)을 확인합니다.
 
 Metro만 열어 볼 때는 `npm start`를 실행합니다. 아래 `npm run android`와
@@ -306,7 +306,7 @@ POST 재전송 없음, 인증 classifier clone/원본·CSRF 재획득을 검사�
 합성 바이트와 `audio/x-synthetic`은 실제 음성 형식·codec 정책이 아닙니다.
 
 Expo `57.0.31`의 원본 native buffered reader에서 Android의 부분 본문 성공과 iOS의 오류 후
-미완료 대기를 재현했습니다. `npm ci`의 postinstall은 기존 Forge 보완 뒤
+미완료 대기를 재현했습니다. `npm ci`의 postinstall은
 [`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)를 적용합니다. Android의 오류 상태
 보존과 Android/iOS `text()`·`arrayBuffer()` 및 늦은 clone의 stream 시작 시 오류 reject를 변경합니다. 버전과3개 소스의
 원본/패치 SHA256을 모두 확인하며, 예상과 다르면 설치가 실패합니다. SDK 갱신 시 이 보완을
@@ -330,7 +330,8 @@ iOS의 단절 시험은 전체 Content-Length로 잘림을 명확하게 만듭�
 진단 종료 후 일반 Metro URL로 App에 복귀하고 해당 앱·서버·장치·adb reverse를 정리합니다.
 
 2026-11-04 최종 빌드에서 각 OS77개(새 응답25·기존 요청26·인증26), 총154개 사례가 통과했습니다.
-깨끗한 설치의 Jest473개·온라인 Expo·양 플랫폼 export/빌드도 통과했습니다.
+깨끗한 설치의 Jest473개·온라인 Expo·양 플랫폼 export/빌드도 통과했습니다. 이후 같은 날 Forge 공식 버전 전환에서는
+임시 설치기 검사8개를 제거하고 보안 회귀2개를 추가해 Jest467개가 통과했으며, 설치·export·양쪽 빌드를 다시 확인했습니다.
 
 이 검사는 에뮬레이터/시뮬레이터의 HTTP loopback 검사입니다. 운영 HTTPS·실기기·BE·OAuth callback,
 확정 음성 codec/크기/TTL 검증과 원격 PR CI는 별도로 수행해야 합니다.
