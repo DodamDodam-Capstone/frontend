@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 4단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 4단계 바이너리·OAuth 주소 처리까지 로컬 구현·검증했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의5단계 최종 재현·네이티브 검증·인계,원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 5단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 Jira 진행 중이며 5단계까지 로컬 구현·재현·네이티브 검증을 완료했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 원격 CI·PR/병합·실제 서버 검증129와 보안 감사 잔여 항목은 미완료다. 로컬 단계 완료를 Jira/부모123 완료로 해석하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -148,6 +148,30 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - OAuth 기본입력 검사에서1개 실패가 발생했다. Expo가 정적으로 치환한 환경값을 Jest 실행 중 process.env 교체로 바꾸려던 테스트 가정이 원인이었다. reader 이후 URL 생성은 readEnvironment 경계 주입으로,정적 치환은 기존 test:env로 나누어 확인했다. 환경/제품 검증을 끄거나 동적 환경 참조로 바꾸지 않았다.
 - Node24.20.0·npm11.19.0에서 최종 `CI=true npm test` **16개 suite·417개 테스트**, `npm run lint`, `npm run typecheck`, `npm run test:env` **Android/iOS14개 조합**, `git diff --check`가 통과했다. 별도 읽기 전용 리뷰에서도 이번 범위에 추가 조치가 필요한 결함을 발견하지 못했다. 기존5개 작업 공간의 HEAD/status/변경 파일 해시가 착수 전후 동일했다. 기존 App/index·client·CSRF·환경 모듈·의존성·CI·네이티브 설정을 변경하지 않았다. 설치·온라인 Expo·export/네이티브 빌드·기기 실행·실서버·원격 CI·새 의존성 감사는 이번 단계에 재실행하지 않았다.
 - 완료 지점:4단계 로컬 구현과 사용법. 다음 한 가지: 사용자 승인 후5단계 최종 재현·새 파서의 양 OS 네이티브 검사·인계. 로컬 단계 커밋만 수행하고 push·PR·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 5단계 — 최종 재현·네이티브 오류 보완·인계 · 2026-11-04
+
+- 전용 branch의4단계 `64e4325`에서 진행했다. 착수 때 FE development `3d402b58`·BE development `bb11afdd`와 Jira166 진행 중/담당 고영준을 다시 확인했다. API v3.1.0과 D13/D14/D17 미확정 경계를 유지하며 운영값·DTO를 새로 만들지 않았다.
+- 일반 App/index·제품 client/CSRF/parser를 변경하지 않고 `scripts/native-session/response.tsx`와 격리 수신자를 추가했다. 실제 global fetch로25개 사례를 실행한다. JSON201·204·202·0바이트·multipart boundary, 바이트 보존/빈 바이너리/JSON 오류,잘못된 JSON/MIME/fields, 본문 지연·취소·단절·읽기 전 단절·늦은 clone,redirect 차단·실제 POST1회,authTransition classifier clone/원본과CSRF 재획득을 구분한다. 수신자41개·설치15개 테스트를 추가했다.
+- 중간 실패를 통과로 처리하지 않았다. 최초 Android21개에서5개가 실패했다. 작은 고정 길이 JSON은 개발 Network Inspector의 본문 미리 읽기로 헤더 수신부터 대기했고, 취소/단절 바이너리는 Expo 원본 buffered reader가 부분 바이트를 성공으로 반환했다. iOS 원본 reader는 취소 후 Promise가 끝나지 않았다. 첫 패치 후 Android 원본 응답23개는 통과했으나, 추가한 늦은 clone 읽기는 양 OS에서 미완료 대기를 재현했다. 진단 보고서의 필수 platform/stage 누락도 실제 실행 중 발견해 수정했다.
+- `patchExpoFetch.cjs`를 기존 Forge postinstall 뒤에 연결했다. Expo57.0.31의 Android NativeResponse 오류 상태 보존, 양 OS text/arrayBuffer의 오류 상태 reject, startStreaming의 선행 오류 throw를3개 네이티브 파일에 적용한다. 공식 원본/최종 패치 SHA256만 허용하고 파일·버전·프로젝트·경로를 모두 검증한 뒤 쓴다. 원본/일부 적용/재실행,잘못된 소스·버전·cwd·심볼릭 링크·중간 패치 거절15개를 확인했다. 패키지 버전·lockfile·JS parser API를 바꾸지 않았다. Expo Go나 기존 바이너리에는 적용되지 않으므로 development build 재빌드가 필수다.
+- Android 지연 JSON은 chunked로 Inspector 간섭을 피한다. iOS에서 chunked의 서버 연결 종료가 정상 EOF로 전달되면 parser가 `invalid_json`을 반환하는 것을 관측했다. iOS의 본문 잘림 시험은 전체 Content-Length로 프레이밍 오류를 명확히 했고 바이너리는 두 OS 모두 전체 길이를 유지한다. 각 OS의 실제 헤더/단절 조건을 별도로 테스트했다. MIME/Accept를 속이거나 형식 실패를 성공으로 인정하지 않는다. 이 차이를 모든 네트워크 오류가 같은 kind로 전달된다는 주장으로 확대하지 않는다.
+- 최종 코드와 동일한7개 구현 파일을 `git archive 64e4325`의 깨끗한 임시 복사본에 반영하고 해시로 일치를 확인했다. Node24.20.0/npm11.19.0의 fresh `npm ci`에서 Forge·Expo 패치 적용과 최종3개 SHA를 재검증했다. 온라인 `npx --no-install expo install --check`, manifest, Jira workflow 회귀7개, `npm run lint`, `npm run typecheck`, 전체 Jest **18 suites·473 tests**, `npm run test:env` **14개 조합**, 일반 index의 Android/iOS export가 모두 종료0이었다. 별도 `npm audit`의 종료1은 아래 별도 기록과 구분한다.
+- 최종 `expo prebuild --platform android/ios --no-install` 후 기준76개 파일 변경이 없었다. JDK17.0.20.1/SDK36/NDK27.1의 `./gradlew :app:assembleDebug --no-daemon`은 BUILD SUCCESSFUL, CocoaPods1.16.2와 Xcode26.6의 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build`는 BUILD SUCCEEDED였다. export·설치·두 빌드를 앞선 실패 버전의 결과로 대체하지 않았다.
+- 최종 앱을 Android Pixel Tablet API36 에뮬레이터와 iPad Pro11형 M5/iOS26.5 시뮬레이터에 설치했다. 각 OS **새 응답25개 + 기존 요청26개 + 인증26개 =77개**, 합계 **154개** 고유 사례의 pass·cleanup을 확인했다. 단절 후 늦은 clone도 read_failed로 종료했고 기존 CSRF·redirect·0바이트/multipart·POST 단일 전송·인증 전환 회귀도 통과했다. 원문 데이터 대신 허용된 enum/횟수/boolean만 보고했다.
+- 독립 코드 리뷰 후 추가 수정이 필요한 결함이 없음을 확인했다. 기존 CI는 `npm ci`의 새 설치 패치, 전체 Jest의 신규 테스트, 양 플랫폼 export/컴파일을 실행하도록 이미 연결돼 있어 workflow를 바꾸지 않았다. **CI가 준비돼 있다는 뜻이며 실제 원격 CI는 실행하지 않았다.** CI 컴파일이 로컬 probe154개 실행을 대신하지도 않는다.
+- 기존 checkout·한국어 주석·SCRUM-178·165·179의5개 작업 공간은 HEAD/status와 미커밋17개 파일 해시가 시작 전과 같았다. 개인 `.env`를 로드하지 않고 검증했으며, 일반 App 복귀에서는 정상적으로 환경 설정 필요 안내가 나타났다. 이는 실서버 연결 완료 증거가 아니다.
+- 완료 지점:166의5단계 로컬 구현·재현·네이티브 검증 및 인계. 다음 한 가지: 별도 요청에 따라 남은 Forge 보안 권고의 공식 수정/호환성 대책을 확인하고 PR 준비 여부를 판단한다. push·PR 생성/병합·Jira 변경은 하지 않았다. 일반 App 복귀 후 이번에 실행한 서버·장치·adb reverse를 정리했다. 이 단계의 변경만 로컬 커밋으로 저장한다.
+
+후속 작업은 아래 경계를 이어받는다.
+
+| 담당 범위 | 인계 내용 |
+| --- | --- |
+| SCRUM-167 | ApiResult의 미전송/통신/오래된 응답과 ParsedApiResponse의 HTTP/형식/읽기 실패를 먼저 구분한다. code·fields·requestId와 관측 헤더를 사용하되401·403·429·503 일괄 재시도나 실패 POST 재실행을 하지 않는다. Retry-After 원문 해석·인증 만료 상태·화면 반영 정책을 구현한다. 헤더 뒤 늦은 본문 반영은 현재 인증 문맥을 확인한다. |
+| SCRUM-168 | 기존 계약 테스트를 확장하고 민감값이 URL·console·영구 저장소에 남지 않는 경계를 검증한다. parser 결과 전체와 FormData/준비 본문도 로그 대상으로 삼지 않는다. 설치 패치·기존 one-shot POST를 포함한 CI 및 실제 native 회귀의 증빙을 구분한다. |
+| SCRUM-125·126·129 | 호출부의 확정 DTO·null/필드 허용을 검사한다. OAuth helper는 시작 주소 생성만 제공하며 브라우저/callback은126,실제 BE·HTTPS·쿠키/CORS와 확정 음성 정책 검증은129다. 합성 auth/음성/loopback 통과를 업무 API·실서버 성공으로 사용하지 않는다. |
+
+- 최신 `npm audit --json`은 종료1, **49개(low6·moderate42·high1·critical0)**를 보고했다. high1은 `node-forge@1.4.0` 패키지 집계이며 high 권고6개를 포함한다. 기존 [DigestInfo 보완](https://github.com/advisories/GHSA-86w9-cpqp-85rv)의 적용 해시는 일치하지만 [PEM](https://github.com/advisories/GHSA-7wch-p9px-956x), [PKCS#12](https://github.com/advisories/GHSA-jc66-7q78-782g), [TLS 분할](https://github.com/advisories/GHSA-8hrf-8g6f-7xwp), [TLS 스택](https://github.com/advisories/GHSA-hqq3-7jhf-c5jx), [X.509](https://github.com/advisories/GHSA-5x38-2vff-x55p)는 그 패치 범위 밖이다. npm은 fixAvailable을 보고하므로 공식 수정 버전과 Expo 경로의 호환성을 별도 확인해야 한다. 이번 응답 처리 패치를 보안 감사 전체 해결로 보고하지 않는다. 의존 경로는 Expo→@expo/cli→node-forge와 @expo/code-signing-certificates이며 강제 upgrade/audit fix는 실행하지 않았다.
 
 ### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
 

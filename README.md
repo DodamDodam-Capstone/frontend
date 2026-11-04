@@ -19,7 +19,8 @@ npm --version
 npm ci
 ```
 
-현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)을 적용합니다.
+현재 `npm ci`는 설치 후 [Forge 임시 보완](scripts/security/patchForge.cjs)과
+[Expo 본문 오류 보완](scripts/native-session/patchExpoFetch.cjs)을 적용합니다.
 원본 버전·파일이 달라지면 설치를 중단합니다. 감사 잔여 항목과 공식 버전 전환 시 제거 조건은
 [검증 기록](docs/FE_TEST_CI_PLAN.md)을 확인합니다.
 
@@ -259,8 +260,8 @@ parser는 전달받은 본문을 최대 한번 읽습니다. 원본이 필요한
 헤더 수신 뒤 늦게 읽은 data의 반영 여부는125/167이 현재 인증 문맥과 함께 판단합니다.
 
 결과에는 응답 data/message/fields와 헤더 원문이 있으므로 전체를 URL·console·영구 저장소로
-복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 실제 Android/iOS에서 새 파서를
-통과하는 본문 읽기 검증은5단계, 실서버 연동은129에 남아 있습니다.
+복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 실제 Android/iOS의 새 파서 검증 결과와 재현 절차는 아래5단계 및
+[테스트 기록](docs/FE_TEST_CI_PLAN.md)에 구분해서 남깁니다. 실서버 연동은129의 책임입니다.
 
 ### 바이너리·OAuth — SCRUM-166 4단계
 
@@ -295,6 +296,44 @@ origin/port를 유지하며 API base path는 붙이지 않습니다. 별도 targ
 서버 allowlist 확인과 앱 이동 정책은 해당 호출부 책임입니다. 기존 `fetch`의 `redirect: 'error'`를
 유지하며, 이동 거절로 fetch가 실패하면 기존 `transport_error`입니다. 합성302 테스트의 통과는
 네이티브에서302를 읽었거나 실제 OAuth 로그인이 성공했다는 증거가 아닙니다.
+
+### 응답 파서 네이티브 검증 — SCRUM-166 5단계
+
+일반 `index.ts`와 분리한 `scripts/native-session/response.tsx`가 실제 global fetch로
+요청 준비→client→parser를 실행합니다. 기존 loopback 수신자에25개 응답 사례를 추가했습니다.
+JSON·204·202·multipart·바이너리·오류 envelope와 본문 지연/취소/단절, 파서 호출 전 단절과 늦은 clone 읽기,
+POST 재전송 없음, 인증 classifier clone/원본·CSRF 재획득을 검사합니다.
+합성 바이트와 `audio/x-synthetic`은 실제 음성 형식·codec 정책이 아닙니다.
+
+Expo `57.0.31`의 원본 native buffered reader에서 Android의 부분 본문 성공과 iOS의 오류 후
+미완료 대기를 재현했습니다. `npm ci`의 postinstall은 기존 Forge 보완 뒤
+[`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)를 적용합니다. Android의 오류 상태
+보존과 Android/iOS `text()`·`arrayBuffer()` 및 늦은 clone의 stream 시작 시 오류 reject를 변경합니다. 버전과3개 소스의
+원본/패치 SHA256을 모두 확인하며, 예상과 다르면 설치가 실패합니다. SDK 갱신 시 이 보완을
+그대로 우회하지 말고 공식 수정 여부와 아래 실제 네이티브 회귀를 확인한 뒤 제거/갱신합니다.
+이미 빌드한 앱·Expo Go에는 적용되지 않으므로 **설치 후 development build 재빌드가 필요합니다.**
+
+수신자 실행 후 `EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082`로
+Metro를 시작합니다. 진단용 bundle URL은
+`http://127.0.0.1:8082/scripts/native-session/response.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`이며
+iOS는 platform을 `ios`로 바꿉니다. 해당 URL을 URL-encode하여
+`exp+dodamdodam://expo-development-client/?url=…`로 엽니다. Android는 `adb reverse tcp:8082 tcp:8082`가
+필요하며 수신자 주소는 Android `10.0.2.2:48591`, iOS `127.0.0.1:48591`입니다.
+`scripts/native-session/cases.bundle`와 `auth.bundle`로 기존 회귀도 실행합니다.
+`EXPO_PUBLIC_NATIVE_PROBE_CASE`로 알려진 사례 하나를 선택할 수 있습니다.
+
+Android 지연 JSON은 chunked 전송으로 개발 Network Inspector의 본문 미리 읽기를 피합니다.
+iOS의 단절 시험은 전체 Content-Length로 잘림을 명확하게 만듭니다. iOS에서 chunked 연결 종료는
+정상 EOF로 전달되어 잘린 JSON이 `invalid_json`으로 분류되는 경우를 관측했습니다. 바이너리는 두 OS
+모두 전체 Content-Length를 유지합니다. MIME·Accept를 바꾸거나 오류 응답을 성공으로 인정하지 않습니다. HTTP/code/메타데이터 결과, 실제 요청 횟수와 쿠키 정리 boolean만
+기록하며 원문 URL·쿠키·토큰·본문·예외는 기록하지 않습니다. 진단의3초/20초 제한은 운영 timeout이 아닙니다.
+진단 종료 후 일반 Metro URL로 App에 복귀하고 해당 앱·서버·장치·adb reverse를 정리합니다.
+
+2026-11-04 최종 빌드에서 각 OS77개(새 응답25·기존 요청26·인증26), 총154개 사례가 통과했습니다.
+깨끗한 설치의 Jest473개·온라인 Expo·양 플랫폼 export/빌드도 통과했습니다.
+
+이 검사는 에뮬레이터/시뮬레이터의 HTTP loopback 검사입니다. 운영 HTTPS·실기기·BE·OAuth callback,
+확정 음성 codec/크기/TTL 검증과 원격 PR CI는 별도로 수행해야 합니다.
 
 ### 로그인·로그아웃의 CSRF 갱신
 
