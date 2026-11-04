@@ -210,14 +210,14 @@ JSON은 준비 시점의 값으로 고정하지만 FormData는 같은 객체이�
 실패 결과에는 입력·원문 예외가 없으며 `invalid_body`, `invalid_headers`,
 `invalid_content_type`만 반환합니다. Cookie/Authorization/CSRF 헤더 보호는 기존 client가
 계속 담당합니다. 정상 준비 결과도 전송 성공을 뜻하지 않으며 기존 `ApiResult`를 확인해야 합니다.
-JSON·204·HTTP 오류 응답 parser는 아래166의3단계에서 제공하며, code별 복구 정책은167에서 구현합니다.
+응답 parser는 아래166의3·4단계에서 제공하며, code별 복구 정책은167에서 구현합니다.
 
-### JSON·204·오류 응답 해석 — SCRUM-166 3단계
+### 응답 해석 — SCRUM-166 3·4단계
 
 [`parseApiResponse(response, expectation)`](src/api/response.ts)는 기존 client의
 `kind: 'response'`를 받은 호출부에서 사용합니다. 기존 `not_sent`/`transport_error`/
 `stale_response`는 그대로 처리하며 parser에 넘기지 않습니다. 호출부는 endpoint 계약에 맞는
-성공 종류와 허용 상태를 명시합니다. JSON은200/201/202, empty는204를 지원합니다.
+성공 종류와 허용 상태를 명시합니다. JSON은200/201/202, empty는204, binary는200을 지원합니다.
 0바이트 POST라고 응답도 empty인 것은 아닙니다. resume는JSON200, end는JSON200/202입니다.
 
 ```ts
@@ -235,8 +235,10 @@ async function readAccountExample() {
 | --- | --- |
 | `json` | `data: unknown`. envelope만 확인하므로 실제 DTO는 호출부에서 검증합니다. |
 | `empty` | 허용한204이며 본문을 읽거나 JSON으로 변환하지 않습니다. |
+| `bytes` | 음성200의 `bytes: ArrayBuffer`. 바이트를 변형하거나 자동 재생하지 않습니다. |
+| `redirect` | 관측한301/302/303/307/308. Location은 메타데이터일 뿐 자동 이동하지 않습니다. |
 | `http_error` | 4xx/5xx의 `error: { code, message, requestId, fields }`. 기대 성공 종류와 관계없이 처리합니다. |
-| `format_error` | 예상 밖 상태·MIME·JSON·envelope의 고정 사유. 원문 본문/예외는 포함하지 않습니다. |
+| `format_error` | 예상 밖 상태·MIME·JSON·envelope·빈 바이너리의 고정 사유. 원문 본문/예외는 포함하지 않습니다. |
 | `body_read_error` | `already_used` 또는 `read_failed`. 응답 이후 실패를 미전송이나 확정 취소로 바꾸지 않습니다. |
 
 모든 결과의 `meta`에 HTTP `status`와 선택한 헤더만 있습니다.
@@ -257,8 +259,42 @@ parser는 전달받은 본문을 최대 한번 읽습니다. 원본이 필요한
 헤더 수신 뒤 늦게 읽은 data의 반영 여부는125/167이 현재 인증 문맥과 함께 판단합니다.
 
 결과에는 응답 data/message/fields와 헤더 원문이 있으므로 전체를 URL·console·영구 저장소로
-복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 바이너리·OAuth 이동은
-4단계, 실제 Android/iOS에서 새 파서를 통과하는 본문 읽기 검증은5단계, 실서버 연동은129에 남아 있습니다.
+복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 실제 Android/iOS에서 새 파서를
+통과하는 본문 읽기 검증은5단계, 실서버 연동은129에 남아 있습니다.
+
+### 바이너리·OAuth — SCRUM-166 4단계
+
+음성 GET의 raw Response에는 `{ kind: 'binary', statuses: [200] }`를 지정합니다.
+성공이면 `arrayBuffer()`로 한번 읽고 `kind: 'bytes'`로 반환합니다. JSON4xx/5xx는
+바이너리보다 먼저 공통 오류로 해석합니다. 누락/잘못된 MIME은 읽기 전에 거절하며,
+이미 소비한 본문과 읽기 거절도3단계와 같은 결과로 구분합니다.
+
+현재 `audio/*`는 실제 MIME이 미정인 명세 초안입니다. 파서는 구체적인 `audio/…` media type을
+확인하고 매개변수가 있는 헤더 원문도 보존합니다. literal `audio/*`와 `application/octet-stream`은
+성공 MIME으로 인정하지 않습니다. 이 검사는 codec·재생 가능 여부·운영 allowlist 검증이 아닙니다.
+빈200은 FE의 빈2xx 방어 규칙에 따라 `format_error/empty_body`로 반환합니다.
+BE의 음성 최소 크기나 확정 MIME·TTL 규정으로 해석하지 않으며 D13/D14 확정 후 대조해야 합니다.
+
+```ts
+import { resolveOAuthStartUrl } from './src/api/oauth';
+
+const start = resolveOAuthStartUrl(); // 검증된 환경 설정 → ConfigResult<string>
+// 성공 value는 서버 origin + /oauth2/authorization/google이며 query가 없습니다.
+// 이 호출은 브라우저 실행이나 네트워크 요청을 하지 않습니다.
+```
+
+OAuth 시작 경로는 `/api/v1` 밖입니다. helper는 기존 API 설정의 환경·URL 검증을 재사용하고
+origin/port를 유지하며 API base path는 붙이지 않습니다. 별도 target URL·query 인자를 받지 않고,
+앱 복귀 URI나 token/state/redirect_uri를 시작 주소에 추가하지 않습니다. 실제 프록시 배포 경로가
+달라지면 D17 계약과 함께 확인합니다. 주소 생성은 운영 host allowlist나 OS 링크 검증이 아닙니다.
+외부 브라우저 실행·앱 callback·세션 쿠키 연결은126/129에서 담당합니다.
+
+파서는 실제로 받은301/302/303/307/308을 `redirect`로 분류하고 본문을 읽지 않습니다.
+300/304/305/306은 `unexpected_status`이며 특히304를 OAuth 이동으로 간주하지 않습니다.
+`meta.headers.location`은 누락·미검증 값을 포함한 관측 원문이므로 바로 열거나 기록하지 않습니다.
+서버 allowlist 확인과 앱 이동 정책은 해당 호출부 책임입니다. 기존 `fetch`의 `redirect: 'error'`를
+유지하며, 이동 거절로 fetch가 실패하면 기존 `transport_error`입니다. 합성302 테스트의 통과는
+네이티브에서302를 읽었거나 실제 OAuth 로그인이 성공했다는 증거가 아닙니다.
 
 ### 로그인·로그아웃의 CSRF 갱신
 

@@ -1,6 +1,7 @@
 export type ResponseExpectation = (
   | { kind: 'json'; statuses: readonly (200 | 201 | 202)[] }
   | { kind: 'empty'; statuses: readonly 204[] }
+  | { kind: 'binary'; statuses: readonly 200[] }
 ) & { errorContext?: 'conversation_start' };
 export type ResponseMetadata = {
   status: number;
@@ -13,8 +14,10 @@ export type ApiError = {
 export type ParsedApiResponse = { meta: ResponseMetadata } & (
   | { kind: 'json'; data: unknown }
   | { kind: 'empty' }
+  | { kind: 'bytes'; bytes: ArrayBuffer }
+  | { kind: 'redirect' }
   | { kind: 'http_error'; error: ApiError }
-  | { kind: 'format_error'; reason: 'unexpected_status' | 'invalid_content_type' | 'invalid_json' | 'invalid_envelope' }
+  | { kind: 'format_error'; reason: 'unexpected_status' | 'invalid_content_type' | 'invalid_json' | 'invalid_envelope' | 'empty_body' }
   | { kind: 'body_read_error'; reason: 'already_used' | 'read_failed' }
 );
 
@@ -53,17 +56,29 @@ export async function parseApiResponse(response: Response, expectation: Response
     requestId: response.headers.get('X-Request-ID'), location: response.headers.get('Location'),
     retryAfter: response.headers.get('Retry-After'), contentType: response.headers.get('Content-Type'),
   } };
+  // 관측한 이동만 반환한다. Location을 실행하지 않으며304를 이동으로 분류하지 않는다.
+  if ([301, 302, 303, 307, 308].includes(response.status)) return { kind: 'redirect', meta };
   const httpError = response.status >= 400 && response.status <= 599;
   if (!httpError && !(expectation.statuses as readonly number[]).includes(response.status)) {
     return { kind: 'format_error', reason: 'unexpected_status', meta };
   }
   if (!httpError && expectation.kind === 'empty') return { kind: 'empty', meta };
-  if (!/^application\/json(?: *; *charset *= *(?:utf-8|"utf-8"))?$/i.test(meta.headers.contentType ?? '')) {
+  const binary = !httpError && expectation.kind === 'binary';
+  // audio/* 초안의 구체적 media type만 확인한다. 실제 codec/제한은 D13/D14 확정 후 적용한다.
+  const validContentType = binary
+    ? /^audio\/[a-z0-9][a-z0-9!#$&^_.+-]*$/i.test(meta.headers.contentType?.split(';')[0].trim() ?? '')
+    : /^application\/json(?: *; *charset *= *(?:utf-8|"utf-8"))?$/i.test(meta.headers.contentType ?? '');
+  if (!validContentType) {
     return { kind: 'format_error', reason: 'invalid_content_type', meta };
   }
   if (response.bodyUsed) return { kind: 'body_read_error', reason: 'already_used', meta };
   let text: string;
   try {
+    if (binary) {
+      const bytes = await response.arrayBuffer();
+      // BE 음성 최소 크기 규정이 아니라 FE의 빈2xx 방어 규칙이다.
+      return bytes.byteLength ? { kind: 'bytes', bytes, meta } : { kind: 'format_error', reason: 'empty_body', meta };
+    }
     text = await response.text();
   } catch {
     // 런타임 예외명으로 취소 원인을 추정하거나 원문 예외를 반환하지 않는다.

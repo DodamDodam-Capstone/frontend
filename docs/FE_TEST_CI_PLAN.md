@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 3단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 3단계 JSON·204·공통 오류 응답 처리까지 로컬 구현·검증했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의4단계 바이너리·OAuth,5단계 네이티브 검증·인계,원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 4단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 4단계 바이너리·OAuth 주소 처리까지 로컬 구현·검증했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의5단계 최종 재현·네이티브 검증·인계,원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
 
 ## 목표와 현재 상태
 
@@ -136,6 +136,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - Node `24.20.0`·npm `11.19.0`에서 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **14개 suite·353개 테스트**, `git diff --check`가 통과했다. 읽기 전용 별도 코드 리뷰에서 이번 범위에 추가 조치가 필요한 결함은 발견하지 못했다. 기존 CI의 전체 Jest 명령이 새 테스트를 수집하는 것을 로컬에서 확인했으며 원격 CI를 실행한 것은 아니다.
 - 기존 checkout·한국어 주석·SCRUM-178·165·179의5개 작업 공간은 착수 전후 HEAD/status와 변경 파일 해시가 동일했다. 일반 App/index·운영 mock·의존성·CI·네이티브 설정은 변경하지 않았다. 설치·온라인 Expo·환경 주입·export·기기 런타임·새 의존성 감사는 이번 단계에 재실행하지 않았고5단계/해당 별도 작업에 남는다.
 - 완료 지점: 3단계 로컬 구현·검증과 README/이 기록. 다음 한 가지: 사용자 승인 후4단계 바이너리·OAuth. 이번 단계의 로컬 커밋만 수행하며 push·PR 생성·병합·Jira 변경은 하지 않는다.
+
+### SCRUM-166 4단계 — 바이너리·OAuth · 2026-11-04
+
+- 사용자 승인 후 전용 branch의3단계 커밋 `42451f9`에서 이어갔다. FE development `3d402b58`·BE development `bb11afdd` 및 Jira166 진행 중/담당 고영준이 동일함을 재확인했다. 위3단계 시점의 승인 기록과 이번4단계 승인을 구별한다.
+- 적용 계약은 BE `bb11afdd`의 [음성 §7.8](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/07-voice.md), [인증 §6.17·6.18](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/02-auth.md), OpenAPI `getTemporaryTurnAudio`/OAuth 시작 경로다. `audio/*`는 미정 MIME 초안이며 octet-stream 허용 근거가 없다. 음성 GET 오류 fixture는401 AUTHENTICATION_REQUIRED,403 CHILD_SESSION_REQUIRED,410 AUDIO_EXPIRED,429 RATE_LIMITED,503 AUTH_STATE_UNAVAILABLE를 사용했다.
+- `response.ts`에 binary200 기대값과 bytes/redirect 결과를 추가했다. audio 계열의 구체적 media type을 확인하고 arrayBuffer를 한번 읽어 변형/clone 없이 반환한다. JSON4xx/5xx 우선,읽기 전 MIME 거절,본문 소비/읽기 실패·메타데이터 보존을 유지한다.0바이트200의 empty_body는 승인된 FE 빈2xx 방어 규칙이며 BE 최소 음성 크기를 새로 정한 것이 아니다. 실제 codec·크기·길이·TTL·운영 allowlist는 D13/D14에 남는다.
+- 관측한301/302/303/307/308만 별도 redirect 결과로 반환하며 본문을 읽거나 Location을 열지 않는다.300/304/305/306은 예상 밖 상태다. Location 누락/미검증 원문은 메타데이터로만 보존한다. 기존 client의 redirect:error와 통신 실패 분류를 유지했으며 합성3xx와 실제 네이티브 관측을 구별했다.
+- `oauth.ts`의 `resolveOAuthStartUrl()`는 기존 환경/API URL 검증 뒤 서버 origin과 `/oauth2/authorization/google`을 조합한다. API base path·앱 복귀 주소·임의 query는 붙이지 않는다. helper는 네트워크/OS 이동을 하지 않으며 OAuth 화면·callback·쿠키 연동126/129를 구현한 것이 아니다.
+- 최초 바이너리/redirect37개 검사는16개 실패·21개 통과,OAuth20개는 최소 뼈대에서20개 실패를 확인하고 구현했다. client 연결·로그 비기록 회귀7개를 보강해 이번 새 검사는64개다. 음성 GET 쿠키 포함/CSRF 미발급,주입 POST3xx의 무재전송,redirect:error 전송 실패가 관측302로 변하지 않는 것을 검사했다.
+- OAuth 기본입력 검사에서1개 실패가 발생했다. Expo가 정적으로 치환한 환경값을 Jest 실행 중 process.env 교체로 바꾸려던 테스트 가정이 원인이었다. reader 이후 URL 생성은 readEnvironment 경계 주입으로,정적 치환은 기존 test:env로 나누어 확인했다. 환경/제품 검증을 끄거나 동적 환경 참조로 바꾸지 않았다.
+- Node24.20.0·npm11.19.0에서 최종 `CI=true npm test` **16개 suite·417개 테스트**, `npm run lint`, `npm run typecheck`, `npm run test:env` **Android/iOS14개 조합**, `git diff --check`가 통과했다. 별도 읽기 전용 리뷰에서도 이번 범위에 추가 조치가 필요한 결함을 발견하지 못했다. 기존5개 작업 공간의 HEAD/status/변경 파일 해시가 착수 전후 동일했다. 기존 App/index·client·CSRF·환경 모듈·의존성·CI·네이티브 설정을 변경하지 않았다. 설치·온라인 Expo·export/네이티브 빌드·기기 실행·실서버·원격 CI·새 의존성 감사는 이번 단계에 재실행하지 않았다.
+- 완료 지점:4단계 로컬 구현과 사용법. 다음 한 가지: 사용자 승인 후5단계 최종 재현·새 파서의 양 OS 네이티브 검사·인계. 로컬 단계 커밋만 수행하고 push·PR·병합·Jira 변경은 하지 않는다.
 
 ### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
 
