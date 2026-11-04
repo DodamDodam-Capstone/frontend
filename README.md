@@ -210,7 +210,55 @@ JSON은 준비 시점의 값으로 고정하지만 FormData는 같은 객체이�
 실패 결과에는 입력·원문 예외가 없으며 `invalid_body`, `invalid_headers`,
 `invalid_content_type`만 반환합니다. Cookie/Authorization/CSRF 헤더 보호는 기존 client가
 계속 담당합니다. 정상 준비 결과도 전송 성공을 뜻하지 않으며 기존 `ApiResult`를 확인해야 합니다.
-응답 parser와 code별 복구 정책은 각각166의 다음 단계와167에 남아 있습니다.
+JSON·204·HTTP 오류 응답 parser는 아래166의3단계에서 제공하며, code별 복구 정책은167에서 구현합니다.
+
+### JSON·204·오류 응답 해석 — SCRUM-166 3단계
+
+[`parseApiResponse(response, expectation)`](src/api/response.ts)는 기존 client의
+`kind: 'response'`를 받은 호출부에서 사용합니다. 기존 `not_sent`/`transport_error`/
+`stale_response`는 그대로 처리하며 parser에 넘기지 않습니다. 호출부는 endpoint 계약에 맞는
+성공 종류와 허용 상태를 명시합니다. JSON은200/201/202, empty는204를 지원합니다.
+0바이트 POST라고 응답도 empty인 것은 아닙니다. resume는JSON200, end는JSON200/202입니다.
+
+```ts
+import { parseApiResponse } from './src/api/response';
+
+async function readAccountExample() {
+  if (!client.ok) return client;
+  const received = await client.value.request({ method: 'GET', path: '/auth/me' });
+  if (received.kind !== 'response') return received;
+  return parseApiResponse(received.response, { kind: 'json', statuses: [200] });
+}
+```
+
+| 결과 kind | 호출부가 받는 정보 |
+| --- | --- |
+| `json` | `data: unknown`. envelope만 확인하므로 실제 DTO는 호출부에서 검증합니다. |
+| `empty` | 허용한204이며 본문을 읽거나 JSON으로 변환하지 않습니다. |
+| `http_error` | 4xx/5xx의 `error: { code, message, requestId, fields }`. 기대 성공 종류와 관계없이 처리합니다. |
+| `format_error` | 예상 밖 상태·MIME·JSON·envelope의 고정 사유. 원문 본문/예외는 포함하지 않습니다. |
+| `body_read_error` | `already_used` 또는 `read_failed`. 응답 이후 실패를 미전송이나 확정 취소로 바꾸지 않습니다. |
+
+모든 결과의 `meta`에 HTTP `status`와 선택한 헤더만 있습니다.
+`meta.headers.requestId`, `location`, `retryAfter`, `contentType`은 받은 문자열 또는 누락 시null입니다.
+본문 읽기·형식 실패에도 유지하며, 잘못된 헤더 값을 임의 ID·대기시간으로 보정하지 않습니다.
+오류 body의 `error.requestId`는 UUID로 확인하되 헤더 ID와 서로 덮어쓰지 않습니다.
+`Retry-After` 해석·재시도·인증 만료 판단은167, Location으로 자동 탐색하는 기능은 제공하지 않습니다.
+
+`fields` 누락만[]로 처리하고 null/잘못된 배열 원소는 형식 오류입니다. 확인한 필드만 새 객체로
+구성하고 미정의 필드를 펼치지 않으며, 전체 OpenAPI schema 검증을 대신하지 않습니다.
+대화 시작 호출부는 `errorContext: 'conversation_start'`를 지정합니다. 이 문맥의409
+`ACTIVE_CONVERSATION_EXISTS`에서만 UUID `activeConversationId`를 요구·보존합니다.
+일반 요청·다른 상태/code에는 확장을 반환하지 않습니다.
+
+parser는 전달받은 본문을 최대 한번 읽습니다. 원본이 필요한 호출부만 미리 clone하며,
+`authTransition()` classifier의 clone과 반환된 원본은 각각 해석할 수 있습니다.
+인증 결과와 CSRF refresh 결과는 계속 분리합니다. parser는 세션/UI를 변경하지 않으며,
+헤더 수신 뒤 늦게 읽은 data의 반영 여부는125/167이 현재 인증 문맥과 함께 판단합니다.
+
+결과에는 응답 data/message/fields와 헤더 원문이 있으므로 전체를 URL·console·영구 저장소로
+복사하지 않습니다. 파서 자체는 로깅·저장·재전송을 하지 않습니다. 바이너리·OAuth 이동은
+4단계, 실제 Android/iOS에서 새 파서를 통과하는 본문 읽기 검증은5단계, 실서버 연동은129에 남아 있습니다.
 
 ### 로그인·로그아웃의 CSRF 갱신
 

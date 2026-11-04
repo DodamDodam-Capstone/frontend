@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 2단계 요청 본문 준비까지 로컬 구현·검증했다.** 2026-10-28 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의 응답 처리 등 남은 단계·원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 3단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 진행 중이며 3단계 JSON·204·공통 오류 응답 처리까지 로컬 구현·검증했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 166의4단계 바이너리·OAuth,5단계 네이티브 검증·인계,원격 CI·PR/병합·실제 서버 검증129는 아직 완료하지 않았다.
 
 ## 목표와 현재 상태
 
@@ -87,6 +87,26 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 로컬 기본 명령은 `npm run lint`, `npm run typecheck`, `CI=true npm test`; 최종 검증은 온라인 `npx --no-install expo install --check`, `npm run test:env`, Android/iOS export 및 필요한 네이티브 빌드·런타임 검사다. 의존성 변경 또는 깨끗한 재현이 필요할 때 `npm ci`를 다시 실행한다.
 - 현재 PR CI는 전체 Jest를 수집하므로 새 인접 `*.test.ts`가 포함되는지 실제 실행에서 확인한다. JS job은 manifest·Jira 검사 회귀·고정 npm·설치·온라인 Expo·lint·typecheck·Jest·환경 주입·양 플랫폼 export, 후속 job은 Android/iOS 빌드이며 세 job 성공을 `frontend-quality`가 집계한다. CI 빌드는 네이티브 probe 실행을 대신하지 않는다. PR을 요청받은 뒤에는 최신 commit의 실제 원격 검사 로그를 별도로 확인한다.
 
+#### 2026-11-04 재확인·남은 단계 실행 계획
+
+- FE development `3d402b58bf0d91191b8caf7b87a81da26a7bdb2c`는 동일하며, 전용 branch는 2단계 커밋 `7c1575d`에서 이어간다. Jira166은 담당 고영준·진행 중, 부모123 진행 중이다. 기존 작업 공간은 보존한다.
+- BE development는 [`bb11afdd2a26888ce05feae29b11df73366fdb7e`](https://github.com/DodamDodam-Capstone/backend/commit/bb11afdd2a26888ce05feae29b11df73366fdb7e)로 갱신됐다. 이전 기준 이후 docs/p0 변경은 없고 OpenAPI info.version `3.1.0`과 D13/D14/D17 미확정 범위는 유지된다. 위 표의 고정 링크는 10/28 근거이며 최신 소스와 구별한다.
+- 최신 BE의 `auth/api/AuthLogoutController`와 `global/web/Part1JsonRequestGuardFilter`를 적용 근거로 사용한다. 0바이트 logout/204 계약은 동일하다. 새 guard의16KiB/JSON 제한은 POST logout·children에 한정하며 음성/모든 API로 확대하지 않는다. 자녀 등록의201+상대 Location,409 CHILD_LIMIT_REACHED,500/503 오류는 공통 파서의 실제 구현 기반 fixture로 활용한다. Location으로 자동 GET·화면 이동하지 않는다.
+
+| 중간 완료 지점 | 구체적인 구현·검증 기준 |
+| --- | --- |
+| 3-A JSON·204와 실패 경계 | `parseApiResponse(response, expectation)`에 예상 `json`/`empty`와 허용 성공 상태를 명시한다. JSON200/201/202의 data는 unknown,204는 허용한 경우에만 empty이며 읽지 않는다. 읽기 전에 HTTP 상태와 X-Request-ID/Location/Retry-After/Content-Type만 메타데이터로 확보한다. `text()` 읽기와 `JSON.parse()`를 나누어 본문 소비/읽기 실패와 JSON 형식 오류를 구분한다. 읽기 예외의 취소 원인을 추정하지 않고 고정 사유만 반환한다. |
+| 3-B 오류·연결·회귀 | 오류의 code/message/requestId/fields를 검증·전달한다. `errorContext: 'conversation_start'`를 지정한409 ACTIVE_CONVERSATION_EXISTS에만 UUID activeConversationId를 요구·보존한다. 동일 status/code라도 일반 호출은 확장을 반환하지 않는다. 요청 준비→real client→parser,201 상대 Location,204/오류,이미 읽은 본문,읽기 거절,authTransition의 clone/원본·refresh 실패 분리,늦은 본문과 인증 문맥 경계를 검증한다. 전체 Jest·lint·typecheck 및 diff 확인 후3단계 커밋·보고한다. |
+| 4 바이너리·OAuth | 승인 후200 bytes 보존과 JSON4xx/5xx 우선 처리,명세가 허용한 MIME 판단,관측3xx 별도 결과와 OAuth 시작 주소 helper를 구현한다. `redirect:error` 전송 실패를 관측302로 위장하지 않는다. 운영 음성 MIME/제한은 미확정으로 유지한다. |
+| 5-A 로컬·CI 준비 | 새 테스트의 전체 Jest 수집을 확인하고 설치 재현·온라인 Expo·환경 주입·양 플랫폼 export/필요 빌드를 실행한다. 실제 실행 명령과 결과를 기록하며 기존 CI 검사를 우회하지 않는다. |
+| 5-B 새 파서의 네이티브 검증·인계 | 기존 loopback 수신자와 개발 probe를 확장해 합성 바이너리 응답 수신,본문 지연·단절·취소를 새 parser로 통과시킨다. 양 OS에서 결과·메타데이터 보존을 확인한다. 기존 post-loss-binary는 업로드/재전송, cancel-body는 인증 classifier 검사이므로 새 파서 증거를 대신하지 않는다. 런타임이 헤더/본문 경계를 노출하는지 실제로 확인하고 관측 불가한 경우를 성공으로 표기하지 않는다. 기존0바이트·multipart·redirect·Android POST1회는 회귀로 유지한다. README/이 기록 및167/168 인계를 마무리한다. |
+
+- 각 행은2~3시간 단위 중간 완료 지점이며 소요시간 보장이 아니다. 이번 승인은3단계까지 실행하고, 사용자의 기존 단계별 승인 요청에 따라 완료 보고 후4단계로 넘어간다. PR·push·병합·Jira 변경과 원격 CI 실행은 이번 범위에 포함하지 않는다.
+- 공통 parser는 전체 OpenAPI/업무 DTO validator가 아니다. 확인한 필드를 새 결과로 구성하며 미정의 error/envelope 필드를 그대로 펼치지 않는다. fields 누락만[]이며 null/잘못된 항목은 형식 실패다. generic data 보존 시험은 해당 endpoint가 primitive/null DTO를 허용한다는 증거가 아니다.
+- JSON MIME은 application/json과 선택적인 UTF-8 charset을 수용한다. requestId는 UUID 형식만 확인하며 v4로 제한하지 않는다. body requestId와 헤더 원문은 별도로 유지해 불일치를 호출부가 확인할 수 있게 한다. 헤더 누락/잘못된 값을 생성·보정하거나 Retry-After 재시도 정책을 여기서 적용하지 않는다.
+- 결과 종류는 JSON·empty·HTTP 오류·형식 실패·본문 읽기 실패를 구별한다. 기존 ApiResult의 미전송/통신 실패/stale은 그대로 인계하며 parser는 raw response일 때만 호출한다. 인증 세대·UI 상태 변경은 하지 않는다. 원문 payload/예외를 실패 진단에 넣거나 어떤 결과든 일괄 로그·영구 저장하지 않는다.
+- 종전11/3 목표는 지났다. 남은 구현·기기·리뷰·원격 CI·병합 결과를 확인해 일정을 판단하며 이 기록으로 Jira 일정/상태를 변경하지 않는다.
+
 #### 미확정 사항과 1단계 실행 기록
 
 - D13/D14의 실제 MIME·codec·크기·길이·AI 기한·TTL, D17의 운영 origin·callback·쿠키/CORS·제한은 미확정이다. 현재 단계의 형식 처리 개발은 명세 fixture로 진행할 수 있으나 실제 음성·OAuth·서버 통합 완료는 해당 확정값과129 환경이 필요하다. 다음 기능 단계 시작 시 계약 변경 여부를 다시 대조하고, 필요한 값이 여전히 없으면 해당 통합 검증을 미확인으로 남긴다.
@@ -105,6 +125,17 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 검증 환경은 Node `24.20.0`·npm `11.19.0`이다. 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **12개 suite·258개 테스트**, `git diff --check`가 통과했다. 최초 타입 검사의 테스트 afterEach 반환형 오류1개는 반환값 없는 block으로 수정 후 재검증했다.
 - 제품 mock 확장·App/일반 진입점·의존성·CI·네이티브 설정 변경은 없다. 이번 단계는 Jest 연결 검사까지이며 설치·온라인 Expo·환경 주입·export·네이티브 빌드/런타임·실서버·원격 CI는 재실행하지 않았다. 양 OS의 실제 multipart boundary/0바이트 관측 등은5단계, 실제 서버는129 책임이다.
 - 완료 지점: 요청 준비와 연결·보안 회귀. 다음 한 가지: 승인 후3단계 JSON/204/오류 응답 parser의 실패 테스트부터 작성. push·PR·병합·Jira 변경은 하지 않았다.
+
+### SCRUM-166 3단계 — JSON·204·오류 응답과 연결 회귀 · 2026-11-04
+
+- 재확인·구체화한 계획에 따라 `src/api/response.ts`에 `parseApiResponse()`와 입력/결과 타입을 추가했다. 기존 client/CSRF/요청 준비 구현은 보존했다. 성공 JSON의 data:unknown,204 무읽기,HTTP 오류,형식 실패,본문 읽기 실패를 구분한다. HTTP 상태와 선택 헤더를 본문 읽기 전에 확보하며 예외·원문 본문을 실패 결과에 넣지 않는다.
+- 대화 시작을 명시한409 ACTIVE_CONVERSATION_EXISTS에만 UUID activeConversationId를 요구·보존한다. fields 누락만[]로 호환하고 잘못된 타입은 거절한다. 알려진 필드만 새 객체로 구성한다. code/message에 명세에 없는 minLength를 부과하거나 UUID를 v4로 제한하지 않는다. 전체 DTO/schema 검증,재시도/인증 만료 정책은 추가하지 않았다.
+- 새 단위82개·연결13개,총95개 테스트를 추가했다. JSON/204/MIME/읽기 실패의 최초37개는 최소 뼈대에서31개 실패·6개 통과,HTTP 오류 확장 후82개는44개 실패·38개 통과를 확인하고 구현했다. 3-A 전체295개,3-B 전체340개를 거쳐 최종 전체353개가 통과했다.
+- 구현 중 실패도 수정 후 확인했다. MIME 정상 사례3개 실패는 테스트 fixture에 대소문자가 다른 Content-Type 키를 중복 구성해 값이 합쳐진 원인이었으며 Headers.set으로 수정했다. 타입 검사2개 오류는 Jest29의 it.each와 readonly tuple 선언 간 불일치였고 명시적 tuple 타입으로 수정했다. children/end fixture는 최종 OpenAPI의 필수 DTO 필드와 KST 시각 형식에 맞춰 보완했다. 제품 파서의 검증 기준을 느슨하게 하거나 실패 검사를 제외하지 않았다.
+- 실제 요청 준비→real client→parser에서201 상대 Location,0바이트 요청의204와 JSON200/202 차이,401/403/429/503 자동 재전송 없음,응답 수신 후 읽기 거절을 확인했다. authTransition clone 소비 후 원본 보존과 CSRF refresh503 분리,일반 본문이 늦어도 인증 전환을 막지 않는 책임 경계도 검사했다. 예제 real fixture에 MIME과 파서 확인을 추가했다. Jest의 주입 transport/본문 지연 시험은 양 OS의 실제 읽기 취소 성공을 뜻하지 않는다.
+- Node `24.20.0`·npm `11.19.0`에서 최종 `npm run lint`, `npm run typecheck`, `CI=true npm test` **14개 suite·353개 테스트**, `git diff --check`가 통과했다. 읽기 전용 별도 코드 리뷰에서 이번 범위에 추가 조치가 필요한 결함은 발견하지 못했다. 기존 CI의 전체 Jest 명령이 새 테스트를 수집하는 것을 로컬에서 확인했으며 원격 CI를 실행한 것은 아니다.
+- 기존 checkout·한국어 주석·SCRUM-178·165·179의5개 작업 공간은 착수 전후 HEAD/status와 변경 파일 해시가 동일했다. 일반 App/index·운영 mock·의존성·CI·네이티브 설정은 변경하지 않았다. 설치·온라인 Expo·환경 주입·export·기기 런타임·새 의존성 감사는 이번 단계에 재실행하지 않았고5단계/해당 별도 작업에 남는다.
+- 완료 지점: 3단계 로컬 구현·검증과 README/이 기록. 다음 한 가지: 사용자 승인 후4단계 바이너리·OAuth. 이번 단계의 로컬 커밋만 수행하며 push·PR 생성·병합·Jira 변경은 하지 않는다.
 
 ### SCRUM-165 착수 전 Expo 호환성 보정 — 2026-10-25
 
