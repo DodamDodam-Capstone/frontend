@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 5단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 Jira 진행 중이며 5단계까지 로컬 구현·재현·네이티브 검증을 완료했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 원격 CI·PR/병합·실제 서버 검증129와 보안 감사 잔여 항목은 미완료다. 로컬 단계 완료를 Jira/부모123 완료로 해석하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 1단계 작업 공간·계약·API 기준과 기존 테스트 기준선을 확인했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 제품 기능·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-166](https://dodamdodam.atlassian.net/browse/SCRUM-166)의 요청 직렬화·응답 형식 처리다.** 아래 166의 1단계 기록을 착수 기준으로 삼는다. 159~165 기록은 당시 실행 이력으로 보존하며, 새 기능과 검증은 승인한 단계별로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
+**현재 작업 대상은 [SCRUM-167](https://dodamdodam.atlassian.net/browse/SCRUM-167)의 오류·인증 만료·복구 정책이다.** 아래 167의 기준을 적용하고, 159~166 기록은 당시 실행 이력으로 보존한다. 단계별 결과를 보고하고 사용자 확인 후 다음 단계로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,98 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
+
+이 절은 승인된 7단계 중 **1단계의 완료 기록과 2~7단계의 구현 계약**이다. 아래 API는 아직 제품 코드에 추가하지 않았다. 기존 단계 기록은 당시의 증거로 보존하고, 이후 단계의 변경·판단·검증 결과를 이 문서에 이어 기록한다.
+
+#### 출발점·적용 근거
+
+- 작업 공간: `/Users/youngjun/.codex/worktrees/scrum-167-error-auth-recovery/frontend`, branch `feature/SCRUM-167-error-auth-recovery`.
+- FE 출발점: development [`da9493fb883442e771d0bee99fddef8c5d88d5ec`](https://github.com/DodamDodam-Capstone/frontend/commit/da9493fb883442e771d0bee99fddef8c5d88d5ec). SCRUM-166 PR #35 병합을 포함한다. fetch 후 GitHub branch SHA와 일치를 확인했다. 작업 브랜치의 초기 `origin/development` upstream은 해제했으며, 공유 시 해당 feature branch를 명시한다.
+- Jira [SCRUM-167](https://dodamdodam.atlassian.net/browse/SCRUM-167): 계획123-S3, 담당 고영준, 진행 중, 부모123 진행 중. 선행121·165·166은 완료이며 후행168은 해야 할 일이다. 이 단계에서 Jira를 변경하지 않았다.
+- 원래 checkout의 변경10개·번역 worktree의 변경7개 및 문서178·165·166·179 worktree의 HEAD/index/미커밋 파일 해시를 기록했다. 해당 변경은 이 작업 공간에 가져오지 않는다. 원래 경로의 `AGENTS.md`를 적용한다.
+- BE 기준: development [`bb11afdd2a26888ce05feae29b11df73366fdb7e`](https://github.com/DodamDodam-Capstone/backend/commit/bb11afdd2a26888ce05feae29b11df73366fdb7e). 아래 계약 링크는 모두 이 SHA에 고정한다. API 계약 v3.1과 OpenAPI 문법3.0.3/`info.version: 3.1.0`을 구분한다.
+
+| 파일·절 | 이번 적용 내용 |
+| --- | --- |
+| [공통 §3·3.1·3.2·5](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/01-common.md) | 세션·CSRF·무효화, 오류 필드, 서버 추적 ID, 비저장, POST 재실행 금지 |
+| [인증 §6.1·6.5·6.7](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/02-auth.md) | CSRF 전용200, LOGIN_FAILED와 세션 상실 구분, 로그인/로그아웃 후 갱신 |
+| [오류·FE 복구 §9·미정 값 §10](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/08-errors-and-validation.md) | HTTP/code별 복구와 Retry-After, 미확정 운영값을 만들지 않는 경계 |
+| [보호자 §6.11~6.14](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/04-guardian.md) / [대화 §7.1·7.3·7.7](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/06-conversations.md) | 권한·내용 차단의 기능 인계, end202의 명시적 재확인 계약 |
+| [OpenAPI paths·responses·schemas](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/Integrated_OpenAPI.yaml) | endpoint별 허용 HTTP/code, 오류 타입·필수값·헤더 |
+| [AuthStateErrorHandler](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/src/main/java/com/dodamdodam/backend/auth/session/AuthStateErrorHandler.java) / [CsrfAccessDeniedHandler](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/src/main/java/com/dodamdodam/backend/global/auth/CsrfAccessDeniedHandler.java) | 실제 Java의401 AUTHENTICATION_REQUIRED,403 CSRF_INVALID,503 AUTH_STATE_UNAVAILABLE 구분 |
+
+Jira96의 `Backend_P0_Common_Spec.md v0.4`는 이전 원문 출처다. 현재 [OpenAPI source manifest](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/Integrated_OpenAPI.yaml#L5961)에 원문 이름·SHA256이 기록돼 있고, [p0 README](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/README.md#L21)는 원문을 게시하지 않는다고 설명한다. 원문 v0.4의 세부 절 직접 대조는 미실행이며, 현재 Jira94/95와 v3.1의 확인된 정책을 적용한다. 버전 숫자 차이를 충돌로 판정하지 않는다. 현 BE에 CSRF·logout 등 구현은 있지만 이메일 로그인/auth-me/공통429 전체 구현을 확인한 것은 아니다. permitAll 경로 선언을 구현 완료로 해석하지 않으며 실제 서버 검증은129의 책임이다.
+
+#### 파일 경계와 API 결정
+
+`client.ts`가 하나의 쿠키 문맥에 대한 인증 세대를 계속 소유한다. `csrf.ts`의 발급 버전은 토큰 유효성·복구 중복 방지용이며 인증 세대와 용도가 다르다. `response.ts`는 기존의 순수 형식 파서다. 새 `src/api/recovery.ts`는 분류·대기 정보·CSRF 실패 해석을 담당하고 전역 store, 화면 이동, 재시도 scheduler를 소유하지 않는다. DTO·보호자/대화 상태와 실제 화면 반영은 각 기능에 인계한다.
+
+다음 이름·형태를 2~4단계 구현 기준으로 고정한다. 새 타입의 상세 discriminant는 아래 동작과 일치시켜 인접 테스트에서 확인한다.
+
+| API/결과 | 계약 |
+| --- | --- |
+| `AuthContext` | client에 귀속된 불투명 메모리 객체. 세션값·계정 ID·CSRF token을 담지 않는다. 다른 client의 객체·없는 객체는 유효하지 않다. 숫자 세대를 호출자가 만들거나 수정하지 않는다. |
+| 기존 `request(request)` / `ApiResult` | 요청 허용 후 첫 비동기 대기 전에 문맥을 캡처한다. `response`와 `transport_error` 결과에 읽기용 `context`를 추가한다. `not_sent`/`stale_response`는 상태 반영 권한을 제공하지 않으며 기존 kind의 전송 의미를 보존한다. POST의 실제 token 버전은 prepare 이후 헤더를 붙이는 시점에 문맥 내부에 연결한다. |
+| 기존 `authTransition(request, classify)` / `AuthTransitionResult` | 전환 시작의 세대 증가 직후 자체 문맥을 만들고 상위 결과의 `context`로 전달한다. operation/outcome/refresh는 계속 분리한다. gate 안의 classifier·갱신은 전환 소유 문맥으로 검사하며, 외부 반영은 gate 해제 후 현재 문맥 검사로 수행한다. 완료 시 새 문맥을 다시 캡처해 이전 결과를 최신처럼 포장하지 않는다. |
+| `isCurrentContext(context: AuthContext \| undefined): boolean` | 같은 client·현재 세대·인증 전환 중이 아님을 확인한다. 정상 데이터뿐 아니라 오류와 후속 정리에도 적용한다. CSRF-only 갱신만으로 인증 문맥을 만료시키지 않는다. |
+| `commitIfCurrent(context, apply: () => undefined): boolean` | 최종 비동기 처리 뒤 검사와 동기 반영을 연속 실행한다. stale이면 apply 호출0회. Promise 반환 callback은 typecheck에서 거부한다. 내부에서 시작한 비동기 작업의 나중 반영은 이 호출이 보호하지 않으므로 마지막 await 뒤 다시 호출해야 한다. |
+| `expireIfCurrent(context, onExpired: (next: AuthContext) => undefined): boolean` | 현재 문맥의 계약상 만료만 한 번 무효화하고 CSRF 준비를 해제한 뒤 동기 통지한다. 같은 옛 문맥의 후속 오류는 false이며 재통지하지 않는다. 비동기 상태 정리는 전달된 next 문맥을 마지막 await 뒤 확인한다. 세대를 이전 값으로 되돌리지 않는다. |
+| `recoverCsrf(context): Promise<CsrfRecoveryResult>` | 현재 일반 POST의 실제 전송 token 버전만 복구한다. 결과는 refreshed/already_recovered/skipped/failed로 구분하고 실패 원인을 전달한다. 오래된 문맥·전송 token 없음·인증 전환 중에는 새 발급을 시작하지 않는다. 원래 POST를 실행하지 않는다. 인증 전환은 이 함수를 호출하지 않고 전환 소유 문맥으로 기존 내부 발급 경로를 유지하며, refresh는 기존 CsrfResult를 반환한다. 두 경로는 CsrfFailure의 오류 해석만 공유한다. |
+| `parseRetryAfter(raw: string \| null): RetryAfterResult` | valid(seconds)/missing/invalid. HTTP 선택 공백을 정리한 ASCII 십진 정수이며1 이상, JS 안전 정수로 정확히 표현 가능한 값만 valid다. 이는 FE 표현 한계이며 서버 운영 상한을 새로 정하는 것이 아니다. 0·음수·소수·날짜·지수·합쳐진 값·범위 초과를0이나 기본 지연으로 보정하지 않는다. 타이머를 만들지 않는다. |
+| `classifyRecovery(result: ParsedApiResponse, operation: RecoveryOperation): RecoveryDecision` | operation은 general/login/conversation_end. HTTP·code·호출 문맥으로 복구 종류와 대기 정보를 반환하는 순수 함수다. 일반 성공으로 로그인 확정을 하지 않는다. 원래 오류 필드·메타데이터를 손실 없이 인계하고 미정의 조합은 unclassified로 전달한다. conversation_end202는 호출자의 EndPendingReceipt 검증 이후에만 적용하며 자동 end 호출은 하지 않는다. |
+| `readCsrfFailure(failure: CsrfFailure): Promise<ParsedApiResponse \| undefined>` | 비200 HTTP 실패만166 파서로 읽는다. CSRF 정상200은 전용 parser를 유지한다. non-200 Response와 선택 헤더는 실패 결과에 메모리로 보관하고, body 읽기는 요청/CSRF cookie-header drain 바깥에서 한 번 수행한다. 통신 실패는 HTTP/code를 생성하지 않는다. |
+
+CSRF 실패는 헤더 수신 시 status·선택 헤더를 확보한다. 기존 `requestId`는 유효한 헤더 ID라는 의미를 유지하고, body의 error.requestId와 덮어쓰지 않는다. 본문 지연/읽기 실패도 헤더 정보에 접근할 수 있어야 한다. 일반 요청의 body와 비200 CSRF 오류 body를 새로 logout 대기에 포함하지 않는다. 반면 기존 CSRF 정상 발급/일반 요청의 쿠키 응답 순서는 보존한다.
+
+CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다. 늦은 같은 버전 오류가 새로 발급한 token을 다시 지우지 않는다. 그 복구가 실패했다면 동일 요청 문맥의 반복 처리로 무한 재발급하지 않고 실패를 전달한다. 새 시도는 현재 상태와 사용자 의도를 확인한 호출부의 명시적 요청으로 구분한다. 이미 시작된 쿠키 응답을 기다리는 동안 인증 전환이 시작되면 세대를 재확인해 이전 복구를 중단하며, 내부 발급이 자기 gate 또는 자기 inFlight를 기다리지 않게 한다.
+
+#### 오류·복구 결정표
+
+| 입력 | 공통 처리 / 후속 책임 |
+| --- | --- |
+|401 AUTHENTICATION_REQUIRED | 현재 문맥만 무효화·통지. 로그인 복귀는124/125, 새 로그인 후 CSRF 갱신은165의 전환 경로. 원래 POST 재실행 없음. |
+|401 LOGIN_FAILED | 로그인 입력 실패 전달. 다른401/일반 오류를 이 코드로 대체하지 않고 인증 성공/전역 만료를 추측하지 않음. |
+|403 CSRF_INVALID | 현재 일반 POST만 위 recoverCsrf 경로. 로그인·현재 업무 상태 확인 정보를 전달. CSRF-only 복구가 로그인 해제 통지를 발생시키지 않음. |
+|403 PIN_SETUP_AUTHORIZATION_REQUIRED / PIN_RESET_AUTHORIZATION_REQUIRED / GUARDIAN_UNLOCK_REQUIRED | 목적별 이메일 재인증 또는 PIN 확인 정보 전달. 현재 로그인 전체의 만료로 처리하지 않음. |
+|403 CHILD_SESSION_REQUIRED / SERVICE_HOURS_CLOSED,409 CONVERSATION_CLOSING / CONVERSATION_ENDED | 명시 resume·입력/내용/재생 차단·Home 갱신 등 업무 상태를 담당 기능에 전달. 공통 계층에서 화면/대화 자원을 직접 변경하지 않음. |
+|400 VALIDATION_FAILED / VERIFICATION_INVALID 및 기타 계약상 업무 오류 | fields/code/requestId와 복구 분류 전달. 자동 반복 없음. ACTIVE_CONVERSATION_EXISTS의 ID 확장은166의 conversation_start 문맥에만 유지. |
+|429 RATE_LIMITED | 유효한 Retry-After 이후 시도 가능 정보 전달. missing/invalid는 대기 미확정이며 즉시 재시도를 허용하는0으로 처리하지 않음. 폐기된 challenge의 복구를 대기만으로 확정하지 않음. |
+|202 검증된 EndPendingReceipt | conversation_end 문맥에서 Retry-After 이후 동일 end 재확인 정보를 제공. 실제 재확인·종료 판정은141 등 해당 업무 소유. 일반POST 재시도 정책으로 확대하지 않음. |
+|503 AUTH_STATE_UNAVAILABLE / EMAIL_DELIVERY_UNAVAILABLE | 확인/전달 장애와 결과 확인 필요 전달. 로그인 성공·비로그인·메일 성공으로 치환하지 않고 Retry-After 유무만으로 POST 재전송하지 않음. |
+|미전송·통신/형식/읽기 오류·미등록 HTTP/code·stale | 기존 종류와 메타데이터 보존. 응답/통신 실패를 미전송으로 바꾸지 않음. stale의 성공·오류는 CSRF 변경을 포함한 효과에 적용하지 않음. |
+
+#### 단계별 구현·검증 행렬
+
+| 단계 | 변경/검증 위치 | 중간 완료 기준 |
+| --- | --- | --- |
+|1 작업 공간·계약 | 이 문서, 현재 Git/Jira/명세/CI와 기존 코드 조회 | 위 출발점·API 결정·기준선 확인. 제품 코드는 미변경. |
+|2 오류·메타데이터 | `src/api/recovery.ts`, `csrf.ts`, 인접 `recovery.test.ts`·기존 response/client 테스트 | 분류표, fields/requestId 보존, Retry-After 최소1·누락·잘못된 값·안전 정수 경계, 초기 발급429, 인증 성공+갱신429/503, 오류 body 실패. 실패하는 테스트를 먼저 확인하고 구현 후 통과. |
+|3 인증 문맥 | `client.ts`와 `authTransition.test.ts`, 새 `authContext.test.ts` | 요청 전 캡처, 다른 client 거부, 같은 계정 재로그인, 전환 내부/외부 판정, 동시 만료 통지1회, 만료 후 비동기 정리 중 새 로그인 보호. 동기 callback 타입 검사 포함. |
+|4 CSRF 복구 | `client.ts`·`csrf.ts`, 새 `csrfRecovery.test.ts` | 발급 중 무효화 뒤 token 복원/준비 성공 없음, 실제 전송 token 버전, 같은 버전 동시/늦은403 중복 발급 방지, 실패 복구 반복 방지, 새 token 오류의 정상 복구, 전환 경쟁·자기 대기 교착 없음, POST1회. |
+|5 수신자·회귀·비저장 | `src/api/recovery.integration.test.ts`, 기존 response integration 및 필요한 테스트 수신자 | 지연 성공/오류+로그아웃, 타/동일 계정 재로그인, 파싱 후 추가 await 전환, 정상 대조. final state와 수신자/요청 횟수 모두 검사. 가짜 비밀값이 URL·console·저장소 호출·증빙에 없는지 성공/실패/취소/복구 실패와 message/fields까지 확인. |
+|6 Android·iOS | 기존 `scripts/native-session` probe와 receiver 확장 | 양 OS 지연 본문·늦은 오류·CSRF 무효화·복구, 기존 요청/응답/인증 회귀, 요청 횟수·이벤트 순서·cleanup 확인. 서버는 합성 loopback이며 실제 BE 검증과 구분. |
+|7 리뷰·CI 준비·인계 | 최종 diff·이 문서·필요한 README 설명 | AC1~6 대응, 로컬 리뷰, 전체 Jest CI 포함,173/174 사용 책임 인계. PR 요청 후 최신 commit의 원격 CI와 GitHub 코드 리뷰를 별도로 확인. |
+
+순서: 1→2→3→4→5→6→7. 단계마다 관련 lint/typecheck/테스트를 실행하고 변경 범위를 확인해 SCRUM-167 커밋으로 저장한다. 사용자의 단계별 보고·확인 후 다음 단계로 진행한다. 별도 Jira 업무나 문서를 매 단계 생성하지 않는다. PR/push/병합/Jira 변경은 별도 요청 범위다.
+
+원격 CI의 `js-quality`는 전체 Jest·lint/typecheck·환경 검사·Expo 검사·양 OS export를 실행하고, Android/iOS job은 네이티브 **빌드**다. loopback 경합 probe의 실제 실행을 대신하지 않는다. 단위·연결 테스트 통과, 양 OS 실행, 원격 빌드/필수 CI, 실제 서버129를 각각 기록한다.
+
+#### 문서·실제 설정 차이
+
+이 작업의 CONTRIBUTING/팀 가이드/README/테스트 계획은 위 FE development 출발점의 파일이다. 기본159 checkout의 미커밋 문서를 적용본으로 가져오지 않는다. development 팀 가이드·Jira 가이드에는 사람 승인1건 문구가 남아 있지만 README·10/16 결정·원래 AGENTS는 최신 GitHub 코드 리뷰를 요구한다. 11/4 실제 development Ruleset은 승인0·last-push 승인false·대화 해결·strict 필수 CI3개·squash이며, main은 승인0이지만 last-push 승인true·merge다. 이 차이를 기록하고 보호 설정이나 팀 문서를 이 작업에서 완화하지 않는다.
+
+#### 1단계 실행 결과와 다음 작업
+
+- 최종 실행 환경: Node24.20.0 / npm11.19.0. 작업 셸마다 `export PATH='/Users/youngjun/.nvm/versions/node/v24.20.0/bin':"$PATH"`로 명시하고 버전을 확인했다. 프로젝트 기준 자체는 `.nvmrc`·package.json이며 위 절대 경로는 이 Mac의 재현 경로다.
+- 최초 권한 확장 셸은 Node26.5.0/npm11.17.0을 선택해 manifest 검사에서 실패했다. 고정 버전을 명시하여 설치와 기준선 전체를 재실행했고 아래 최종 결과는 Node24 실행만 사용한다. 제품 코드의 테스트 실패를 수정한 것이 아니다.
+- `npm ci` 성공, Expo57.0.31 본문 오류 패치3파일 검증 성공. 설치 감사는 low6·moderate42가 남았으며 high/critical은 보고되지 않았다. 전체 무취약 상태로 표현하지 않는다. fsevents/unrs-resolver 설치 스크립트 allowScripts 미등록 경고는 남았고 허용 설정을 임의로 변경하지 않았다.
+- `npm run lint`, `npm run typecheck`, `npm test` 모두 성공. Jest **18 suites / 467 tests** 통과. `npm run test:env`14개, manifest 검사, 온라인 `npx --no-install expo install --check`도 성공했다.
+- 이 단계에서 새 기능 테스트·네이티브 실행·export/네이티브 빌드·원격 CI·실제 서버 시험은 실행하지 않았다. 기존 테스트 통과를 SCRUM-167 기능 통과로 보고하지 않는다.
+- 로컬 증빙: `/private/tmp/scrum167-stage1/*-node24.log`, 보존 기준 `/private/tmp/scrum167-preservation-before.json`. 임시 파일은 저장소에 포함하지 않는다.
+- 11/5 문서 검토에서 일반 POST의 recoverCsrf와 인증 전환 내부 갱신 경로의 혼동을 수정했다. 전환은 gate 안에서 기존 발급 경로를 유지하고 오류 해석만 공유한다. 제품 코드 변경은 없다.
+- 현재 완료: **1단계 작업 공간·계약·API 기준·기준선 검증**. 다음 한 가지: 승인 후 **2단계 오류 분류·메타데이터 전달**. 알려진 착수 차단 없음. v0.4 원문 직접 대조와 실서버/미구현 BE 경로의 재현 한계는 위 근거에 남긴다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
