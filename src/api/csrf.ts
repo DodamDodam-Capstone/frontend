@@ -1,6 +1,9 @@
+import { createCsrfHttpFailure } from './recovery';
+import type { ResponseMetadata } from './response';
+
 export type CsrfFailure =
   | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' }
-  | { ok: false; reason: 'http'; status: number; requestId?: string };
+  | { ok: false; reason: 'http'; status: number; requestId?: string; meta: ResponseMetadata };
 export type CsrfResult = { ok: true } | CsrfFailure;
 
 // token은 client 내부 메모리에서만 사용하고 공개 준비 결과에는 포함하지 않는다.
@@ -15,11 +18,7 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
     } catch {
       return { ok: false, reason: 'network' };
     }
-    if (response.status !== 200) {
-      const id = response.headers.get('X-Request-ID');
-      const requestId = id && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id) ? id : undefined;
-      return { ok: false, reason: 'http', status: response.status, ...(requestId ? { requestId } : {}) };
-    }
+    if (response.status !== 200) return createCsrfHttpFailure(response);
     if (response.redirected || (response.url && response.url !== expectedUrl)
       || response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
       return { ok: false, reason: 'invalid_response' };

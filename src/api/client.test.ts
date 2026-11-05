@@ -147,6 +147,7 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     const result = await client(fetchImpl).request({ method: 'POST', path: '/auth/login' });
     expect(result).toEqual({ kind: 'not_sent', reason: 'csrf_unavailable', csrf: {
       ok: false, reason: 'http', status: 503, requestId,
+      meta: { status: 503, headers: { requestId, location: null, retryAfter: null, contentType: 'application/json' } },
     } });
     expect(JSON.stringify(result)).not.toContain(token);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -265,7 +266,10 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     const response = csrfResponse({}, 503);
     response.headers.set('X-Request-ID', token);
     const fetchImpl = jest.fn<ApiFetch>(async () => response);
-    expect(await client(fetchImpl).prepareCsrf()).toEqual({ ok: false, reason: 'http', status: 503 });
+    const result = await client(fetchImpl).prepareCsrf();
+    expect(result).not.toHaveProperty('requestId');
+    expect(result).toMatchObject({ ok: false, reason: 'http', status: 503,
+      meta: { headers: { requestId: token } } }); // 생 헤더는 진단 ID와 구분하여 보존한다.
   });
 
   it('real 모드는 mock handler를 등록하지 않는다', async () => {

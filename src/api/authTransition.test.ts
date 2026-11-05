@@ -93,7 +93,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
   });
 
   it.each<[string, () => Promise<Response>, CsrfResult]>([
-    ['http', async () => response(503, 'SYNTHETIC_FAILURE'), { ok: false, reason: 'http', status: 503 }],
+    ['http', async () => response(503, 'SYNTHETIC_FAILURE'), { ok: false, reason: 'http', status: 503, meta: { status: 503, headers: { requestId: null, location: null, retryAfter: null, contentType: 'application/json' } } }],
     ['network', async () => { throw new Error('synthetic-private-value'); }, { ok: false, reason: 'network' }],
     ['invalid', async () => new Response('broken', { headers: { 'Content-Type': 'application/json' } }), { ok: false, reason: 'invalid_response' }],
   ])('로그인 후 갱신 %s 실패는 auth 성공을 바꾸거나 이전 token을 복구하지 않는다', async (_name, fail, expected) => {
@@ -343,7 +343,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const fetchImpl = jest.fn<ApiFetch>(async () => response(503, 'SYNTHETIC_FAILURE'));
     const classify = jest.fn((): AuthOutcome => 'changed');
     const result = await client(fetchImpl).authTransition(login, classify);
-    expect(result).toEqual({ operation: { kind: 'not_sent', reason: 'csrf_unavailable', csrf: { ok: false, reason: 'http', status: 503 } }, outcome: 'not_attempted' });
+    expect(result).toEqual({ operation: { kind: 'not_sent', reason: 'csrf_unavailable', csrf: { ok: false, reason: 'http', status: 503, meta: { status: 503, headers: { requestId: null, location: null, retryAfter: null, contentType: 'application/json' } } } }, outcome: 'not_attempted' });
     expect(classify).not.toHaveBeenCalled();
     expect(fetchImpl.mock.calls).toHaveLength(1);
   });

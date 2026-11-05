@@ -21,6 +21,13 @@ export type ParsedApiResponse = { meta: ResponseMetadata } & (
   | { kind: 'body_read_error'; reason: 'already_used' | 'read_failed' }
 );
 
+export function readResponseMetadata(response: Response): ResponseMetadata {
+  return { status: response.status, headers: {
+    requestId: response.headers.get('X-Request-ID'), location: response.headers.get('Location'),
+    retryAfter: response.headers.get('Retry-After'), contentType: response.headers.get('Content-Type'),
+  } };
+}
+
 function record(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
@@ -52,10 +59,7 @@ function parseError(body: unknown, status: number, context: ResponseExpectation[
 // body/error 메타데이터에도 개인정보가 있을 수 있으므로 결과 전체를 기록하지 않는다.
 // 이 함수는 envelope만 검사하며 업무 DTO·재시도·인증 상태는 호출부 책임이다.
 export async function parseApiResponse(response: Response, expectation: ResponseExpectation): Promise<ParsedApiResponse> {
-  const meta: ResponseMetadata = { status: response.status, headers: {
-    requestId: response.headers.get('X-Request-ID'), location: response.headers.get('Location'),
-    retryAfter: response.headers.get('Retry-After'), contentType: response.headers.get('Content-Type'),
-  } };
+  const meta = readResponseMetadata(response);
   // 관측한 이동만 반환한다. Location을 실행하지 않으며304를 이동으로 분류하지 않는다.
   if ([301, 302, 303, 307, 308].includes(response.status)) return { kind: 'redirect', meta };
   const httpError = response.status >= 400 && response.status <= 599;

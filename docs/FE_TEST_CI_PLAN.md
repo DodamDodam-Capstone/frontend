@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 1단계 작업 공간·계약·API 기준과 기존 테스트 기준선을 확인했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 제품 기능·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2단계 구현: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 2단계 오류 분류·CSRF 실패 메타데이터 전달까지 로컬 구현·검증했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 인증 문맥·CSRF 복구 실행·후속 회귀/네이티브 검증·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -119,6 +119,30 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 - 로컬 증빙: `/private/tmp/scrum167-stage1/*-node24.log`, 보존 기준 `/private/tmp/scrum167-preservation-before.json`. 임시 파일은 저장소에 포함하지 않는다.
 - 11/5 문서 검토에서 일반 POST의 recoverCsrf와 인증 전환 내부 갱신 경로의 혼동을 수정했다. 전환은 gate 안에서 기존 발급 경로를 유지하고 오류 해석만 공유한다. 제품 코드 변경은 없다.
 - 현재 완료: **1단계 작업 공간·계약·API 기준·기준선 검증**. 다음 한 가지: 승인 후 **2단계 오류 분류·메타데이터 전달**. 알려진 착수 차단 없음. v0.4 원문 직접 대조와 실서버/미구현 BE 경로의 재현 한계는 위 근거에 남긴다.
+
+### SCRUM-167 2단계 — 오류 분류·메타데이터 전달 · 2026-11-05
+
+- FE/BE development SHA와 Jira167의 AC1~6·담당·진행 상태·선행 완료가 1단계와 같음을 재확인했다. Jira의 현재 active sprint 종료는 **2026-11-17 18:00 KST**로 조회됐다. 과거11/3 목표와 구분하며 스프린트나 Jira를 변경하지 않았다.
+- `src/api/recovery.ts`의 `classifyRecovery`는 정확한 HTTP/code 조합과 general/login/conversation_end 문맥으로 분류한다. 원래 ParsedApiResponse를 `result`로 보존하여 code/message/fields/본문 requestId와 헤더 메타데이터를 유지한다. LOGIN_FAILED는 login 문맥에서만 분류하고, 미정의 조합·형식/읽기 오류는 unclassified다. 일반 성공·이동·바이너리를 인증 성공으로 확정하지 않는다.
+- PIN_INVALID를 포함한 v3.1의 확정 업무 오류도 별도 kind로 인계한다. AUTH_STATE_UNAVAILABLE와 EMAIL_DELIVERY_UNAVAILABLE를 구분하며, 후자는 폐기된 challenge 확인 후 제한 내 새 발급이 호출부 책임이다. 분류 함수는 화면·store·네트워크·타이머를 변경하지 않는다.
+- `parseRetryAfter`는 HTTP OWS를 제외한 ASCII 십진 정수초(1 이상, JS 안전 정수)만 valid로 반환한다. missing/invalid를0이나 기본 지연으로 보정하지 않는다. 대기 정보는 RATE_LIMITED429와 적격 end202에만 붙이며 자동 POST 재전송은 없다.
+- **계획 구체화:** 문자열 operation만으로 DTO 검증 여부를 보장할 수 없으므로 end202에는 정확한2필드(conversationId UUID, status=CLOSING)의 최소 방어 검사도 적용했다. 요청한 conversationId 일치·현재 인증·종료 복구 권한은 여전히141 등 호출부에서 검사한다. 전체 DTO 검사나 실제 end 재호출을 대신하지 않는다.
+- `csrf.ts`의 비200 HTTP 실패는 선택 헤더를 `meta`로 즉시 전달한다. 기존 `requestId`는 UUID 검사를 통과한 진단 ID이며, `meta.headers.requestId`는 생 헤더로 따로 보존한다. 생 헤더·message·fields에는 민감정보가 들어갈 수 있으므로 결과 전체를 로그/저장소에 기록하지 않는다.
+- 원시 Response는 `recovery.ts`의 WeakMap에 원본 실패 객체를 키로 보관하여 공개 실패 객체의 직렬화에 본문/쿠키가 들어가지 않는다. `readCsrfFailure`에 **원본 실패 객체**를 전달하면166 파서로 본문을 한 번만 읽어 결과를 공유한다. 복사·직렬화한 객체에는 본문 읽기 기능을 복원하지 않는다. 본문 읽기는 기존 CSRF/일반 요청의 쿠키 응답 대기에 등록하지 않는다. 정상200 전용 파서·기존 인증 전환 순서·operation/outcome/refresh 분리는 유지한다.
+- `response.ts`의 선택 헤더 추출만 `readResponseMetadata`로 재사용했다. 기존 JSON/204/이동/바이너리·오류 형식 해석은 유지한다. 비200 CSRF302는 redirect,204/예상 밖2xx는 format_error, body 실패는 body_read_error이며 HTTP/code를 만들어 넣지 않는다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 구현 전 실패 확인 | recovery 테스트66건, CSRF 실패 테스트11건이 기능 미구현으로 실패. 이후 구현으로 통과 |
+| 새 테스트 | recovery84건 + csrfFailure12건 =96건 통과. Retry-After 경계·오류 분류·메타데이터·동시/반복 본문 읽기·인증 성공+갱신429/503·오류 body 지연 중 로그아웃·비200 예외 포함 |
+| 전체 회귀 | `npm test`: **20 suites / 563 tests** 통과. 기존401/403/429/503 테스트에 실제 classifyRecovery 연결 후에도 POST1회 유지 |
+| 정적 검사 | `npm run lint`, `npm run typecheck`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra의 읽기 전용 검토에서2단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰와 구분 |
+| 실행 환경 | Node24.20.0 / npm11.19.0의 명시 경로 사용. package/lockfile 변경 없음 |
+| 중간 실패 | 새 meta가 빠진 기존 기대값5건과 새 테스트의 Jest tuple/afterEach 타입을 수정했다. 검사 완화 없이 새 계약의 값을 검증하며 최종 전체 검사 통과 |
+| 미실행 | 네이티브 실행/export/빌드·원격 CI·실서버 검증. 의존성이 바뀌지 않아 설치/Expo 호환성/감사를 반복하지 않음 |
+
+로컬 로그는 `/private/tmp/scrum167-stage2/`에 있으며 저장소에 포함하지 않는다. 이 단계의 완료는 오류 정보 전달·분류까지다. **이전 세션의 늦은 결과 반영을 차단하는 인증 문맥과 실제 CSRF 복구 실행은 아직 구현하지 않았다.** 다음 한 가지는 사용자 확인 후3단계 인증 문맥·조건부 상태 반영 구현이다. PR/push/병합/Jira 변경은 하지 않았다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
