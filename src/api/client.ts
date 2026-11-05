@@ -2,19 +2,26 @@ import { readEnvironment, resolveApiConfig, resolveApiMode, type ConfigResult, t
 import { createCsrfManager, type CsrfFailure, type CsrfResult } from './csrf';
 import { registerExampleHandlers, type ExampleScenario } from './mockAuthMe';
 
+declare const authContextBrand: unique symbol;
+// 실제 값은 client가 발급하는 빈 불변 객체다. 세대·계정·자격 정보를 공개하지 않는다.
+export type AuthContext = { readonly [authContextBrand]: true };
+
 export type ApiFetch = (url: string, init: RequestInit) => Promise<Response>;
 export type ApiRequest = { method: 'GET' | 'POST'; path: string; headers?: HeadersInit; body?: BodyInit; signal?: AbortSignal };
 export type ApiResult =
-  | { kind: 'response'; response: Response }
+  | { kind: 'response'; response: Response; readonly context: AuthContext }
   | { kind: 'not_sent'; reason: 'invalid_request' | 'auth_transition' | 'cancelled' }
   | { kind: 'not_sent'; reason: 'csrf_unavailable'; csrf?: CsrfFailure }
-  | { kind: 'transport_error' }
+  | { kind: 'transport_error'; readonly context: AuthContext }
   | { kind: 'stale_response' };
 // 업무 응답의 의미는 125 호출부가 판정한다. 비-2xx를 일괄 unchanged로 판단하지 않는다.
 export type AuthOutcome = 'changed' | 'unchanged' | 'csrf_invalid' | 'unknown';
-export type AuthTransitionResult = { operation: ApiResult; outcome: AuthOutcome | 'not_attempted'; refresh?: CsrfResult };
+export type AuthTransitionResult = { operation: ApiResult; outcome: AuthOutcome | 'not_attempted'; refresh?: CsrfResult; readonly context?: AuthContext };
 export type ApiClient = {
   prepareCsrf(): Promise<CsrfResult>;
+  isCurrentContext(context: AuthContext | undefined): boolean;
+  commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean;
+  expireIfCurrent(context: AuthContext | undefined, onExpired: (next: AuthContext) => undefined): boolean;
   request(request: ApiRequest): Promise<ApiResult>;
   authTransition(request: ApiRequest, classify: (response: Response) => AuthOutcome | Promise<AuthOutcome>): Promise<AuthTransitionResult>;
 };
@@ -60,6 +67,35 @@ export function createApiClient(
   let generation = 0;
   let transitioning = false;
   const inFlight = new Set<Promise<ApiResult>>();
+  const contexts = new WeakMap<AuthContext, number>();
+
+  function captureContext(): AuthContext {
+    const context = Object.freeze({}) as AuthContext;
+    contexts.set(context, generation);
+    return context;
+  }
+
+  // 전환 내부는 자신의 세대만 검사한다. 외부 반영에는 gate 해제도 필요하다.
+  function ownsContext(context: AuthContext | undefined): boolean {
+    return context !== undefined && contexts.get(context) === generation;
+  }
+  function isCurrentContext(context: AuthContext | undefined): boolean {
+    return !transitioning && ownsContext(context);
+  }
+  function commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean {
+    if (!isCurrentContext(context)) return false;
+    // 마지막 await 뒤 사용한다. callback에서 시작한 비동기 후속 반영은 다시 검사해야 한다.
+    apply();
+    return true;
+  }
+  function expireIfCurrent(context: AuthContext | undefined, onExpired: (next: AuthContext) => undefined): boolean {
+    if (!isCurrentContext(context)) return false;
+    // 호출부가 계약상 만료를 확인한 뒤 호출한다. 먼저 무효화하여 중복 통지를 막는다.
+    generation += 1;
+    csrf.invalidate();
+    onExpired(captureContext());
+    return true;
+  }
 
   // 원래 요청 자체는 취소하지 않는다. 취소된 호출의 대기와 listener만 정리한다.
   async function waitForPending<T>(pending: Promise<T> | undefined, signal?: AbortSignal) {
@@ -95,7 +131,7 @@ export function createApiClient(
   }
 
   // 인증 전송도 같은 검증·CSRF 설정을 사용한다. 공개 bypass 옵션은 제공하지 않는다.
-  async function perform(value: PreparedRequest, blocked: () => boolean): Promise<ApiResult> {
+  async function perform(value: PreparedRequest, blocked: () => boolean, context: AuthContext): Promise<ApiResult> {
     const { method, path, body, signal, url, headers } = value;
     if (signal?.aborted) return { kind: 'not_sent', reason: 'cancelled' };
     if (method === 'POST') {
@@ -113,10 +149,10 @@ export function createApiClient(
         method, credentials: 'include', cache: 'no-store', redirect: 'error', headers,
         ...(body !== undefined ? { body } : {}), ...(signal !== undefined ? { signal } : {}),
       });
-      return { kind: 'response', response };
+      return { kind: 'response', response, context };
     } catch {
       // 취소·통신 실패 뒤에도 서버 처리 여부는 알 수 없으며 재전송하지 않는다.
-      return { kind: 'transport_error' };
+      return { kind: 'transport_error', context };
     }
   }
 
@@ -124,9 +160,9 @@ export function createApiClient(
     const prepared = prepareRequest(value);
     if (!prepared) return { kind: 'not_sent', reason: 'invalid_request' };
     if (transitioning) return { kind: 'not_sent', reason: 'auth_transition' };
-    const started = generation;
-    const blocked = () => transitioning || generation !== started;
-    const operation = perform(prepared, blocked);
+    const context = captureContext();
+    const blocked = () => !isCurrentContext(context);
+    const operation = perform(prepared, blocked, context);
     inFlight.add(operation);
     try {
       const result = await operation;
@@ -153,11 +189,14 @@ export function createApiClient(
     if (prepared.signal?.aborted) return { operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted' };
     transitioning = true;
     generation += 1;
+    const context = captureContext();
+    const blocked = () => !ownsContext(context);
     try {
       // 일반 403도 CSRF 쿠키를 발급하므로 기존 일반 요청과 발급 응답을 모두 기다린다.
       await waitForPending(Promise.allSettled([...inFlight, csrf.settlePending()]), prepared.signal);
-      const operation = await perform(prepared, () => false);
-      if (operation.kind === 'not_sent') return { operation, outcome: 'not_attempted' };
+      const operation = await perform(prepared, blocked, context);
+      if (operation.kind === 'not_sent') return { operation, outcome: 'not_attempted', context };
+      if (blocked()) return { operation, outcome: 'unknown', context };
       let outcome: AuthOutcome = 'unknown';
       if (operation.kind === 'response') {
         try {
@@ -168,16 +207,17 @@ export function createApiClient(
           // 판정 실패도 인증 실패 확정이나 이전 상태 복구의 근거가 아니다.
         }
       }
+      if (blocked()) return { operation, outcome: 'unknown', context };
       if (outcome !== 'unchanged') csrf.invalidate();
       if (outcome === 'changed' || outcome === 'csrf_invalid') {
         const refresh = await csrf.prepare();
-        return { operation, outcome, refresh };
+        return { operation, outcome, refresh, context };
       }
-      return { operation, outcome };
+      return { operation, outcome, context };
     } finally {
       transitioning = false;
     }
   }
 
-  return { ok: true, value: { prepareCsrf, request, authTransition } };
+  return { ok: true, value: { prepareCsrf, request, authTransition, isCurrentContext, commitIfCurrent, expireIfCurrent } };
 }

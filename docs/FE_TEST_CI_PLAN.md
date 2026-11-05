@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2단계 구현: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 2단계 오류 분류·CSRF 실패 메타데이터 전달까지 로컬 구현·검증했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 인증 문맥·CSRF 복구 실행·후속 회귀/네이티브 검증·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 3단계 인증 문맥·조건부 상태 반영까지 로컬 구현·검증했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 CSRF 복구 실행·후속 수신자/비저장/네이티브 검증·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -143,6 +143,30 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 | 미실행 | 네이티브 실행/export/빌드·원격 CI·실서버 검증. 의존성이 바뀌지 않아 설치/Expo 호환성/감사를 반복하지 않음 |
 
 로컬 로그는 `/private/tmp/scrum167-stage2/`에 있으며 저장소에 포함하지 않는다. 이 단계의 완료는 오류 정보 전달·분류까지다. **이전 세션의 늦은 결과 반영을 차단하는 인증 문맥과 실제 CSRF 복구 실행은 아직 구현하지 않았다.** 다음 한 가지는 사용자 확인 후3단계 인증 문맥·조건부 상태 반영 구현이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 3단계 — 인증 문맥·조건부 상태 반영 · 2026-11-05
+
+- Jira167의 AC1~6·고영준·진행 중 상태를 재조회했고 2단계와 같음을 확인했다. 구현 출발점은 이 작업 브랜치의2단계 커밋 `c2b6289`다.
+- `client.ts`에 client별 불투명 `AuthContext`를 추가했다. 실제 값은 필드 없는 동결 객체이며 세대는 내부 WeakMap에만 보관한다. 일반 요청 허용 후 첫 await 전에 캡처하여 response/transport_error의 읽기 전용 context로 반환한다. 다른 client의 문맥·복사/임의 객체·undefined는 유효하지 않다. 일반 not_sent/stale_response는 반영 문맥을 제공하지 않는다.
+- 로그인·로그아웃 전환은 시작 시 기존 세대를 증가시킨 직후 자체 문맥을 캡처한다. 내부 classifier·갱신은 소유 세대만 검사하고, 외부 반영은 gate 해제까지 확인한다. 시작 전 거절은 문맥이 없고, 시작 후 취소/초기 CSRF 실패는 상위 전환 결과의 문맥을 유지한다. operation/outcome/refresh 의미는 유지한다. **현재 문맥이라는 판정은 로그인 성공이나 세션 생존 판정이 아니다.** unchanged/unknown/미전송 결과의 의미를 별도로 처리한다.
+- `isCurrentContext`는 같은 client·현재 세대·전환 중이 아님을 검사한다. `commitIfCurrent(context, apply)`는 마지막 await 뒤 검사와 동기 반영을 수행하고, 오래된 문맥이면 callback을 실행하지 않는다. callback의 Promise 반환은 타입 검사에서 거부한다. callback 안에서 별도로 시작한 비동기 작업은 마지막 await 뒤 다시 검사해야 한다.
+- `expireIfCurrent(context, onExpired)`는 현재 문맥만 세대 증가·CSRF 무효화 후 한 번 통지하고 next 문맥을 전달한다. 같은 이전 세대의 다른 오류는 재통지하지 않는다. onExpired에서 시작한 비동기 정리는 next 문맥으로 마지막 await 뒤 검사한다. callback 예외에도 세대·token을 이전 상태로 복구하지 않는다. 이 함수는 HTTP를 분류하지 않으므로 호출부는2단계의 정확한 authentication_required 판정 이후에만 호출한다. 임의403이나 LOGIN_FAILED에 연결하지 않는다.
+- **계획 순서 보완:** expireIfCurrent가 진행 중인 CSRF 발급보다 먼저 끝나면 이전 token이 복원될 수 있어,4단계 예정이던 최소 발급 revision 방어만 이번 단계에 앞당겼다. invalidate에서 revision 증가·token 제거, issue 시작 시 revision 캡처,200 token 저장 직전 불일치면 `invalidated` 실패를 반환한다. pending은 유지하여 쿠키 응답 대기 순서를 보존한다. 실제 전송 token 버전 연결·recoverCsrf·동시/늦은403 복구 중복 방지는4단계에 남긴다.
+- 실제 계정/화면 store에는 아직 연결하지 않았다. 공통 보호와 테스트 수신자 검증이며173/174의 소유 계정 연결·연결 회귀를 대신하지 않는다. guard를 거치지 않는 임의 상태 반영이나 OS의 쿠키 적용까지 차단한다고 주장하지 않는다.
+
+| 검증 | 결과 |
+| --- | --- |
+| RED→GREEN | 새 authContext 테스트21건이 기존 코드에서 실패한 뒤 구현 후 통과. 진행 중 발급의 늦은 token 복원도 구현 전 재현 |
+| 문맥·전환 | 정상 반영 대조, 타 client/복사/없는 문맥 거절, 지연 본문+로그아웃, 같은 계정 재로그인+추가 await, 헤더 stale 유지,4가지 auth outcome, 인증 성공+갱신503, 전환 전/후 취소, 늦은 통신 실패 |
+| 만료·발급 | 같은 세대 동시 오류 통지1회, 이전401이 새 로그인/CSRF를 무효화하지 않음, 만료 정리 중 재로그인 보호, 통지 예외 후 무효화 유지, 발급 본문 지연 중 만료 시 이전 token/준비 성공 복원 및 대기 POST 전송 없음 |
+| 타입 계약 | async 반영/통지 callback, 임의 문맥 생성, 응답 context 재할당을 `@ts-expect-error`로 검증. typecheck가 해당 제한의 제거도 감지 |
+| 전체 회귀 | `npm test`: **21 suites / 584 tests** 통과. 기존 테스트에는 새 context 기대값을 추가하고 기존 미전송/오류/outcome·요청 횟수 검증을 유지 |
+| 정적 검사 | `npm run lint`, `npm run typecheck`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra 읽기 전용 검토에서3단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰와 구분 |
+| 중간 실패 | 구현 편집 중 반환 객체에 타입 구문이 섞인1곳의 문법 오류를 수정했다. 이후 새 테스트·전체 검사 모두 통과 |
+| 환경·미실행 | Node24.20.0/npm11.19.0 고정 경로. package/lockfile 변경 없음. 네이티브 실행/export/빌드·원격 CI·실서버 시험은 이번 단계 미실행 |
+
+로그: `/private/tmp/scrum167-stage3/`. 다음 한 가지는 사용자 확인 후 **4단계 CSRF 복구 실행·중복 발급 방지**다. 단계별 기존 기록은 당시의 결과이며 이 절이 현재 완료 지점이다. PR/push/병합/Jira 변경은 하지 않았다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 

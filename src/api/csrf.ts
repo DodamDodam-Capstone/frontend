@@ -2,16 +2,18 @@ import { createCsrfHttpFailure } from './recovery';
 import type { ResponseMetadata } from './response';
 
 export type CsrfFailure =
-  | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' }
+  | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' | 'invalidated' }
   | { ok: false; reason: 'http'; status: number; requestId?: string; meta: ResponseMetadata };
 export type CsrfResult = { ok: true } | CsrfFailure;
 
 // token은 client 내부 메모리에서만 사용하고 공개 준비 결과에는 포함하지 않는다.
 export function createCsrfManager(load: () => Promise<Response>, expectedUrl: string) {
   let token: string | undefined;
+  let revision = 0;
   let pending: Promise<CsrfResult> | undefined;
 
   async function issue(): Promise<CsrfResult> {
+    const started = revision;
     let response: Response;
     try {
       response = await load();
@@ -36,6 +38,8 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
       if (new Headers({ 'X-XSRF-TOKEN': value.token }).get('X-XSRF-TOKEN') !== value.token) {
         return { ok: false, reason: 'invalid_response' };
       }
+      // 만료 중 끝난 발급이 이전 token과 준비 성공을 되살리지 못하게 한다.
+      if (revision !== started) return { ok: false, reason: 'invalidated' };
       token = value.token;
       return { ok: true };
     } catch {
@@ -52,6 +56,7 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
   return {
     prepare, token: () => token,
     settlePending: () => pending,
-    invalidate: () => { token = undefined; },
+    // pending은 유지하여 이미 시작한 쿠키 응답의 대기 순서를 보존한다.
+    invalidate: () => { revision += 1; token = undefined; },
   };
 }
