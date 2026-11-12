@@ -10,6 +10,7 @@ export type CsrfResult = { ok: true } | CsrfFailure;
 export function createCsrfManager(load: () => Promise<Response>, expectedUrl: string) {
   let token: string | undefined;
   let revision = 0;
+  let version: object | undefined;
   let pending: Promise<CsrfResult> | undefined;
 
   async function issue(): Promise<CsrfResult> {
@@ -41,6 +42,8 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
       // 만료 중 끝난 발급이 이전 token과 준비 성공을 되살리지 못하게 한다.
       if (revision !== started) return { ok: false, reason: 'invalidated' };
       token = value.token;
+      // 같은 문자열이 재발급되어도 성공한 발급의 문맥은 새로 구분한다.
+      version = Object.freeze({});
       return { ok: true };
     } catch {
       return { ok: false, reason: 'invalid_response' };
@@ -54,9 +57,9 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
   }
 
   return {
-    prepare, token: () => token,
+    prepare, token: () => token, version: () => version,
     settlePending: () => pending,
     // pending은 유지하여 이미 시작한 쿠키 응답의 대기 순서를 보존한다.
-    invalidate: () => { revision += 1; token = undefined; },
+    invalidate: () => { revision += 1; token = undefined; version = undefined; },
   };
 }

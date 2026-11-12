@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 3단계 인증 문맥·조건부 상태 반영까지 로컬 구현·검증했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 CSRF 복구 실행·후속 수신자/비저장/네이티브 검증·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4단계 구현: 2026-11-12 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 4단계 CSRF 복구·중복 발급 방지까지 로컬 구현·검증했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 후속 수신자/비저장/네이티브 검증·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -167,6 +167,32 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 | 환경·미실행 | Node24.20.0/npm11.19.0 고정 경로. package/lockfile 변경 없음. 네이티브 실행/export/빌드·원격 CI·실서버 시험은 이번 단계 미실행 |
 
 로그: `/private/tmp/scrum167-stage3/`. 다음 한 가지는 사용자 확인 후 **4단계 CSRF 복구 실행·중복 발급 방지**다. 단계별 기존 기록은 당시의 결과이며 이 절이 현재 완료 지점이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 4단계 — CSRF 복구·중복 발급 방지 · 2026-11-12
+
+- 전용 브랜치의 3단계 `351e160`에서 이어 구현했다. Jira167의 고영준·진행 중·AC1~6이 유지됨을 조회했다. FE development는 `da9493fb883442e771d0bee99fddef8c5d88d5ec`, BE development는 `1e66ddb895789bbaf72c21e3b76441bce251aa61`다. BE [PR #48](https://github.com/DodamDodam-Capstone/backend/pull/48)의 공통 권한·오류 처리가 추가됐지만 이전 BE 기준 이후 `docs/p0` 명세 파일은 바뀌지 않았다. 401 AUTHENTICATION_REQUIRED·403 CSRF_INVALID·503 AUTH_STATE_UNAVAILABLE 계약을 유지한다. BE 코드를 조회한 것이며 실제 서버 시험은 아니다.
+- `client.recoverCsrf(context)`는 현재 client의 일반 POST에 실제 사용한 발급 버전만 복구한다. 호출부는 HTTP403 + CSRF_INVALID로 분류한 응답의 context를 전달해야 한다. 이 함수가 context만으로 오류 code를 증명하지는 않는다. GET·다른 client·복사/없는 문맥·인증 전환의 상위/operation 문맥·미전송 결과는 복구 권한을 제공하지 않는다.
+- `csrf.ts`의 성공 발급마다 새 불투명 version을 만든다. 동일 token 문자열이 재발급되어도 버전은 구분하며, 무효화 revision 증가와 발급 성공을 혼동하지 않는다. POST는 헤더를 설정할 때 실제 버전을 내부 WeakMap 문맥에 연결한다. token/버전/세대는 공개 AuthContext에 노출하지 않는다.
+- 결과는 `refreshed` / `already_recovered` / `skipped` / `failed`다. 이미 복구된 결과도 해당 성공 버전이 현재 유지될 때만 성공으로 반환한다. skipped 사유는 stale_context, ineligible_request, superseded_token이며 실패를 성공이나 미전송으로 바꾸지 않는다. CSRF-only 복구로 인증 세대를 바꾸지 않는다.
+- 같은 실패 버전의 진행 중 복구와 완료된 실패를 WeakMap으로 공유한다. 늦은 같은 버전403은 새 토큰을 지우거나 실패한 발급을 반복하지 않는다. failed.failure는 원본 CsrfFailure여서 readCsrfFailure의 본문 한 번 읽기와 메타데이터 보존이 유지된다. 실패 후 호출부가 명시적으로 prepareCsrf를 실행한 새 준비와 새 버전 요청은 가능하며, 원래 업무 POST는 자동 재실행하지 않는다.
+- 실제 send의 헤더 응답 Promise를 별도로 추적한다. 복구는 시작 전에 전송된 응답과 기존 CSRF 발급만 기다리고, 준비 중인 새 POST를 자기 대기에 넣지 않는다. 일반 POST와 prepareCsrf는 진행 중 복구를 공유한다. 캐시 준비 직후 복구가 시작돼도 최종 헤더 설정 전에 다시 대기한다. 새 POST는 복구 성공·현재 인증 문맥·미취소 조건에서만1회 전송하며 복구 실패/취소/인증 전환 시0회다.
+- 인증 전환은 기존 내부 발급 경로를 유지하며 기존 inFlight·CSRF 대기에 recoveryPending을 추가한다. 복구 쪽은 inFlight를 기다리지 않으므로 서로의 준비를 기다리는 순환을 피한다. 발급 시작 전과 공유/캐시 결과의 마지막 await 후 인증 문맥을 확인한다. 일반 응답 본문·비200 CSRF 오류 본문은 전환 대기에 추가하지 않고 정상 CSRF200 발급의 기존 대기는 유지한다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 재개 기준선 | Node24.20.0/npm11.19.0, 기존 client/authTransition/authContext/csrfFailure **121 tests** 통과 |
+| RED→GREEN | 신규 csrfRecovery **21건**이 recoverCsrf 미구현으로 실패한 뒤 구현 후 통과. 추가 경계4건까지 **25건** 통과 |
+| 복구·경합 | 동시/늦은403, 같은 문자열 재발급, 갱신 실패 반복·원본 실패 객체/본문1회, 오래된 성공 재사용 거절,3요청 헤더 대기·신규POST 경합, prepareCsrf 공유, 실패 후 명시적 준비 |
+| 인증·취소 | 일반/인증 전환 문맥 구분, 대기POST 취소/전환 시0회, 복구 대기·완료 뒤 이전 세대 성공 차단, 발급 body 중 만료 시 token 복원 방지, 오류 body 대기와 logout 분리 |
+| 최종 전체 회귀 | `npm test`: **22 suites / 609 tests** 통과 |
+| 정적 검사 | `npm run typecheck`, `npm run lint`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra의 독립 읽기 전용 리뷰에서4단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰가 아님 |
+| 보존 | 다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시 유지. package/lockfile·네이티브 설정 변경 없음 |
+| 미실행 | 네이티브 경합 실행/export/빌드·원격 CI·실제 BE 시험. 의존성 미변경으로 재설치/Expo 호환성/감사를 반복하지 않음 |
+
+로그: `/private/tmp/scrum167-stage4/`, 최초 RED 로그 `/private/tmp/scrum167-stage4-red.log`. 새 테스트는 기존 CI의 전체 Jest 대상이지만 이번 커밋의 원격 실행 증거는 아직 없다. 다음 한 가지는 사용자 확인 후 **5단계 수신자 연결 회귀·민감정보 비저장 검증**이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+후속 계획의 보완사항도 유지한다. 5단계는 오류 message/fields의 메모리 전달과 URL·로그·영구 저장소 복사 금지를 별도로 검사하고, 웹 저장소 spy만으로 RN 전체 비저장을 주장하지 않는다. 6단계는 원본 refresh/meta를 보고서에 넣지 않고 전송 전에 허용한 필드만 추출하며, OS별 기대 사례/필수 check 누락·중단·cleanup 실패를 통과로 집계하지 않는다. 합성 receiver 자체 테스트는 CI Jest에 포함하고 OS 실행·원격 빌드·실서버129 결과는 각각 구분한다. 실제 계정 store 연결173과 연결 회귀174는 이 단계에 포함하지 않는다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
