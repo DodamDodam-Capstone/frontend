@@ -1,9 +1,8 @@
+const { authCases, checksPassed, requiredAuthChecks } = require('./report');
 const { Buffer } = require('node:buffer');
 const { createHash, randomUUID } = require('node:crypto');
 
-const modes = ['login', 'logout', 'login-failed', 'csrf-invalid', 'unknown503', 'classifier-error', 'auth-network',
-  'refresh401', 'refresh403', 'refresh429', 'refresh503', 'refresh-invalid', 'refresh-network', 'refresh302',
-  'auth-held', 'refresh-held', 'drain-csrf', 'cancel-csrf', 'cancel-drain', 'cancel-auth', 'cancel-body', 'stale-get', 'stale-post', 'pre-cancel', 'late-csrf', 'cancel-old'];
+const modes = authCases;
 const checkNames = ['inert', 'gate', 'drained', 'oldBlocked', 'refreshBlocked', 'oldResult', 'originalReadable', 'cookieBefore',
   'cookieAfter', 'notQueued', 'classified', 'authOnce', 'postOnce', 'recovered', 'abortSettled', 'lateWriteBlocked', 'cleanupAbsent',
   'preCancelled', 'positive', 'ordering', 'refreshFailure', 'unknownCleared'];
@@ -78,6 +77,7 @@ module.exports = function createAuthReceiver(writeReport = (row) => process.stdo
     }
     const run = runs.get(id);
     if (!run) { reply(409, { error: 'auth_probe_not_started' }); return true; }
+    if (route.startsWith('api/v1/') && route !== 'api/v1/observe') run.cleanupFinished = false;
     const hold = (phase, key, send) => run.held.set(key, { phase, send });
     const sendCaptured = (key, send) => {
       event(run, `${key}.released`);
@@ -110,7 +110,7 @@ module.exports = function createAuthReceiver(writeReport = (row) => process.stdo
     if (route === 'recover') { run.recovered = true; reply(200, { ok: true }); return true; }
     if (route === 'finish') {
       if (run.held.size || live(run) || run.waiters.length) reply(409, { error: 'auth_probe_not_settled' });
-      else reply(200, snapshot(run), { 'Set-Cookie': run.mode === 'late-csrf' ? [cookieHeader(undefined, path), csrfHeader(undefined, path)] : cookieHeader(undefined, path) });
+      else { run.cleanupFinished = true; reply(200, snapshot(run), { 'Set-Cookie': run.mode === 'late-csrf' ? [cookieHeader(undefined, path), csrfHeader(undefined, path)] : cookieHeader(undefined, path) }); }
       return true;
     }
     if (route === 'api/v1/sink') {
@@ -218,7 +218,8 @@ module.exports = function createAuthReceiver(writeReport = (row) => process.stdo
       try {
         const value = JSON.parse(input); if (value.platform !== platform || value.stage !== '5') throw new Error();
         const checks = {}; for (const key of checkNames) if (typeof value.checks?.[key] === 'boolean') checks[key] = value.checks[key];
-        writeReport({ stage: '5', platform, case: run.mode, report: { pass: value.pass === true, cleanup: value.cleanup === true,
+        writeReport({ stage: '5', platform, case: run.mode, report: { pass: value.pass === true && value.cleanup === true && run.cleanupFinished === true
+          && run.held.size === 0 && live(run) === 0 && run.waiters.length === 0 && !value.issue && checksPassed(checks, requiredAuthChecks(run.mode)), cleanup: value.cleanup === true,
           fetchCalls: number(value.fetchCalls), classified: number(value.classified), checks,
           operation: safeResult(value.operation), secondary: safeResult(value.secondary), refresh: safeResult(value.refresh),
           ...(['changed', 'unchanged', 'csrf_invalid', 'unknown', 'not_attempted'].includes(value.outcome) ? { outcome: value.outcome } : {}),

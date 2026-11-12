@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~5단계 구현·검증: 2026-11-12 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 5단계 수신자 연결 회귀·민감정보 비저장 검증까지 로컬에서 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 후속 네이티브 검증·최종 리뷰/인계·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 6단계 진단 보고서 보완·Android/iOS 네이티브 검증까지 로컬에서 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 후속 최종 리뷰/인계·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -216,6 +216,35 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 | 미실행 | 네이티브 경합 실행/export/빌드·원격 CI·실제 BE 시험. 의존성이 바뀌지 않아 재설치/Expo 검사/감사는 반복하지 않음 |
 
 로그: `/private/tmp/scrum167-stage5/`. 다음 한 가지는 사용자 확인 후 **6단계 Android·iOS 합성 loopback 검증**이다.6단계에서는 원시 refresh/meta의 진단 보고서 전송을 전송 전 허용 필드 추출로 보완하고, 기대 사례/필수 check 누락·중단·cleanup 실패를 검출한다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 6단계 — 진단 보고서 보완·Android/iOS 네이티브 검증 · 2026-11-12
+
+- 전용 브랜치의5단계 `4f582aa`에서 진행했다. Jira167은 고영준·진행 중·AC1~6 유지, FE development `da9493fb883442e771d0bee99fddef8c5d88d5ec`와 BE development `1e66ddb895789bbaf72c21e3b76441bce251aa61`도 동일함을 재조회했다. 이 단계에서 제품 API·App/index·의존성/lockfile·네이티브 설정은 변경하지 않았다.
+- `scripts/native-session/recovery.tsx`와 `recoveryReceiver.js`를 추가했다. 실제 Expo global fetch로 정상 대조, 지연 성공+로그아웃/동일·다른 계정 재로그인, 늦은401/403, 파싱 뒤 추가 await, 만료 후 비동기 정리, 동시401·CSRF 복구 공유, 복구 중 새POST 대기, 발급 중 무효화, 복구 실패 본문 지연, 보호자403·503의15개 사례를 검사한다. 호출 횟수·최종 상태·통지·쿠키/token 쌍·cleanup을 각각 확인한다. a/b 계정과 로그인 DTO는 로컬 합성 프로토콜이며 실제 로그인 API DTO로 제안한 값이 아니다.
+- 공통 `report.js`를 통해 모든 기존 진단 진입점도 **JSON 직렬화 전** 허용 enum·횟수·boolean만 추출한다. raw refresh/meta·오류 원문·쿠키·token·임의 키는 보고서와 기본 probe 화면에 복사하지 않는다. 기존 API 파서가 오류 원문을 메모리로 전달하는 계약은 유지한다. 수신 후 필터만으로 전송 전 노출을 막았다고 간주하지 않는다.
+- auth/response/recovery는 필수 check가 빠지거나 false이면 실패다. 전체 행렬 요약은 OS별 기대 사례의 누락·중복·알 수 없는 사례·일부 선택·중단을 통과시키지 않는다. receiver는 실제 finish와 미결 응답/대기자0을 요구하며 finish 뒤 새 API 요청이 오면 완료 표시를 무효화한다. issue/cleanup 실패 보고서의 pass도 false로 정규화한다.
+- Astra 리뷰에서 **늦은 결과의 미반영만 확인하면 읽기/파싱 실패도 PASS가 될 수 있는 검증 공백1건**을 발견했다. 정상 JSON/정확한401·403 분류, stale_context 복구 거절, CSRF 실패401 본문 분류까지 검사하도록 보강했다. 새 검사7건의 실패 후 구현·통과를 확인했고, 보강된 최종 코드로 양 OS 전체 행렬을 다시 실행했다. 제품에서 로그아웃 후 로그인되는 결함을 재현한 것은 아니다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 재현 후 수정 | 필수 check 누락·finish 누락·이전 finish 재사용·issue/cleanup 실패의 잘못된 PASS를 테스트로 재현 후 수정. 지연 응답 해석/분류 검사 추가 |
+| Jest 전체 | `npm test`: **26 suites / 695 tests** 통과.5단계 대비53건 추가 |
+| 정적 검사 | `npm run typecheck`, `npm run lint`, `git diff --check` 통과 |
+| Android | Pixel Tablet/API36, 개발 APK 재빌드·설치. 복구15 + 요청26 + 인증26 + 응답25 = **92/92 PASS** |
+| iOS | iPad Pro11형 M5/iOS26.5 Simulator, 서명 없는 Debug 재빌드·설치. 동일 **92/92 PASS** |
+| 최종 행렬 | 총 **184개 고유 사례**. 필수 검사/사례 누락·중복0, 실패/issue0, cleanup 전부true. 관측 대상의 held/activeResponses/waiters0 |
+| 출력 경계 | 최종 보고서에 합성 UUID 값0. enum/count/boolean 허용 목록의 직렬화 테스트와 함께 확인했으며 RN 전체 저장소 안전성으로 확대하지 않음 |
+| 빌드 근거 | Node24.20.0/npm11.19.0, Expo57.0.31/RN0.86.3, JDK17, CocoaPods1.16.2, Xcode26.6. Android316 tasks 성공·iOS BUILD SUCCEEDED. Expo 본문 보완3파일 SHA 빌드 전후 일치·single-use POST 생성 코드 확인 |
+| 환경·중간 실행 | 남아 있던 Android APK가166 본문 패치 전 빌드여서 새로 빌드. prebuild cwd/Pods 실행 경로 오류는 격리 경로·올바른 도구 경로로 수정. 수정 중 Fast Refresh로 중복된 예비 로그는 별도 보존하고 최종 집계에서 제외 |
+| 범위·미실행 | 에뮬레이터/시뮬레이터와 HTTP loopback 합성 수신자 검증. 실기기·운영 HTTPS/쿠키 속성·OAuth·실제 BE129·원격 CI는 미실행. 일반 앱 JS export는 제품/설정 미변경으로 이번 단계 반복하지 않음 |
+
+빌드는 `/private/tmp/scrum167-stage6/native-build`의 HEAD archive에서 수행했다. 기존 node_modules를 재사용해 무시되는 네이티브 의존성 빌드 출력은 생성됐지만 소스 패치·패키지 버전은 유지됐다. 원래 checkout·다른 worktree에는 생성 프로젝트를 만들지 않았다. 본문/CSRF 테스트 기한은 기존20초, 제어/정리3초의 진단 값이며 운영 timeout으로 확정하지 않는다.
+
+재현은 기존 receiver·IPv4 localhost Metro 명령을 그대로 사용하고 새 bundle은 `scripts/native-session/recovery.bundle`로 지정한다. `EXPO_PUBLIC_NATIVE_PROBE_CASE` 없이 recovery15/auth26/response25/cases26을 OS별로 순서대로 실행한다. 단일 사례 선택은 진단용이며 전체 통과가 아니다. 마지막 결과마다 필수 check·실제 요청 횟수·cleanup을 확인하고 OS별 기대 목록과 정확히 한 번씩 대조한다.
+
+다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시가 보존됐음을 최종 확인했다. 양 OS를 일반 index.ts 진입점으로 복귀시켜 bundle 요청을 확인한 뒤 앱·이번에 시작한 가상 기기·Metro·합성 서버와 adb reverse를 정리했다.
+
+최종 증빙: `/private/tmp/scrum167-stage6/native-results-final.log`, `android-matrix.log`, `ios-matrix.log`, `full-test-final.log`, `native-build-evidence.json`과 빌드 로그. 예비/리뷰 보완 전 로그는 이름에 preliminary/before-review-fix로 구분했다. 실제 계정 store173·연결 회귀174와 실서버129는 별도 책임이다. 다음 한 가지는 사용자 확인 후 **7단계 최종 리뷰·CI 준비·인계**다. PR/push/병합/Jira 변경은 하지 않았다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 

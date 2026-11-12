@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { registerRootComponent } from 'expo';
+import { safeReport } from './report';
 import { createApiClient, type ApiFetch } from '../../src/api/client';
 
 type Observation = { status: number; urlEqualsRequested: boolean; sameOriginAndPath: boolean; hasCacheQuery: boolean; redirectedPropertyPresent: boolean };
@@ -26,7 +27,7 @@ async function execute(): Promise<Summary> {
     const stop = setTimeout(() => abort.abort(), 3000);
     try {
       const response = await fetch(`${root}/${path}`, report
-        ? { method: 'POST', signal: abort.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(report) }
+        ? { method: 'POST', signal: abort.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(safeReport(report)) }
         : { cache: 'no-store', signal: abort.signal });
       if (response.status !== 200) throw new Error('probe_transport_failure');
       return await response.json();
@@ -102,6 +103,6 @@ function Probe() {
     running ??= execute();
     running.then(setResult, () => setResult({ platform: Platform.OS, reachable: false, inert: false, observations: [], preparation: 'not_run', cookieRoundTrip: 'not_verified', firstPost: 'blocked', cleanup: false, issue: 'probe_transport_failure' }));
   }, []);
-  return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-165 · 3-A 네이티브 진단</Text><Text selectable>{result ? JSON.stringify({ ...result, observations: result.observations[0] }, null, 2) : '검증 중'}</Text></View>;
+  return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-165 · 3-A 네이티브 진단</Text><Text selectable>{result ? JSON.stringify(safeReport(result), null, 2) : '검증 중'}</Text></View>;
 }
 registerRootComponent(Probe);
