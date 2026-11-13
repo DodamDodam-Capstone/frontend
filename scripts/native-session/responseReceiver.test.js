@@ -192,7 +192,7 @@ test('보고서는 안전한 enum·횟수·boolean만 허용한다', async () =>
     outcome: { kind: 'format_error', reason: 'invalid_json', status: 200, message: secret }, issue: 'incomplete', body: secret, cookie: secret }));
   expect(response.status).toBe(200);
   expect(rows).toHaveLength(1);
-  expect(rows[0]).toMatchObject({ stage: '166-5', platform: 'android', case: 'json', report: { pass: true, cleanup: true, fetchCalls: 3,
+  expect(rows[0]).toMatchObject({ stage: '166-5', platform: 'android', case: 'json', report: { pass: false, cleanup: true, fetchCalls: 3,
     checks: { inert: true, cleanupAbsent: false }, outcome: { kind: 'format_error', reason: 'invalid_json', status: 200 }, issue: 'incomplete' } });
   expect(JSON.stringify(rows)).not.toContain(secret);
   expect(rows[0].report.checks).not.toHaveProperty('result');
@@ -216,4 +216,33 @@ test('알 수 없는 case·중복 시작·등록 전 요청·지원하지 않는
   expect((await call('unknown')).status).toBe(404);
   expect((await call('api/v1/probe', 'DELETE')).status).toBe(405);
   expect(await receiver.handle({ url: '/runs/android-auth-test/start' }, new Reply())).toBe(false);
+});
+
+
+test('완전한 check를 보내도 receiver cleanup 완료 전에는 PASS로 기록하지 않는다', async () => {
+  const { requiredResponseChecks } = require('./report');
+  const { call, rows } = await fixture('json');
+  const checks = Object.fromEntries(requiredResponseChecks('json').map((key) => [key, true]));
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '166-5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(false);
+});
+
+test('필수 check·정리가 완료된 보고서는 PASS로 기록한다', async () => {
+  const { requiredResponseChecks } = require('./report');
+  const { call, rows } = await fixture('json');
+  const checks = Object.fromEntries(requiredResponseChecks('json').map((key) => [key, true]));
+  expect((await call('finish')).status).toBe(200);
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '166-5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(true);
+});
+
+
+test('cleanup 뒤 새 API 요청이 생기면 이전 finish를 재사용하지 않는다', async () => {
+  const { requiredResponseChecks } = require('./report');
+  const { call, rows } = await fixture('json');
+  const checks = Object.fromEntries(requiredResponseChecks('json').map((key) => [key, true]));
+  expect((await call('finish')).status).toBe(200);
+  expect((await call('api/v1/auth/csrf')).status).toBe(200);
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '166-5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(false);
 });

@@ -3,8 +3,10 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import createAuthReceiver from './authReceiver.js';
 import createResponseReceiver from './responseReceiver.js';
+import createRecoveryReceiver from './recoveryReceiver.js';
 
 const authReceiver = createAuthReceiver();
+const recoveryReceiver = createRecoveryReceiver();
 const responseReceiver = createResponseReceiver();
 
 // 로컬 네이티브 진단 전용. 시험 값은 메모리에만 두고 access log는 만들지 않는다.
@@ -47,6 +49,7 @@ const safeCaseReport = (value) => ({
   fetchCalls: number(value.fetchCalls), cleanup: value.cleanup === true, issue: value.issue ? 'probe_incomplete' : undefined,
 });
 const handler = async (request, response) => {
+  if (await recoveryReceiver.handle(request, response)) return;
   if (await responseReceiver.handle(request, response)) return;
   if (await authReceiver.handle(request, response)) return;
   const url = new URL(request.url, 'http://127.0.0.1');
@@ -198,6 +201,7 @@ const handler = async (request, response) => {
 };
 const servers = [48591, 48592].map((port) => createServer(handler).listen(port, '127.0.0.1', () => process.stdout.write(`SCRUM-165 receiver ready on loopback:${port}\n`)));
 for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, () => {
+  recoveryReceiver.close();
   responseReceiver.close();
   authReceiver.close();
   runs.forEach((run) => run.releases.splice(0).forEach((release) => release()));

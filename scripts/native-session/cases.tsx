@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { registerRootComponent } from 'expo';
+import { safeReport, summarizeCases, transportCases } from './report';
 import { createApiClient, type ApiFetch, type ApiResult } from '../../src/api/client';
 
 // 알려진 한 사례만 재현할 수 있는 진단 전용 선택자다. 제품 환경 설정에는 추가하지 않는다.
 const bodyCases = ['post-loss-empty', 'post-loss-json', 'post-loss-binary', 'post-loss-multipart', 'post503-zero'];
-const allCases = ['reuse', 'concurrent', 'http401', 'http403', 'http429', 'http503', 'invalid-json', 'network', 'expire', 'csrf302',
-  ...[301, 302, 303, 307, 308].flatMap((status) => [`post${status}-same`, `post${status}-cross`]), 'post-loss', ...bodyCases];
+const allCases = transportCases;
 const selectedCase = process.env.EXPO_PUBLIC_NATIVE_PROBE_CASE;
-const cases = selectedCase && allCases.includes(selectedCase) ? [selectedCase] : allCases;
+const cases = selectedCase ? (allCases.includes(selectedCase) ? [selectedCase] : []) : allCases;
 type Counts = { csrf: number; get: number; post: number };
 type Snapshot = Counts & { sourceBytes: number; sourceBodyMatches?: boolean; cookieMatches: boolean; cookieNamePresent: boolean; postPairsMatch: boolean; sameSink: number; crossSink: number; positiveSame: number; positiveCross: number };
 type Outcome = { kind: ApiResult['kind']; status?: number; reason?: string; csrfReason?: string; csrfStatus?: number };
@@ -34,7 +34,7 @@ async function runCase(name: string): Promise<boolean> {
     const abort = new AbortController(); const stop = setTimeout(() => abort.abort(), 3000);
     try {
       const response = await fetch(`${root}/${path}`, body
-        ? { method: 'POST', signal: abort.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+        ? { method: 'POST', signal: abort.signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(safeReport(body)) }
         : { cache: 'no-store', signal: abort.signal });
       if (response.status !== 200) throw new Error('probe_incomplete');
       return await response.json();
@@ -162,6 +162,6 @@ let running: ReturnType<typeof execute> | undefined;
 function ProbeCases() {
   const [results, setResults] = useState<{ name: string; pass: boolean }[]>();
   useEffect(() => { running ??= execute(); running.then(setResults, () => setResults([])); }, []);
-  return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-165 · 3-B 네이티브 검증</Text><Text selectable>{results ? results.map((item) => `${item.name}: ${item.pass ? 'PASS' : 'FAIL / STOP'}`).join('\n') : '검증 중'}</Text></View>;
+  return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-165 · 3-B 네이티브 검증</Text><Text selectable>{results ? `전체: ${summarizeCases(allCases, results).pass ? 'PASS' : 'FAIL / INCOMPLETE'} (${results.length}/${allCases.length})\n${results.map((item) => `${item.name}: ${item.pass ? 'PASS' : 'FAIL / STOP'}`).join('\n')}` : '검증 중'}</Text></View>;
 }
 registerRootComponent(ProbeCases);

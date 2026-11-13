@@ -1,9 +1,8 @@
+const { responseCases, checksPassed, requiredResponseChecks } = require('./report');
 const { Buffer } = require('node:buffer');
 const { createHash, randomUUID } = require('node:crypto');
 
-const modes = ['json', 'empty', 'end', 'multipart', 'binary', 'binary-empty', 'binary-error', 'json-invalid', 'json-mime',
-  'fields-missing', 'fields-invalid', 'delay-json', 'cancel-json', 'disconnect-json', 'delay-binary', 'cancel-binary',
-  'disconnect-binary', 'late-json', 'late-binary', 'late-clone-json', 'late-clone-binary', 'redirect', 'post-loss', 'post503', 'auth-json'];
+const modes = responseCases;
 const checkNames = ['inert', 'prepared', 'metadata', 'result', 'body', 'notReplayed', 'headersBeforeBody', 'pendingBeforeRelease',
   'originalReadable', 'refresh', 'positive', 'sinkBlocked', 'cleanupAbsent'];
 const kinds = ['json', 'empty', 'bytes', 'redirect', 'http_error', 'format_error', 'body_read_error', 'response', 'not_sent', 'transport_error', 'stale_response'];
@@ -76,6 +75,7 @@ module.exports = function createResponseReceiver(writeReport = (row) => process.
     }
     const run = runs.get(id);
     if (!run) { reply(409, { error: 'response_probe_not_started' }); return true; }
+    if (route.startsWith('api/v1/') && route !== 'api/v1/observe') run.cleanupFinished = false;
     if (route === 'snapshot' && request.method === 'GET') { reply(200, snapshot(run)); return true; }
     if (route === 'wait' && request.method === 'GET') {
       const phase = url.searchParams.get('phase');
@@ -94,7 +94,7 @@ module.exports = function createResponseReceiver(writeReport = (row) => process.
     }
     if (route === 'finish' && request.method === 'GET') {
       if (run.held.size || active(run) || run.waiters.size) reply(409, { error: 'response_probe_not_settled' });
-      else reply(200, snapshot(run), { 'Set-Cookie': cookieHeader(undefined, path) });
+      else { run.cleanupFinished = true; reply(200, snapshot(run), { 'Set-Cookie': cookieHeader(undefined, path) }); }
       return true;
     }
     if (route === 'api/v1/sink') {
@@ -168,7 +168,8 @@ module.exports = function createResponseReceiver(writeReport = (row) => process.
         const value = JSON.parse(Buffer.concat(chunks).toString());
         if (value.platform !== platform || value.stage !== '166-5') throw new Error();
         const checks = {}; for (const key of checkNames) if (typeof value.checks?.[key] === 'boolean') checks[key] = value.checks[key];
-        writeReport({ stage: '166-5', platform, case: run.mode, report: { pass: value.pass === true, cleanup: value.cleanup === true,
+        writeReport({ stage: '166-5', platform, case: run.mode, report: { pass: value.pass === true && value.cleanup === true && run.cleanupFinished === true
+          && run.held.size === 0 && active(run) === 0 && run.waiters.size === 0 && !value.issue && checksPassed(checks, requiredResponseChecks(run.mode)), cleanup: value.cleanup === true,
           fetchCalls: number(value.fetchCalls), checks, outcome: safeOutcome(value.outcome),
           ...(['incomplete', 'deadline'].includes(value.issue) ? { issue: value.issue } : {}) }, receiver: snapshot(run) });
         reply(200, { ok: true });

@@ -1,13 +1,13 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 착수 확인: 2026-10-28 KST · 5단계 검증: 2026-11-04 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165는 PR #33으로 development에 반영됐고 Jira 완료, SCRUM-166은 Jira 진행 중이며 5단계까지 로컬 구현·재현·네이티브 검증을 완료했다.** 2026-11-04 FE 기준은 `3d402b58`이며 부모123은 진행 중이다. 아래 과거 로컬 검증 기록과 현재 상태를 구분한다. 원격 CI·PR/병합·실제 서버 검증129와 보안 감사 잔여 항목은 미완료다. 로컬 단계 완료를 Jira/부모123 완료로 해석하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 최종 로컬 리뷰·CI 및 Expo 57.0.33 호환성 보완·iOS 추가 네이티브 검증까지 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.31`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.33`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. [PR #29의 실행 결과](https://github.com/DodamDodam-Capstone/frontend/actions/runs/38769299920)에서 JS·Android·iOS와 최종 집계가 모두 통과했다.
 - 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사와 깨끗한 checkout의 양쪽 네이티브 빌드, PR 원격 CI가 통과했다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-166](https://dodamdodam.atlassian.net/browse/SCRUM-166)의 요청 직렬화·응답 형식 처리다.** 아래 166의 1단계 기록을 착수 기준으로 삼는다. 159~165 기록은 당시 실행 이력으로 보존하며, 새 기능과 검증은 승인한 단계별로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
+**현재 작업 대상은 [SCRUM-167](https://dodamdodam.atlassian.net/browse/SCRUM-167)의 오류·인증 만료·복구 정책이다.** 아래 167의 기준을 적용하고, 159~166 기록은 당시 실행 이력으로 보존한다. 단계별 결과를 보고하고 사용자 확인 후 다음 단계로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,263 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
+
+이 절은 승인된 7단계 중 **1단계의 완료 기록과 2~7단계의 구현 계약**이다. 아래 API는 아직 제품 코드에 추가하지 않았다. 기존 단계 기록은 당시의 증거로 보존하고, 이후 단계의 변경·판단·검증 결과를 이 문서에 이어 기록한다.
+
+#### 출발점·적용 근거
+
+- 작업 공간: `/Users/youngjun/.codex/worktrees/scrum-167-error-auth-recovery/frontend`, branch `feature/SCRUM-167-error-auth-recovery`.
+- FE 출발점: development [`da9493fb883442e771d0bee99fddef8c5d88d5ec`](https://github.com/DodamDodam-Capstone/frontend/commit/da9493fb883442e771d0bee99fddef8c5d88d5ec). SCRUM-166 PR #35 병합을 포함한다. fetch 후 GitHub branch SHA와 일치를 확인했다. 작업 브랜치의 초기 `origin/development` upstream은 해제했으며, 공유 시 해당 feature branch를 명시한다.
+- Jira [SCRUM-167](https://dodamdodam.atlassian.net/browse/SCRUM-167): 계획123-S3, 담당 고영준, 진행 중, 부모123 진행 중. 선행121·165·166은 완료이며 후행168은 해야 할 일이다. 이 단계에서 Jira를 변경하지 않았다.
+- 원래 checkout의 변경10개·번역 worktree의 변경7개 및 문서178·165·166·179 worktree의 HEAD/index/미커밋 파일 해시를 기록했다. 해당 변경은 이 작업 공간에 가져오지 않는다. 원래 경로의 `AGENTS.md`를 적용한다.
+- BE 기준: development [`bb11afdd2a26888ce05feae29b11df73366fdb7e`](https://github.com/DodamDodam-Capstone/backend/commit/bb11afdd2a26888ce05feae29b11df73366fdb7e). 아래 계약 링크는 모두 이 SHA에 고정한다. API 계약 v3.1과 OpenAPI 문법3.0.3/`info.version: 3.1.0`을 구분한다.
+
+| 파일·절 | 이번 적용 내용 |
+| --- | --- |
+| [공통 §3·3.1·3.2·5](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/01-common.md) | 세션·CSRF·무효화, 오류 필드, 서버 추적 ID, 비저장, POST 재실행 금지 |
+| [인증 §6.1·6.5·6.7](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/02-auth.md) | CSRF 전용200, LOGIN_FAILED와 세션 상실 구분, 로그인/로그아웃 후 갱신 |
+| [오류·FE 복구 §9·미정 값 §10](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/08-errors-and-validation.md) | HTTP/code별 복구와 Retry-After, 미확정 운영값을 만들지 않는 경계 |
+| [보호자 §6.11~6.14](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/04-guardian.md) / [대화 §7.1·7.3·7.7](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/api/06-conversations.md) | 권한·내용 차단의 기능 인계, end202의 명시적 재확인 계약 |
+| [OpenAPI paths·responses·schemas](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/Integrated_OpenAPI.yaml) | endpoint별 허용 HTTP/code, 오류 타입·필수값·헤더 |
+| [AuthStateErrorHandler](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/src/main/java/com/dodamdodam/backend/auth/session/AuthStateErrorHandler.java) / [CsrfAccessDeniedHandler](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/src/main/java/com/dodamdodam/backend/global/auth/CsrfAccessDeniedHandler.java) | 실제 Java의401 AUTHENTICATION_REQUIRED,403 CSRF_INVALID,503 AUTH_STATE_UNAVAILABLE 구분 |
+
+Jira96의 `Backend_P0_Common_Spec.md v0.4`는 이전 원문 출처다. 현재 [OpenAPI source manifest](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/Integrated_OpenAPI.yaml#L5961)에 원문 이름·SHA256이 기록돼 있고, [p0 README](https://github.com/DodamDodam-Capstone/backend/blob/bb11afdd2a26888ce05feae29b11df73366fdb7e/docs/p0/README.md#L21)는 원문을 게시하지 않는다고 설명한다. 원문 v0.4의 세부 절 직접 대조는 미실행이며, 현재 Jira94/95와 v3.1의 확인된 정책을 적용한다. 버전 숫자 차이를 충돌로 판정하지 않는다. 현 BE에 CSRF·logout 등 구현은 있지만 이메일 로그인/auth-me/공통429 전체 구현을 확인한 것은 아니다. permitAll 경로 선언을 구현 완료로 해석하지 않으며 실제 서버 검증은129의 책임이다.
+
+#### 파일 경계와 API 결정
+
+`client.ts`가 하나의 쿠키 문맥에 대한 인증 세대를 계속 소유한다. `csrf.ts`의 발급 버전은 토큰 유효성·복구 중복 방지용이며 인증 세대와 용도가 다르다. `response.ts`는 기존의 순수 형식 파서다. 새 `src/api/recovery.ts`는 분류·대기 정보·CSRF 실패 해석을 담당하고 전역 store, 화면 이동, 재시도 scheduler를 소유하지 않는다. DTO·보호자/대화 상태와 실제 화면 반영은 각 기능에 인계한다.
+
+다음 이름·형태를 2~4단계 구현 기준으로 고정한다. 새 타입의 상세 discriminant는 아래 동작과 일치시켜 인접 테스트에서 확인한다.
+
+| API/결과 | 계약 |
+| --- | --- |
+| `AuthContext` | client에 귀속된 불투명 메모리 객체. 세션값·계정 ID·CSRF token을 담지 않는다. 다른 client의 객체·없는 객체는 유효하지 않다. 숫자 세대를 호출자가 만들거나 수정하지 않는다. |
+| 기존 `request(request)` / `ApiResult` | 요청 허용 후 첫 비동기 대기 전에 문맥을 캡처한다. `response`와 `transport_error` 결과에 읽기용 `context`를 추가한다. `not_sent`/`stale_response`는 상태 반영 권한을 제공하지 않으며 기존 kind의 전송 의미를 보존한다. POST의 실제 token 버전은 prepare 이후 헤더를 붙이는 시점에 문맥 내부에 연결한다. |
+| 기존 `authTransition(request, classify)` / `AuthTransitionResult` | 전환 시작의 세대 증가 직후 자체 문맥을 만들고 상위 결과의 `context`로 전달한다. operation/outcome/refresh는 계속 분리한다. gate 안의 classifier·갱신은 전환 소유 문맥으로 검사하며, 외부 반영은 gate 해제 후 현재 문맥 검사로 수행한다. 완료 시 새 문맥을 다시 캡처해 이전 결과를 최신처럼 포장하지 않는다. |
+| `isCurrentContext(context: AuthContext \| undefined): boolean` | 같은 client·현재 세대·인증 전환 중이 아님을 확인한다. 정상 데이터뿐 아니라 오류와 후속 정리에도 적용한다. CSRF-only 갱신만으로 인증 문맥을 만료시키지 않는다. |
+| `commitIfCurrent(context, apply: () => undefined): boolean` | 최종 비동기 처리 뒤 검사와 동기 반영을 연속 실행한다. stale이면 apply 호출0회. Promise 반환 callback은 typecheck에서 거부한다. 내부에서 시작한 비동기 작업의 나중 반영은 이 호출이 보호하지 않으므로 마지막 await 뒤 다시 호출해야 한다. |
+| `expireIfCurrent(context, onExpired: (next: AuthContext) => undefined): boolean` | 현재 문맥의 계약상 만료만 한 번 무효화하고 CSRF 준비를 해제한 뒤 동기 통지한다. 같은 옛 문맥의 후속 오류는 false이며 재통지하지 않는다. 비동기 상태 정리는 전달된 next 문맥을 마지막 await 뒤 확인한다. 세대를 이전 값으로 되돌리지 않는다. |
+| `recoverCsrf(context): Promise<CsrfRecoveryResult>` | 현재 일반 POST의 실제 전송 token 버전만 복구한다. 결과는 refreshed/already_recovered/skipped/failed로 구분하고 실패 원인을 전달한다. 오래된 문맥·전송 token 없음·인증 전환 중에는 새 발급을 시작하지 않는다. 원래 POST를 실행하지 않는다. 인증 전환은 이 함수를 호출하지 않고 전환 소유 문맥으로 기존 내부 발급 경로를 유지하며, refresh는 기존 CsrfResult를 반환한다. 두 경로는 CsrfFailure의 오류 해석만 공유한다. |
+| `parseRetryAfter(raw: string \| null): RetryAfterResult` | valid(seconds)/missing/invalid. HTTP 선택 공백을 정리한 ASCII 십진 정수이며1 이상, JS 안전 정수로 정확히 표현 가능한 값만 valid다. 이는 FE 표현 한계이며 서버 운영 상한을 새로 정하는 것이 아니다. 0·음수·소수·날짜·지수·합쳐진 값·범위 초과를0이나 기본 지연으로 보정하지 않는다. 타이머를 만들지 않는다. |
+| `classifyRecovery(result: ParsedApiResponse, operation: RecoveryOperation): RecoveryDecision` | operation은 general/login/conversation_end. HTTP·code·호출 문맥으로 복구 종류와 대기 정보를 반환하는 순수 함수다. 일반 성공으로 로그인 확정을 하지 않는다. 원래 오류 필드·메타데이터를 손실 없이 인계하고 미정의 조합은 unclassified로 전달한다. conversation_end202는 호출자의 EndPendingReceipt 검증 이후에만 적용하며 자동 end 호출은 하지 않는다. |
+| `readCsrfFailure(failure: CsrfFailure): Promise<ParsedApiResponse \| undefined>` | 비200 HTTP 실패만166 파서로 읽는다. CSRF 정상200은 전용 parser를 유지한다. non-200 Response와 선택 헤더는 실패 결과에 메모리로 보관하고, body 읽기는 요청/CSRF cookie-header drain 바깥에서 한 번 수행한다. 통신 실패는 HTTP/code를 생성하지 않는다. |
+
+CSRF 실패는 헤더 수신 시 status·선택 헤더를 확보한다. 기존 `requestId`는 유효한 헤더 ID라는 의미를 유지하고, body의 error.requestId와 덮어쓰지 않는다. 본문 지연/읽기 실패도 헤더 정보에 접근할 수 있어야 한다. 일반 요청의 body와 비200 CSRF 오류 body를 새로 logout 대기에 포함하지 않는다. 반면 기존 CSRF 정상 발급/일반 요청의 쿠키 응답 순서는 보존한다.
+
+CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다. 늦은 같은 버전 오류가 새로 발급한 token을 다시 지우지 않는다. 그 복구가 실패했다면 동일 요청 문맥의 반복 처리로 무한 재발급하지 않고 실패를 전달한다. 새 시도는 현재 상태와 사용자 의도를 확인한 호출부의 명시적 요청으로 구분한다. 이미 시작된 쿠키 응답을 기다리는 동안 인증 전환이 시작되면 세대를 재확인해 이전 복구를 중단하며, 내부 발급이 자기 gate 또는 자기 inFlight를 기다리지 않게 한다.
+
+#### 오류·복구 결정표
+
+| 입력 | 공통 처리 / 후속 책임 |
+| --- | --- |
+|401 AUTHENTICATION_REQUIRED | 현재 문맥만 무효화·통지. 로그인 복귀는124/125, 새 로그인 후 CSRF 갱신은165의 전환 경로. 원래 POST 재실행 없음. |
+|401 LOGIN_FAILED | 로그인 입력 실패 전달. 다른401/일반 오류를 이 코드로 대체하지 않고 인증 성공/전역 만료를 추측하지 않음. |
+|403 CSRF_INVALID | 현재 일반 POST만 위 recoverCsrf 경로. 로그인·현재 업무 상태 확인 정보를 전달. CSRF-only 복구가 로그인 해제 통지를 발생시키지 않음. |
+|403 PIN_SETUP_AUTHORIZATION_REQUIRED / PIN_RESET_AUTHORIZATION_REQUIRED / GUARDIAN_UNLOCK_REQUIRED | 목적별 이메일 재인증 또는 PIN 확인 정보 전달. 현재 로그인 전체의 만료로 처리하지 않음. |
+|403 CHILD_SESSION_REQUIRED / SERVICE_HOURS_CLOSED,409 CONVERSATION_CLOSING / CONVERSATION_ENDED | 명시 resume·입력/내용/재생 차단·Home 갱신 등 업무 상태를 담당 기능에 전달. 공통 계층에서 화면/대화 자원을 직접 변경하지 않음. |
+|400 VALIDATION_FAILED / VERIFICATION_INVALID 및 기타 계약상 업무 오류 | fields/code/requestId와 복구 분류 전달. 자동 반복 없음. ACTIVE_CONVERSATION_EXISTS의 ID 확장은166의 conversation_start 문맥에만 유지. |
+|429 RATE_LIMITED | 유효한 Retry-After 이후 시도 가능 정보 전달. missing/invalid는 대기 미확정이며 즉시 재시도를 허용하는0으로 처리하지 않음. 폐기된 challenge의 복구를 대기만으로 확정하지 않음. |
+|202 검증된 EndPendingReceipt | conversation_end 문맥에서 Retry-After 이후 동일 end 재확인 정보를 제공. 실제 재확인·종료 판정은141 등 해당 업무 소유. 일반POST 재시도 정책으로 확대하지 않음. |
+|503 AUTH_STATE_UNAVAILABLE / EMAIL_DELIVERY_UNAVAILABLE | 확인/전달 장애와 결과 확인 필요 전달. 로그인 성공·비로그인·메일 성공으로 치환하지 않고 Retry-After 유무만으로 POST 재전송하지 않음. |
+|미전송·통신/형식/읽기 오류·미등록 HTTP/code·stale | 기존 종류와 메타데이터 보존. 응답/통신 실패를 미전송으로 바꾸지 않음. stale의 성공·오류는 CSRF 변경을 포함한 효과에 적용하지 않음. |
+
+#### 단계별 구현·검증 행렬
+
+| 단계 | 변경/검증 위치 | 중간 완료 기준 |
+| --- | --- | --- |
+|1 작업 공간·계약 | 이 문서, 현재 Git/Jira/명세/CI와 기존 코드 조회 | 위 출발점·API 결정·기준선 확인. 제품 코드는 미변경. |
+|2 오류·메타데이터 | `src/api/recovery.ts`, `csrf.ts`, 인접 `recovery.test.ts`·기존 response/client 테스트 | 분류표, fields/requestId 보존, Retry-After 최소1·누락·잘못된 값·안전 정수 경계, 초기 발급429, 인증 성공+갱신429/503, 오류 body 실패. 실패하는 테스트를 먼저 확인하고 구현 후 통과. |
+|3 인증 문맥 | `client.ts`와 `authTransition.test.ts`, 새 `authContext.test.ts` | 요청 전 캡처, 다른 client 거부, 같은 계정 재로그인, 전환 내부/외부 판정, 동시 만료 통지1회, 만료 후 비동기 정리 중 새 로그인 보호. 동기 callback 타입 검사 포함. |
+|4 CSRF 복구 | `client.ts`·`csrf.ts`, 새 `csrfRecovery.test.ts` | 발급 중 무효화 뒤 token 복원/준비 성공 없음, 실제 전송 token 버전, 같은 버전 동시/늦은403 중복 발급 방지, 실패 복구 반복 방지, 새 token 오류의 정상 복구, 전환 경쟁·자기 대기 교착 없음, POST1회. |
+|5 수신자·회귀·비저장 | `src/api/recovery.integration.test.ts`, 기존 response integration 및 필요한 테스트 수신자 | 지연 성공/오류+로그아웃, 타/동일 계정 재로그인, 파싱 후 추가 await 전환, 정상 대조. final state와 수신자/요청 횟수 모두 검사. 가짜 비밀값이 URL·console·저장소 호출·증빙에 없는지 성공/실패/취소/복구 실패와 message/fields까지 확인. |
+|6 Android·iOS | 기존 `scripts/native-session` probe와 receiver 확장 | 양 OS 지연 본문·늦은 오류·CSRF 무효화·복구, 기존 요청/응답/인증 회귀, 요청 횟수·이벤트 순서·cleanup 확인. 서버는 합성 loopback이며 실제 BE 검증과 구분. |
+|7 리뷰·CI 준비·인계 | 최종 diff·이 문서·필요한 README 설명 | AC1~6 대응, 로컬 리뷰, 전체 Jest CI 포함,173/174 사용 책임 인계. PR 요청 후 최신 commit의 원격 CI와 GitHub 코드 리뷰를 별도로 확인. |
+
+순서: 1→2→3→4→5→6→7. 단계마다 관련 lint/typecheck/테스트를 실행하고 변경 범위를 확인해 SCRUM-167 커밋으로 저장한다. 사용자의 단계별 보고·확인 후 다음 단계로 진행한다. 별도 Jira 업무나 문서를 매 단계 생성하지 않는다. PR/push/병합/Jira 변경은 별도 요청 범위다.
+
+원격 CI의 `js-quality`는 전체 Jest·lint/typecheck·환경 검사·Expo 검사·양 OS export를 실행하고, Android/iOS job은 네이티브 **빌드**다. loopback 경합 probe의 실제 실행을 대신하지 않는다. 단위·연결 테스트 통과, 양 OS 실행, 원격 빌드/필수 CI, 실제 서버129를 각각 기록한다.
+
+#### 문서·실제 설정 차이
+
+이 작업의 CONTRIBUTING/팀 가이드/README/테스트 계획은 위 FE development 출발점의 파일이다. 기본159 checkout의 미커밋 문서를 적용본으로 가져오지 않는다. development 팀 가이드·Jira 가이드에는 사람 승인1건 문구가 남아 있지만 README·10/16 결정·원래 AGENTS는 최신 GitHub 코드 리뷰를 요구한다. 11/4 실제 development Ruleset은 승인0·last-push 승인false·대화 해결·strict 필수 CI3개·squash이며, main은 승인0이지만 last-push 승인true·merge다. 이 차이를 기록하고 보호 설정이나 팀 문서를 이 작업에서 완화하지 않는다.
+
+#### 1단계 실행 결과와 다음 작업
+
+- 최종 실행 환경: Node24.20.0 / npm11.19.0. 작업 셸마다 `export PATH='/Users/youngjun/.nvm/versions/node/v24.20.0/bin':"$PATH"`로 명시하고 버전을 확인했다. 프로젝트 기준 자체는 `.nvmrc`·package.json이며 위 절대 경로는 이 Mac의 재현 경로다.
+- 최초 권한 확장 셸은 Node26.5.0/npm11.17.0을 선택해 manifest 검사에서 실패했다. 고정 버전을 명시하여 설치와 기준선 전체를 재실행했고 아래 최종 결과는 Node24 실행만 사용한다. 제품 코드의 테스트 실패를 수정한 것이 아니다.
+- `npm ci` 성공, Expo57.0.31 본문 오류 패치3파일 검증 성공. 설치 감사는 low6·moderate42가 남았으며 high/critical은 보고되지 않았다. 전체 무취약 상태로 표현하지 않는다. fsevents/unrs-resolver 설치 스크립트 allowScripts 미등록 경고는 남았고 허용 설정을 임의로 변경하지 않았다.
+- `npm run lint`, `npm run typecheck`, `npm test` 모두 성공. Jest **18 suites / 467 tests** 통과. `npm run test:env`14개, manifest 검사, 온라인 `npx --no-install expo install --check`도 성공했다.
+- 이 단계에서 새 기능 테스트·네이티브 실행·export/네이티브 빌드·원격 CI·실제 서버 시험은 실행하지 않았다. 기존 테스트 통과를 SCRUM-167 기능 통과로 보고하지 않는다.
+- 로컬 증빙: `/private/tmp/scrum167-stage1/*-node24.log`, 보존 기준 `/private/tmp/scrum167-preservation-before.json`. 임시 파일은 저장소에 포함하지 않는다.
+- 11/5 문서 검토에서 일반 POST의 recoverCsrf와 인증 전환 내부 갱신 경로의 혼동을 수정했다. 전환은 gate 안에서 기존 발급 경로를 유지하고 오류 해석만 공유한다. 제품 코드 변경은 없다.
+- 현재 완료: **1단계 작업 공간·계약·API 기준·기준선 검증**. 다음 한 가지: 승인 후 **2단계 오류 분류·메타데이터 전달**. 알려진 착수 차단 없음. v0.4 원문 직접 대조와 실서버/미구현 BE 경로의 재현 한계는 위 근거에 남긴다.
+
+### SCRUM-167 2단계 — 오류 분류·메타데이터 전달 · 2026-11-05
+
+- FE/BE development SHA와 Jira167의 AC1~6·담당·진행 상태·선행 완료가 1단계와 같음을 재확인했다. Jira의 현재 active sprint 종료는 **2026-11-17 18:00 KST**로 조회됐다. 과거11/3 목표와 구분하며 스프린트나 Jira를 변경하지 않았다.
+- `src/api/recovery.ts`의 `classifyRecovery`는 정확한 HTTP/code 조합과 general/login/conversation_end 문맥으로 분류한다. 원래 ParsedApiResponse를 `result`로 보존하여 code/message/fields/본문 requestId와 헤더 메타데이터를 유지한다. LOGIN_FAILED는 login 문맥에서만 분류하고, 미정의 조합·형식/읽기 오류는 unclassified다. 일반 성공·이동·바이너리를 인증 성공으로 확정하지 않는다.
+- PIN_INVALID를 포함한 v3.1의 확정 업무 오류도 별도 kind로 인계한다. AUTH_STATE_UNAVAILABLE와 EMAIL_DELIVERY_UNAVAILABLE를 구분하며, 후자는 폐기된 challenge 확인 후 제한 내 새 발급이 호출부 책임이다. 분류 함수는 화면·store·네트워크·타이머를 변경하지 않는다.
+- `parseRetryAfter`는 HTTP OWS를 제외한 ASCII 십진 정수초(1 이상, JS 안전 정수)만 valid로 반환한다. missing/invalid를0이나 기본 지연으로 보정하지 않는다. 대기 정보는 RATE_LIMITED429와 적격 end202에만 붙이며 자동 POST 재전송은 없다.
+- **계획 구체화:** 문자열 operation만으로 DTO 검증 여부를 보장할 수 없으므로 end202에는 정확한2필드(conversationId UUID, status=CLOSING)의 최소 방어 검사도 적용했다. 요청한 conversationId 일치·현재 인증·종료 복구 권한은 여전히141 등 호출부에서 검사한다. 전체 DTO 검사나 실제 end 재호출을 대신하지 않는다.
+- `csrf.ts`의 비200 HTTP 실패는 선택 헤더를 `meta`로 즉시 전달한다. 기존 `requestId`는 UUID 검사를 통과한 진단 ID이며, `meta.headers.requestId`는 생 헤더로 따로 보존한다. 생 헤더·message·fields에는 민감정보가 들어갈 수 있으므로 결과 전체를 로그/저장소에 기록하지 않는다.
+- 원시 Response는 `recovery.ts`의 WeakMap에 원본 실패 객체를 키로 보관하여 공개 실패 객체의 직렬화에 본문/쿠키가 들어가지 않는다. `readCsrfFailure`에 **원본 실패 객체**를 전달하면166 파서로 본문을 한 번만 읽어 결과를 공유한다. 복사·직렬화한 객체에는 본문 읽기 기능을 복원하지 않는다. 본문 읽기는 기존 CSRF/일반 요청의 쿠키 응답 대기에 등록하지 않는다. 정상200 전용 파서·기존 인증 전환 순서·operation/outcome/refresh 분리는 유지한다.
+- `response.ts`의 선택 헤더 추출만 `readResponseMetadata`로 재사용했다. 기존 JSON/204/이동/바이너리·오류 형식 해석은 유지한다. 비200 CSRF302는 redirect,204/예상 밖2xx는 format_error, body 실패는 body_read_error이며 HTTP/code를 만들어 넣지 않는다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 구현 전 실패 확인 | recovery 테스트66건, CSRF 실패 테스트11건이 기능 미구현으로 실패. 이후 구현으로 통과 |
+| 새 테스트 | recovery84건 + csrfFailure12건 =96건 통과. Retry-After 경계·오류 분류·메타데이터·동시/반복 본문 읽기·인증 성공+갱신429/503·오류 body 지연 중 로그아웃·비200 예외 포함 |
+| 전체 회귀 | `npm test`: **20 suites / 563 tests** 통과. 기존401/403/429/503 테스트에 실제 classifyRecovery 연결 후에도 POST1회 유지 |
+| 정적 검사 | `npm run lint`, `npm run typecheck`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra의 읽기 전용 검토에서2단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰와 구분 |
+| 실행 환경 | Node24.20.0 / npm11.19.0의 명시 경로 사용. package/lockfile 변경 없음 |
+| 중간 실패 | 새 meta가 빠진 기존 기대값5건과 새 테스트의 Jest tuple/afterEach 타입을 수정했다. 검사 완화 없이 새 계약의 값을 검증하며 최종 전체 검사 통과 |
+| 미실행 | 네이티브 실행/export/빌드·원격 CI·실서버 검증. 의존성이 바뀌지 않아 설치/Expo 호환성/감사를 반복하지 않음 |
+
+로컬 로그는 `/private/tmp/scrum167-stage2/`에 있으며 저장소에 포함하지 않는다. 이 단계의 완료는 오류 정보 전달·분류까지다. **이전 세션의 늦은 결과 반영을 차단하는 인증 문맥과 실제 CSRF 복구 실행은 아직 구현하지 않았다.** 다음 한 가지는 사용자 확인 후3단계 인증 문맥·조건부 상태 반영 구현이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 3단계 — 인증 문맥·조건부 상태 반영 · 2026-11-05
+
+- Jira167의 AC1~6·고영준·진행 중 상태를 재조회했고 2단계와 같음을 확인했다. 구현 출발점은 이 작업 브랜치의2단계 커밋 `c2b6289`다.
+- `client.ts`에 client별 불투명 `AuthContext`를 추가했다. 실제 값은 필드 없는 동결 객체이며 세대는 내부 WeakMap에만 보관한다. 일반 요청 허용 후 첫 await 전에 캡처하여 response/transport_error의 읽기 전용 context로 반환한다. 다른 client의 문맥·복사/임의 객체·undefined는 유효하지 않다. 일반 not_sent/stale_response는 반영 문맥을 제공하지 않는다.
+- 로그인·로그아웃 전환은 시작 시 기존 세대를 증가시킨 직후 자체 문맥을 캡처한다. 내부 classifier·갱신은 소유 세대만 검사하고, 외부 반영은 gate 해제까지 확인한다. 시작 전 거절은 문맥이 없고, 시작 후 취소/초기 CSRF 실패는 상위 전환 결과의 문맥을 유지한다. operation/outcome/refresh 의미는 유지한다. **현재 문맥이라는 판정은 로그인 성공이나 세션 생존 판정이 아니다.** unchanged/unknown/미전송 결과의 의미를 별도로 처리한다.
+- `isCurrentContext`는 같은 client·현재 세대·전환 중이 아님을 검사한다. `commitIfCurrent(context, apply)`는 마지막 await 뒤 검사와 동기 반영을 수행하고, 오래된 문맥이면 callback을 실행하지 않는다. callback의 Promise 반환은 타입 검사에서 거부한다. callback 안에서 별도로 시작한 비동기 작업은 마지막 await 뒤 다시 검사해야 한다.
+- `expireIfCurrent(context, onExpired)`는 현재 문맥만 세대 증가·CSRF 무효화 후 한 번 통지하고 next 문맥을 전달한다. 같은 이전 세대의 다른 오류는 재통지하지 않는다. onExpired에서 시작한 비동기 정리는 next 문맥으로 마지막 await 뒤 검사한다. callback 예외에도 세대·token을 이전 상태로 복구하지 않는다. 이 함수는 HTTP를 분류하지 않으므로 호출부는2단계의 정확한 authentication_required 판정 이후에만 호출한다. 임의403이나 LOGIN_FAILED에 연결하지 않는다.
+- **계획 순서 보완:** expireIfCurrent가 진행 중인 CSRF 발급보다 먼저 끝나면 이전 token이 복원될 수 있어,4단계 예정이던 최소 발급 revision 방어만 이번 단계에 앞당겼다. invalidate에서 revision 증가·token 제거, issue 시작 시 revision 캡처,200 token 저장 직전 불일치면 `invalidated` 실패를 반환한다. pending은 유지하여 쿠키 응답 대기 순서를 보존한다. 실제 전송 token 버전 연결·recoverCsrf·동시/늦은403 복구 중복 방지는4단계에 남긴다.
+- 실제 계정/화면 store에는 아직 연결하지 않았다. 공통 보호와 테스트 수신자 검증이며173/174의 소유 계정 연결·연결 회귀를 대신하지 않는다. guard를 거치지 않는 임의 상태 반영이나 OS의 쿠키 적용까지 차단한다고 주장하지 않는다.
+
+| 검증 | 결과 |
+| --- | --- |
+| RED→GREEN | 새 authContext 테스트21건이 기존 코드에서 실패한 뒤 구현 후 통과. 진행 중 발급의 늦은 token 복원도 구현 전 재현 |
+| 문맥·전환 | 정상 반영 대조, 타 client/복사/없는 문맥 거절, 지연 본문+로그아웃, 같은 계정 재로그인+추가 await, 헤더 stale 유지,4가지 auth outcome, 인증 성공+갱신503, 전환 전/후 취소, 늦은 통신 실패 |
+| 만료·발급 | 같은 세대 동시 오류 통지1회, 이전401이 새 로그인/CSRF를 무효화하지 않음, 만료 정리 중 재로그인 보호, 통지 예외 후 무효화 유지, 발급 본문 지연 중 만료 시 이전 token/준비 성공 복원 및 대기 POST 전송 없음 |
+| 타입 계약 | async 반영/통지 callback, 임의 문맥 생성, 응답 context 재할당을 `@ts-expect-error`로 검증. typecheck가 해당 제한의 제거도 감지 |
+| 전체 회귀 | `npm test`: **21 suites / 584 tests** 통과. 기존 테스트에는 새 context 기대값을 추가하고 기존 미전송/오류/outcome·요청 횟수 검증을 유지 |
+| 정적 검사 | `npm run lint`, `npm run typecheck`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra 읽기 전용 검토에서3단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰와 구분 |
+| 중간 실패 | 구현 편집 중 반환 객체에 타입 구문이 섞인1곳의 문법 오류를 수정했다. 이후 새 테스트·전체 검사 모두 통과 |
+| 환경·미실행 | Node24.20.0/npm11.19.0 고정 경로. package/lockfile 변경 없음. 네이티브 실행/export/빌드·원격 CI·실서버 시험은 이번 단계 미실행 |
+
+로그: `/private/tmp/scrum167-stage3/`. 다음 한 가지는 사용자 확인 후 **4단계 CSRF 복구 실행·중복 발급 방지**다. 단계별 기존 기록은 당시의 결과이며 이 절이 현재 완료 지점이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 4단계 — CSRF 복구·중복 발급 방지 · 2026-11-12
+
+- 전용 브랜치의 3단계 `351e160`에서 이어 구현했다. Jira167의 고영준·진행 중·AC1~6이 유지됨을 조회했다. FE development는 `da9493fb883442e771d0bee99fddef8c5d88d5ec`, BE development는 `1e66ddb895789bbaf72c21e3b76441bce251aa61`다. BE [PR #48](https://github.com/DodamDodam-Capstone/backend/pull/48)의 공통 권한·오류 처리가 추가됐지만 이전 BE 기준 이후 `docs/p0` 명세 파일은 바뀌지 않았다. 401 AUTHENTICATION_REQUIRED·403 CSRF_INVALID·503 AUTH_STATE_UNAVAILABLE 계약을 유지한다. BE 코드를 조회한 것이며 실제 서버 시험은 아니다.
+- `client.recoverCsrf(context)`는 현재 client의 일반 POST에 실제 사용한 발급 버전만 복구한다. 호출부는 HTTP403 + CSRF_INVALID로 분류한 응답의 context를 전달해야 한다. 이 함수가 context만으로 오류 code를 증명하지는 않는다. GET·다른 client·복사/없는 문맥·인증 전환의 상위/operation 문맥·미전송 결과는 복구 권한을 제공하지 않는다.
+- `csrf.ts`의 성공 발급마다 새 불투명 version을 만든다. 동일 token 문자열이 재발급되어도 버전은 구분하며, 무효화 revision 증가와 발급 성공을 혼동하지 않는다. POST는 헤더를 설정할 때 실제 버전을 내부 WeakMap 문맥에 연결한다. token/버전/세대는 공개 AuthContext에 노출하지 않는다.
+- 결과는 `refreshed` / `already_recovered` / `skipped` / `failed`다. 이미 복구된 결과도 해당 성공 버전이 현재 유지될 때만 성공으로 반환한다. skipped 사유는 stale_context, ineligible_request, superseded_token이며 실패를 성공이나 미전송으로 바꾸지 않는다. CSRF-only 복구로 인증 세대를 바꾸지 않는다.
+- 같은 실패 버전의 진행 중 복구와 완료된 실패를 WeakMap으로 공유한다. 늦은 같은 버전403은 새 토큰을 지우거나 실패한 발급을 반복하지 않는다. failed.failure는 원본 CsrfFailure여서 readCsrfFailure의 본문 한 번 읽기와 메타데이터 보존이 유지된다. 실패 후 호출부가 명시적으로 prepareCsrf를 실행한 새 준비와 새 버전 요청은 가능하며, 원래 업무 POST는 자동 재실행하지 않는다.
+- 실제 send의 헤더 응답 Promise를 별도로 추적한다. 복구는 시작 전에 전송된 응답과 기존 CSRF 발급만 기다리고, 준비 중인 새 POST를 자기 대기에 넣지 않는다. 일반 POST와 prepareCsrf는 진행 중 복구를 공유한다. 캐시 준비 직후 복구가 시작돼도 최종 헤더 설정 전에 다시 대기한다. 새 POST는 복구 성공·현재 인증 문맥·미취소 조건에서만1회 전송하며 복구 실패/취소/인증 전환 시0회다.
+- 인증 전환은 기존 내부 발급 경로를 유지하며 기존 inFlight·CSRF 대기에 recoveryPending을 추가한다. 복구 쪽은 inFlight를 기다리지 않으므로 서로의 준비를 기다리는 순환을 피한다. 발급 시작 전과 공유/캐시 결과의 마지막 await 후 인증 문맥을 확인한다. 일반 응답 본문·비200 CSRF 오류 본문은 전환 대기에 추가하지 않고 정상 CSRF200 발급의 기존 대기는 유지한다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 재개 기준선 | Node24.20.0/npm11.19.0, 기존 client/authTransition/authContext/csrfFailure **121 tests** 통과 |
+| RED→GREEN | 신규 csrfRecovery **21건**이 recoverCsrf 미구현으로 실패한 뒤 구현 후 통과. 추가 경계4건까지 **25건** 통과 |
+| 복구·경합 | 동시/늦은403, 같은 문자열 재발급, 갱신 실패 반복·원본 실패 객체/본문1회, 오래된 성공 재사용 거절,3요청 헤더 대기·신규POST 경합, prepareCsrf 공유, 실패 후 명시적 준비 |
+| 인증·취소 | 일반/인증 전환 문맥 구분, 대기POST 취소/전환 시0회, 복구 대기·완료 뒤 이전 세대 성공 차단, 발급 body 중 만료 시 token 복원 방지, 오류 body 대기와 logout 분리 |
+| 최종 전체 회귀 | `npm test`: **22 suites / 609 tests** 통과 |
+| 정적 검사 | `npm run typecheck`, `npm run lint`, `git diff --check` 통과 |
+| 로컬 리뷰 | Astra의 독립 읽기 전용 리뷰에서4단계 범위의 수정 필요 결함 없음. 원격 GitHub 리뷰가 아님 |
+| 보존 | 다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시 유지. package/lockfile·네이티브 설정 변경 없음 |
+| 미실행 | 네이티브 경합 실행/export/빌드·원격 CI·실제 BE 시험. 의존성 미변경으로 재설치/Expo 호환성/감사를 반복하지 않음 |
+
+로그: `/private/tmp/scrum167-stage4/`, 최초 RED 로그 `/private/tmp/scrum167-stage4-red.log`. 새 테스트는 기존 CI의 전체 Jest 대상이지만 이번 커밋의 원격 실행 증거는 아직 없다. 다음 한 가지는 사용자 확인 후 **5단계 수신자 연결 회귀·민감정보 비저장 검증**이다. PR/push/병합/Jira 변경은 하지 않았다.
+
+후속 계획의 보완사항도 유지한다. 5단계는 오류 message/fields의 메모리 전달과 URL·로그·영구 저장소 복사 금지를 별도로 검사하고, 웹 저장소 spy만으로 RN 전체 비저장을 주장하지 않는다. 6단계는 원본 refresh/meta를 보고서에 넣지 않고 전송 전에 허용한 필드만 추출하며, OS별 기대 사례/필수 check 누락·중단·cleanup 실패를 통과로 집계하지 않는다. 합성 receiver 자체 테스트는 CI Jest에 포함하고 OS 실행·원격 빌드·실서버129 결과는 각각 구분한다. 실제 계정 store 연결173과 연결 회귀174는 이 단계에 포함하지 않는다.
+
+### SCRUM-167 5단계 — 수신자 연결 회귀·민감정보 비저장 검증 · 2026-11-12
+
+- 전용 브랜치의4단계 `55fc845`에서 이어 진행했다. 제품 API 구현·의존성·네이티브 설정 변경 없이 `recovery.integration.test.ts`와 `recovery.security.test.ts`를 추가했다. 기존4단계 구현에서 새 동작 검사가 처음부터 통과했으므로 새 결함의 RED→GREEN 수정으로 기록하지 않는다.
+- 연결 테스트27건은 실제 client →166 응답 파서 →167 분류/복구 →최종 동기 반영을 실행한다. fetch만 합성 응답으로 대체하고, 테스트 내부의 최소 수신자로 최종 accountId·반영/만료 통지 횟수·CSRF GET·업무 POST 횟수를 확인한다. 실제 계정 store/UI 연결173·연결 회귀174를 구현한 것은 아니다.
+- 로그인 상태의 성공/401/403 본문이 지연되는 동안 로그아웃, 동일 계정 재로그인, 다른 계정 재로그인을 각각 완료한 뒤 이전 본문을 해제한다. 이전 성공/오류는 최종 상태·통지·CSRF를 바꾸지 않으며 새 준비는 기존 token을 유지한다. 파싱 후 추가 await 중 전환, 만료 callback의 비동기 정리 중 재로그인도 마지막 await 뒤 문맥 검사로 막는다. 현재 정상 결과의 반영을 양성 대조로 검사한다.
+- 현재 동시401은 한 번만 만료·통지한다. 같은 버전403 두 건은 CSRF 복구1회를 공유하며 로그인 상태를 유지하고 원래 업무 POST는 각각1회다. 보호자403·503·일반 문맥 LOGIN_FAILED·잘못된 HTTP/code 조합·429를 전역 만료나 자동 POST 재실행으로 확대하지 않는다. CSRF 복구 실패401의 지연 본문은 현재 문맥에서만 만료하며, 재로그인 뒤 도착하면 반영하지 않는다.
+- 보안 연결 테스트6건은 성공·오류·CSRF 대기 취소·복구 실패·통신/본문 읽기 예외를 실행한다. 합성 비밀번호/PIN은 의도한 요청 본문, CSRF는 의도한 헤더에만 전달되고 추가 URL 전송·console 출력·관측한 저장소 쓰기는 없다. 오류 code/message/fields/requestId와 선택 헤더는 메모리에 보존한다. 오류 원문에 합성 민감값이 있다는 이유로 파서 결과 전체를 삭제하거나 일괄 마스킹하지 않는다. 원시 예외의 민감값은 오류 결과에 복사하지 않는다.
+- 저장소 spy는 웹 localStorage/sessionStorage의 setItem 경로에 한정된다. 별도로 src 제품 코드·App.tsx/index.ts의 import/출력/저장 경로와 직접 의존성을 조회했으며 해당 API 경로에 console·영구 저장 호출은 없다. Expo 전이 의존성에는 expo-file-system57.0.7이 있으므로 RN 자체에 저장 기능이 없다는 결론은 내리지 않는다. OS의 세션 쿠키 관리는 FE가 자격 증명을 별도 저장소에 복사하는 것과 구분한다. 실제 기기 저장·진단 보고서까지 안전성을 입증한 것은 아니다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 신규 연결·보안 | 연결27건 + 보안6건 = **33 tests** 통과. 지연 단계는 Promise 신호로 제어하며 임의 sleep 없음 |
+| 최종 전체 회귀 | `npm test`: **24 suites / 642 tests** 통과 |
+| 정적 검사 | `npm run typecheck`, `npm run lint`, `git diff --check` 통과 |
+| 중간 실패 | 새 테스트의 중첩 함수에서 ApiResult의 response 타입 축소가 유지되지 않아 타입 검사1건 실패. 확인된 AuthContext를 지역 상수로 캡처하여 해결. 제품 동작 테스트 실패는 없었음 |
+| 로컬 리뷰 | Astra 독립 읽기 전용 리뷰에서5단계 범위의 수정 필요 결함 없음. 리뷰어도 신규33건을 재실행해 통과 |
+| 출력 증거 | 이번 단계 테스트/정적 검사 로그4개에서 합성 민감값 일치0개. 테스트 소스의 가상 fixture와 실행 출력은 구분 |
+| 보존 | 다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시 유지 |
+| CI 연결 | 기존 ci.yml의 전체 `npm run test`가 두 신규 test 파일을 발견·실행한다. workflow 수정 없음. 이번 커밋의 원격 실행은 아직 없음 |
+| 미실행 | 네이티브 경합 실행/export/빌드·원격 CI·실제 BE 시험. 의존성이 바뀌지 않아 재설치/Expo 검사/감사는 반복하지 않음 |
+
+로그: `/private/tmp/scrum167-stage5/`. 다음 한 가지는 사용자 확인 후 **6단계 Android·iOS 합성 loopback 검증**이다.6단계에서는 원시 refresh/meta의 진단 보고서 전송을 전송 전 허용 필드 추출로 보완하고, 기대 사례/필수 check 누락·중단·cleanup 실패를 검출한다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 6단계 — 진단 보고서 보완·Android/iOS 네이티브 검증 · 2026-11-12
+
+- 전용 브랜치의5단계 `4f582aa`에서 진행했다. Jira167은 고영준·진행 중·AC1~6 유지, FE development `da9493fb883442e771d0bee99fddef8c5d88d5ec`와 BE development `1e66ddb895789bbaf72c21e3b76441bce251aa61`도 동일함을 재조회했다. 이 단계에서 제품 API·App/index·의존성/lockfile·네이티브 설정은 변경하지 않았다.
+- `scripts/native-session/recovery.tsx`와 `recoveryReceiver.js`를 추가했다. 실제 Expo global fetch로 정상 대조, 지연 성공+로그아웃/동일·다른 계정 재로그인, 늦은401/403, 파싱 뒤 추가 await, 만료 후 비동기 정리, 동시401·CSRF 복구 공유, 복구 중 새POST 대기, 발급 중 무효화, 복구 실패 본문 지연, 보호자403·503의15개 사례를 검사한다. 호출 횟수·최종 상태·통지·쿠키/token 쌍·cleanup을 각각 확인한다. a/b 계정과 로그인 DTO는 로컬 합성 프로토콜이며 실제 로그인 API DTO로 제안한 값이 아니다.
+- 공통 `report.js`를 통해 모든 기존 진단 진입점도 **JSON 직렬화 전** 허용 enum·횟수·boolean만 추출한다. raw refresh/meta·오류 원문·쿠키·token·임의 키는 보고서와 기본 probe 화면에 복사하지 않는다. 기존 API 파서가 오류 원문을 메모리로 전달하는 계약은 유지한다. 수신 후 필터만으로 전송 전 노출을 막았다고 간주하지 않는다.
+- auth/response/recovery는 필수 check가 빠지거나 false이면 실패다. 전체 행렬 요약은 OS별 기대 사례의 누락·중복·알 수 없는 사례·일부 선택·중단을 통과시키지 않는다. receiver는 실제 finish와 미결 응답/대기자0을 요구하며 finish 뒤 새 API 요청이 오면 완료 표시를 무효화한다. issue/cleanup 실패 보고서의 pass도 false로 정규화한다.
+- Astra 리뷰에서 **늦은 결과의 미반영만 확인하면 읽기/파싱 실패도 PASS가 될 수 있는 검증 공백1건**을 발견했다. 정상 JSON/정확한401·403 분류, stale_context 복구 거절, CSRF 실패401 본문 분류까지 검사하도록 보강했다. 새 검사7건의 실패 후 구현·통과를 확인했고, 보강된 최종 코드로 양 OS 전체 행렬을 다시 실행했다. 제품에서 로그아웃 후 로그인되는 결함을 재현한 것은 아니다.
+
+| 검증 | 결과 |
+| --- | --- |
+| 재현 후 수정 | 필수 check 누락·finish 누락·이전 finish 재사용·issue/cleanup 실패의 잘못된 PASS를 테스트로 재현 후 수정. 지연 응답 해석/분류 검사 추가 |
+| Jest 전체 | `npm test`: **26 suites / 695 tests** 통과.5단계 대비53건 추가 |
+| 정적 검사 | `npm run typecheck`, `npm run lint`, `git diff --check` 통과 |
+| Android | Pixel Tablet/API36, 개발 APK 재빌드·설치. 복구15 + 요청26 + 인증26 + 응답25 = **92/92 PASS** |
+| iOS | iPad Pro11형 M5/iOS26.5 Simulator, 서명 없는 Debug 재빌드·설치. 동일 **92/92 PASS** |
+| 최종 행렬 | 총 **184개 고유 사례**. 필수 검사/사례 누락·중복0, 실패/issue0, cleanup 전부true. 관측 대상의 held/activeResponses/waiters0 |
+| 출력 경계 | 최종 보고서에 합성 UUID 값0. enum/count/boolean 허용 목록의 직렬화 테스트와 함께 확인했으며 RN 전체 저장소 안전성으로 확대하지 않음 |
+| 빌드 근거 | Node24.20.0/npm11.19.0, Expo57.0.31/RN0.86.3, JDK17, CocoaPods1.16.2, Xcode26.6. Android316 tasks 성공·iOS BUILD SUCCEEDED. Expo 본문 보완3파일 SHA 빌드 전후 일치·single-use POST 생성 코드 확인 |
+| 환경·중간 실행 | 남아 있던 Android APK가166 본문 패치 전 빌드여서 새로 빌드. prebuild cwd/Pods 실행 경로 오류는 격리 경로·올바른 도구 경로로 수정. 수정 중 Fast Refresh로 중복된 예비 로그는 별도 보존하고 최종 집계에서 제외 |
+| 범위·미실행 | 에뮬레이터/시뮬레이터와 HTTP loopback 합성 수신자 검증. 실기기·운영 HTTPS/쿠키 속성·OAuth·실제 BE129·원격 CI는 미실행. 일반 앱 JS export는 제품/설정 미변경으로 이번 단계 반복하지 않음 |
+
+빌드는 `/private/tmp/scrum167-stage6/native-build`의 HEAD archive에서 수행했다. 기존 node_modules를 재사용해 무시되는 네이티브 의존성 빌드 출력은 생성됐지만 소스 패치·패키지 버전은 유지됐다. 원래 checkout·다른 worktree에는 생성 프로젝트를 만들지 않았다. 본문/CSRF 테스트 기한은 기존20초, 제어/정리3초의 진단 값이며 운영 timeout으로 확정하지 않는다.
+
+재현은 기존 receiver·IPv4 localhost Metro 명령을 그대로 사용하고 새 bundle은 `scripts/native-session/recovery.bundle`로 지정한다. `EXPO_PUBLIC_NATIVE_PROBE_CASE` 없이 recovery15/auth26/response25/cases26을 OS별로 순서대로 실행한다. 단일 사례 선택은 진단용이며 전체 통과가 아니다. 마지막 결과마다 필수 check·실제 요청 횟수·cleanup을 확인하고 OS별 기대 목록과 정확히 한 번씩 대조한다.
+
+다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시가 보존됐음을 최종 확인했다. 양 OS를 일반 index.ts 진입점으로 복귀시켜 bundle 요청을 확인한 뒤 앱·이번에 시작한 가상 기기·Metro·합성 서버와 adb reverse를 정리했다.
+
+최종 증빙: `/private/tmp/scrum167-stage6/native-results-final.log`, `android-matrix.log`, `ios-matrix.log`, `full-test-final.log`, `native-build-evidence.json`과 빌드 로그. 예비/리뷰 보완 전 로그는 이름에 preliminary/before-review-fix로 구분했다. 실제 계정 store173·연결 회귀174와 실서버129는 별도 책임이다. 다음 한 가지는 사용자 확인 후 **7단계 최종 리뷰·CI 준비·인계**다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 7단계 — 로컬 최종 리뷰·Expo 호환성 보완·인계 · 2026-11-12~13
+
+기준 HEAD는 `4d3438262d8cc5c9ab52b24b1ca5f6151193ece8`이다. 원격 development `da9493fb`와 Jira 167 고영준·진행 중 상태를 재확인했다. 사용자가 로컬 최종 리뷰·CI와 이후 발견된 Expo 호환성 보완을 승인했다. PR/push/병합/Jira 변경은 수행하지 않았다.
+
+- 온라인 검사가 Expo 57.0.31→~57.0.32, dev-client 57.0.20→~57.0.21을 요구해 실패하여 두 의존성과 lockfile을 갱신했다. React/RN과 API 계약은 유지했다. 공식 tarball SHA512를 registry/lock과 대조했고 기존 fetch 3개 파일의 원본 SHA256이 57.0.31과 동일하여 해당 보완을 유지했다.
+- 새 CLI 57.0.33에서 내부 경로·JSON Schema·MCP schema의 Zod 인자 주입 API가 바뀌어 호환성 테스트가 실패했다. 실제 새 함수를 사용해 기존 13개 의미 검증을 유지했다. 프로젝트 Zod를 주입한 helper 호환성 검사이며 선택 기능인 expo-mcp 서버 기동/등록은 검증하지 않았다.
+- iOS 네이티브 검증 중 CDP 리디렉션의 `httpBodyData`→`CFStreamClose`에서 앱 종료를 관측했다. core 57.0.24/.25의 해당 경로 5개 파일은 동일하므로 새 버전이 도입한 오류로 단정하지 않는다. core 57.0.25의 `CdpNetworkTypes.swift`에서 리디렉션 진단 이벤트만 전송용 stream 재수집을 생략했다. 초기 요청/직접 Data 수집·메타데이터와 실제 전송은 유지하며, 개발 Network 탭에서 리디렉션 stream 본문이 표시되지 않는 제한이 있다.
+- 실제 Swift 소스의 307/308 회귀는 수정 전 55 assertion 중 10개 실패, 수정 후 55/55 통과했다. 설치기는 Expo/core 버전과 **4개 파일** 해시를 모두 검증한 뒤 쓰고 변조·일부 패치·심볼릭 링크·소스 빌드 설정 누락을 거절한다.
+- 첫 재빌드는 precompiled core를 사용해 실제 코드 바이너리가 바뀌지 않았다. 이 결과를 패치 반영 증거에서 제외했다. 공식 `expo.autolinking.apple.buildFromSource=["expo-modules-core"]`를 지정하고 CI에 Swift 회귀와 실제 Pods source phase 검사를 추가했다. 이전 prebuilt 프로젝트는 실패하며 최종 프로젝트는 통과한다. 최종 SwiftCompile 및 arm64/x86_64 패치 심볼을 확인했다.
+
+| 최종 검증 | 결과 |
+| --- | --- |
+| 깨끗한 설치 | Node 24.20.0/npm 11.19.0 `npm ci` 성공. Expo 57.0.32/core 57.0.25 네이티브 4개 파일 패치, 최종 iOS 격리 clone에서도 재현 |
+| JS CI | 온라인 Expo 호환성·manifest·lint·typecheck·diff 검사 통과. Jest **26 suites / 704 tests**, Jira 규칙 7건·환경 주입 14건·양 OS export 통과 |
+| iOS 추가 회귀 | 실제 Swift 소스 **55 assertion / 0 failure**, 패치 파일 source phase 검사 통과 |
+| 네이티브 빌드 | Android Debug 316 tasks 성공. iOS Simulator Debug 성공, 실제 패치 소스 컴파일과 양 아키텍처 심볼 확인 |
+| 최종 OS 실행 | Android 92/92 + iOS 92/92 = **184개 고유 사례 PASS**. 누락·중복·issue 0건, 필수 check·cleanup 통과, 관측 대상 held/activeResponses/waiters 0건, 원시 UUID 0개 |
+| 감사·경고 | 설치 감사 low 9·moderate 9·high 0·critical 0. allowScripts/의존성 deprecated 등 경고는 남음 |
+| Astra 리뷰 | API/진단 경계·의존성/설치기·CLI 호환성·iOS 보완/Swift 회귀·소스 빌드/CI에서 추가 조치가 필요한 지적 없음 |
+
+증빙은 `/private/tmp/scrum167-expo5732/logs/`의 `source-final-js-results.json`, `jest-source-final.log`, `final-js-results.json`, `native-results-final.log`, `native-summary-final.json`, `android-summary.json`, `ios-final-source-results.json`, `ios-final-source-linked-symbols.json`, `final-source-parity.json`이다. Android APK SHA는 `1ed6273f…`, 패치 포함 iOS debug dylib SHA는 `2c305891…`이며 전체 값은 해당 기록에 있다. 첫 iOS 충돌 및 prebuilt 제한 기록을 최종 184건에 합산하지 않았다. 빌드 중 추가한 CI 외 런타임 입력은 동일했고, CI 반영 후 소스 88개가 검증 clone과 일치했다. Android 바이너리는 같은 버전·같은 Android 소스로 만들었으며 후속 변경은 iOS 전용 소스/빌드 설정이다.
+
+양 OS를 일반 index.ts로 복귀시켜 실제 bundle 로드를 확인했다. 로컬 호스트 macOS 27.2 arm64는 GitHub Ubuntu 24.04/macOS 26 runner와 다르며, 실제 원격 필수 CI/리뷰는 PR 요청 후 최신 commit에서 확인한다. 이번 OS 실행은 합성 HTTP loopback·에뮬레이터/시뮬레이터로, 실기기·운영 HTTPS/쿠키·OAuth·실제 BE 129 완료를 뜻하지 않는다.
+
+후속 173은 요청 문맥을 유지하고 **마지막 await 뒤** `commitIfCurrent`로 동기 반영한다. 계약상 현재 401만 `expireIfCurrent`로 처리하며 전달된 next 문맥으로 비동기 정리를 보호한다. 174는 실제 store/화면에서 로그아웃·동일/다른 계정 재로그인과 늦은 성공/오류를 연결 검증한다. `recoverCsrf`는 원래 POST를 재실행하지 않으며 UI 자동 재시도·화면 이동은 공통 계층의 책임이 아니다.
+
+### SCRUM-167 7단계 후속 — PR #36 온라인 호환성 보완 · 2026-11-13
+
+[PR #36](https://github.com/DodamDodam-Capstone/frontend/pull/36)을 development 대상으로 게시했다. 첫 커밋 `a2798f5`의 원격 리뷰는 지적 없이 완료됐고 Jira 키·제목 검사는 통과했다. 그러나 [첫 Frontend CI](https://github.com/DodamDodam-Capstone/frontend/actions/runs/43363659010)는 온라인 Expo 검사가 `57.0.32` 대신 `~57.0.33`을 요구하여 실패했다. 로컬에서도 같은 실패를 재현했다. 이후 JS 단계와 Android/iOS 빌드는 skipped이며 성공으로 집계하지 않는다.
+
+- 공식 Expo `57.0.33` / core `57.0.26` tarball의 SHA512와 이전 배포본을 대조했다. 기존 패치 대상 4개 원본 및 패치 결과 SHA256이 모두 같아 보완을 유지한다. 설치기는 새 정확한 버전만 허용하며 파일 해시·경로·전체 검증 후 쓰기·소스 빌드 요구를 완화하지 않았다. dev-client는 `~57.0.21`을 유지한다.
+- Expo/core/constants의 Android·iOS 런타임 소스는 동일하지만 core podspec과 autolinking의 prebuilt 선택 경로가 변경됐다. `buildFromSource`를 유지하고 새 Pods의 실제 source phase·SwiftCompile·arm64/x86_64 패치 심볼을 재검증했다. 앱 debug dylib SHA256은 `5ce486b9206acee4f710447f941923bbaa22595dee92b525e887c940fe88542e`다.
+- 새 버전 테스트를 기존 설치기에 적용해 16개 실패/8개 통과를 확인한 뒤 버전 guard를 갱신했다. 최종 깨끗한 설치·온라인 Expo 검사·manifest·lint·typecheck·Jest **26 suites / 704 tests**·Jira 규칙 7건·환경 14건·양 OS export가 통과했다.
+- 새 iOS 격리 빌드와 실제 Swift **55/55**, 새 앱의 네이티브 **92/92**(복구 15·전송 26·인증 26·응답 25)가 통과했다. 누락·중복·issue·관측 중인 미정리 요청·원시 UUID는 0이다. 일반 index.ts로 복귀시켜 bundle 로드를 확인한 뒤 이번에 시작한 앱·시뮬레이터·Metro·수신자를 정리했다.
+- 이번 후속 수정에서 Android 로컬 빌드·기기 92건은 반복하지 않았다. Android 런타임 소스가 동일한 근거와 이전 `.32` 실행을 보존하고, 새 `.33` Android 컴파일은 PR의 원격 CI로 확인한다. 이전 양 OS 184건을 새 `.33` 실행 결과로 표현하지 않는다.
+- 설치 감사는 low 9·moderate 8·high 0·critical 0이며 설치 스크립트 경고는 남는다. 후속 변경 로컬 리뷰에서 추가 수정 지적은 없었다. 최신 커밋의 원격 CI·리뷰는 재확인 전까지 미완료다. 병합·Jira 변경은 하지 않았다.
+
+후속 증빙: `/private/tmp/scrum167-expo5733/comparison.json`, `native-diff.json`, `fix-review.md`, `logs/local-ci.json`, `logs/ios-results.json`, `logs/ios-source-snapshot.json`, `logs/ios-matrix.log`, `logs/native-summary.json`. 후속 173/174와 실제 BE 129의 책임 및 개발 Network 탭의 stream 본문 표시 제한은 앞 기록과 같다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 

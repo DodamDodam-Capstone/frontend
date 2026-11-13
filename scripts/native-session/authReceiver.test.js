@@ -147,3 +147,32 @@ test('일반 CSRF 403의 늦은 쿠키가 새 CSRF 쿠키를 덮는 상태를 �
   expect(observed.json().data.csrfCookieMatchesCurrent).toBe(false);
   expect((await call('snapshot')).json()).toMatchObject({ oldMissingCsrfCookie: true, authSawCsrfMismatch: true });
 });
+
+
+test('완전한 check를 보내도 receiver cleanup 완료 전에는 PASS로 기록하지 않는다', async () => {
+  const { requiredAuthChecks } = require('./report');
+  const { call, rows } = await fixture('login');
+  const checks = Object.fromEntries(requiredAuthChecks('login').map((key) => [key, true]));
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(false);
+});
+
+test('필수 check·정리가 완료된 보고서는 PASS로 기록한다', async () => {
+  const { requiredAuthChecks } = require('./report');
+  const { call, rows } = await fixture('login');
+  const checks = Object.fromEntries(requiredAuthChecks('login').map((key) => [key, true]));
+  expect((await call('finish')).status).toBe(200);
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(true);
+});
+
+
+test('cleanup 뒤 새 API 요청이 생기면 이전 finish를 재사용하지 않는다', async () => {
+  const { requiredAuthChecks } = require('./report');
+  const { call, rows } = await fixture('login');
+  const checks = Object.fromEntries(requiredAuthChecks('login').map((key) => [key, true]));
+  expect((await call('finish')).status).toBe(200);
+  expect((await call('api/v1/auth/csrf')).status).toBe(200);
+  await call('report', 'POST', {}, JSON.stringify({ platform: 'android', stage: '5', pass: true, cleanup: true, checks }));
+  expect(rows[0].report.pass).toBe(false);
+});

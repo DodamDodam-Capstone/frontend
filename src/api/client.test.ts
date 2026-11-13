@@ -147,6 +147,7 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     const result = await client(fetchImpl).request({ method: 'POST', path: '/auth/login' });
     expect(result).toEqual({ kind: 'not_sent', reason: 'csrf_unavailable', csrf: {
       ok: false, reason: 'http', status: 503, requestId,
+      meta: { status: 503, headers: { requestId, location: null, retryAfter: null, contentType: 'application/json' } },
     } });
     expect(JSON.stringify(result)).not.toContain(token);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -200,14 +201,14 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     });
     const fetchImpl = jest.fn<ApiFetch>(async (url) => url.endsWith('/auth/csrf') ? csrfResponse() : response);
     const result = await client(fetchImpl).request({ method: 'POST', path: '/auth/login', body: '{}' });
-    expect(result).toEqual({ kind: 'response', response });
+    expect(result).toEqual({ kind: 'response', response, context: expect.any(Object) });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   it('POST 통신 실패는 원문을 노출하거나 mock으로 대체하거나 자동 재전송하지 않는다', async () => {
     const fetchImpl = jest.fn<ApiFetch>().mockResolvedValueOnce(csrfResponse()).mockRejectedValueOnce(new Error(token));
     const result = await client(fetchImpl).request({ method: 'POST', path: '/auth/login' });
-    expect(result).toEqual({ kind: 'transport_error' });
+    expect(result).toEqual({ kind: 'transport_error', context: expect.any(Object) });
     expect(JSON.stringify(result)).not.toContain(token);
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
@@ -219,7 +220,7 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     const result = await api.request({ method: 'GET', path: '/auth/me' });
     expect(result.kind).toBe('response');
     if (result.kind === 'response') expect((await result.response.json()).data.email).toBe('guardian@example.com');
-    expect(await api.request({ method: 'POST', path: '/unregistered' })).toEqual({ kind: 'transport_error' });
+    expect(await api.request({ method: 'POST', path: '/unregistered' })).toEqual({ kind: 'transport_error', context: expect.any(Object) });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -232,7 +233,7 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
       const prepared = await api.prepareCsrf();
       const result = await api.request({ method: 'POST', path: '/auth/login', body: '{}' });
       expect(prepared).toEqual({ ok: true });
-      expect(result).toEqual({ kind: 'transport_error' });
+      expect(result).toEqual({ kind: 'transport_error', context: expect.any(Object) });
       expect(JSON.stringify({ prepared, result })).not.toContain(token);
       for (const [url] of fetchImpl.mock.calls) expect(url).not.toContain(token);
       for (const output of outputs) expect(output).not.toHaveBeenCalled();
@@ -265,7 +266,10 @@ describe('SCRUM-165 초기 세션·CSRF 공통 요청', () => {
     const response = csrfResponse({}, 503);
     response.headers.set('X-Request-ID', token);
     const fetchImpl = jest.fn<ApiFetch>(async () => response);
-    expect(await client(fetchImpl).prepareCsrf()).toEqual({ ok: false, reason: 'http', status: 503 });
+    const result = await client(fetchImpl).prepareCsrf();
+    expect(result).not.toHaveProperty('requestId');
+    expect(result).toMatchObject({ ok: false, reason: 'http', status: 503,
+      meta: { headers: { requestId: token } } }); // 생 헤더는 진단 ID와 구분하여 보존한다.
   });
 
   it('real 모드는 mock handler를 등록하지 않는다', async () => {

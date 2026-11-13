@@ -93,7 +93,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
   });
 
   it.each<[string, () => Promise<Response>, CsrfResult]>([
-    ['http', async () => response(503, 'SYNTHETIC_FAILURE'), { ok: false, reason: 'http', status: 503 }],
+    ['http', async () => response(503, 'SYNTHETIC_FAILURE'), { ok: false, reason: 'http', status: 503, meta: { status: 503, headers: { requestId: null, location: null, retryAfter: null, contentType: 'application/json' } } }],
     ['network', async () => { throw new Error('synthetic-private-value'); }, { ok: false, reason: 'network' }],
     ['invalid', async () => new Response('broken', { headers: { 'Content-Type': 'application/json' } }), { ok: false, reason: 'invalid_response' }],
   ])('로그인 후 갱신 %s 실패는 auth 성공을 바꾸거나 이전 token을 복구하지 않는다', async (_name, fail, expected) => {
@@ -132,7 +132,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const api = client(fetchImpl);
     const classify = jest.fn((): AuthOutcome => 'changed');
     const first = await api.authTransition(login, classify);
-    expect(first).toEqual({ operation: { kind: 'transport_error' }, outcome: 'unknown' });
+    expect(first).toEqual({ operation: { kind: 'transport_error', context: expect.any(Object) }, outcome: 'unknown', context: expect.any(Object) });
     expect(classify).not.toHaveBeenCalled();
     expect(fetchImpl.mock.calls).toHaveLength(2);
     const second = await api.authTransition(logout, classify);
@@ -296,7 +296,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const api = client(fetchImpl);
     const auth = api.authTransition({ ...login, signal: abort.signal }, () => 'changed');
     await started.promise; abort.abort();
-    expect(await auth).toEqual({ operation: { kind: 'transport_error' }, outcome: 'unknown' });
+    expect(await auth).toEqual({ operation: { kind: 'transport_error', context: expect.any(Object) }, outcome: 'unknown', context: expect.any(Object) });
     expect(fetchImpl.mock.calls).toHaveLength(2);
     expect(await api.prepareCsrf()).toEqual({ ok: true });
     expect(fetchImpl.mock.calls).toHaveLength(3);
@@ -313,7 +313,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const api = client(fetchImpl);
     const auth = api.authTransition({ ...login, signal: abort.signal }, () => 'changed');
     await started.promise; abort.abort();
-    expect(await auth).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted' });
+    expect(await auth).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted', context: expect.any(Object) });
     expect(fetchImpl.mock.calls).toHaveLength(1);
     expect((await api.request({ method: 'GET', path: '/auth/me' })).kind).toBe('response');
     held.resolve(csrf('synthetic-token-1'));
@@ -330,7 +330,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const preparation = api.prepareCsrf();
     const cancelled = api.authTransition({ ...login, signal: abort.signal }, () => 'changed');
     abort.abort();
-    expect(await cancelled).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted' });
+    expect(await cancelled).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted', context: expect.any(Object) });
     const next = api.authTransition(logout, () => 'changed');
     expect(fetchImpl.mock.calls).toHaveLength(1);
     held.resolve(csrf('synthetic-token-1'));
@@ -343,7 +343,7 @@ describe('SCRUM-165 인증 전환과 CSRF 갱신', () => {
     const fetchImpl = jest.fn<ApiFetch>(async () => response(503, 'SYNTHETIC_FAILURE'));
     const classify = jest.fn((): AuthOutcome => 'changed');
     const result = await client(fetchImpl).authTransition(login, classify);
-    expect(result).toEqual({ operation: { kind: 'not_sent', reason: 'csrf_unavailable', csrf: { ok: false, reason: 'http', status: 503 } }, outcome: 'not_attempted' });
+    expect(result).toEqual({ operation: { kind: 'not_sent', reason: 'csrf_unavailable', csrf: { ok: false, reason: 'http', status: 503, meta: { status: 503, headers: { requestId: null, location: null, retryAfter: null, contentType: 'application/json' } } } }, outcome: 'not_attempted', context: expect.any(Object) });
     expect(classify).not.toHaveBeenCalled();
     expect(fetchImpl.mock.calls).toHaveLength(1);
   });
@@ -410,7 +410,7 @@ describe('일반 응답의 Set-Cookie와 인증 전환 순서', () => {
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     expect(fetchImpl.mock.calls.length).toBe(2);
     abort.abort();
-    expect(await cancelled).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted' });
+    expect(await cancelled).toEqual({ operation: { kind: 'not_sent', reason: 'cancelled' }, outcome: 'not_attempted', context: expect.any(Object) });
     const next = api.authTransition(logout, () => 'changed');
     await new Promise<void>((resolve) => setTimeout(resolve, 0));
     expect(fetchImpl.mock.calls.length).toBe(2);

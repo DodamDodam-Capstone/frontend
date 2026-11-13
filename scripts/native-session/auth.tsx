@@ -1,14 +1,13 @@
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { registerRootComponent } from 'expo';
+import { safeReport, checksPassed, summarizeCases, authCases, requiredAuthChecks } from './report';
 import { createApiClient, type ApiFetch, type ApiResult, type AuthOutcome, type AuthTransitionResult } from '../../src/api/client';
 import type { CsrfResult } from '../../src/api/csrf';
 
-const allCases = ['login', 'logout', 'login-failed', 'csrf-invalid', 'unknown503', 'classifier-error', 'auth-network',
-  'refresh401', 'refresh403', 'refresh429', 'refresh503', 'refresh-invalid', 'refresh-network', 'refresh302',
-  'auth-held', 'refresh-held', 'drain-csrf', 'cancel-csrf', 'cancel-drain', 'cancel-auth', 'cancel-body', 'stale-get', 'stale-post', 'pre-cancel', 'late-csrf', 'cancel-old'];
+const allCases = authCases;
 const selected = process.env.EXPO_PUBLIC_NATIVE_PROBE_CASE;
-const cases = selected && allCases.includes(selected) ? [selected] : allCases;
+const cases = selected ? (allCases.includes(selected) ? [selected] : []) : allCases;
 type SmallResult = { kind?: ApiResult['kind']; status?: number; reason?: string; ok?: boolean };
 type State = { csrf: number; auth: number; post: number; get: number; old: number; held: number; activeResponses: number; waiters: number;
   authPairs: boolean; postPairs: boolean; oldPairs: boolean; authBytes: number; authBodyMatches: boolean; anonymous: boolean;
@@ -41,7 +40,7 @@ async function runCase(name: string) {
     const abort = new AbortController(); const stop = setTimeout(() => abort.abort(), 3000);
     try {
       const response = await fetch(`${root}/${path}`, { credentials: 'include', cache: 'no-store', redirect: 'error', signal: abort.signal,
-        ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+        ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(safeReport(body, requiredAuthChecks(name))) } : {}) });
       if (response.status !== 200) throw new Error('probe_incomplete');
       return await response.json();
     } finally { clearTimeout(stop); }
@@ -76,7 +75,8 @@ async function runCase(name: string) {
         ...(logout ? {} : { body: 'synthetic-auth', headers: { 'Content-Type': 'text/plain' } }), ...(signal ? { signal } : {}) }, classify));
       const remember = async (value: AuthTransitionResult) => {
         report.operation = small(value.operation); report.outcome = value.outcome;
-        if (value.refresh) report.refresh = value.refresh;
+        if (value.refresh) report.refresh = value.refresh.ok ? { ok: true }
+          : { ok: false, reason: value.refresh.reason, ...(value.refresh.reason === 'http' ? { status: value.refresh.status } : {}) };
         if (value.operation.kind === 'response' && name !== 'cancel-body') {
           const response = value.operation.response;
           const body = response.status === 204 ? await response.text() : await response.json();
@@ -250,7 +250,7 @@ async function runCase(name: string) {
         report.checks.cookieAfter = observed.matchesCurrentCookie && !observed.matchesOldCookie && observed.matchesAuthCookie
           && state.refreshCookieMatchesAuth && !state.anonymous;
       }
-      return Object.values(report.checks).every((value) => value);
+      return checksPassed(report.checks, requiredAuthChecks(name).filter((key) => key !== 'cleanupAbsent'));
     })(), deadline]);
     report.pass = passed;
   } catch { report.issue ??= 'incomplete'; report.pass = false; }
@@ -266,7 +266,7 @@ async function runCase(name: string) {
       const absent = await observe(true);
       report.checks.cleanupAbsent = !absent.cookieNamePresent && (name !== 'late-csrf' || !absent.csrfCookieNamePresent);
       report.cleanup = report.checks.cleanupAbsent;
-      report.pass = report.pass && report.cleanup;
+      report.pass = report.pass && report.cleanup && checksPassed(report.checks, requiredAuthChecks(name));
     } catch { report.issue ??= 'incomplete'; report.pass = false; }
   }
   try { await control('report', report, true); } catch { report.issue ??= 'incomplete'; }
@@ -283,6 +283,6 @@ function AuthProbe() {
   const [results, setResults] = useState<{ name: string; pass: boolean }[]>();
   useEffect(() => { running ??= execute(); running.then(setResults, () => setResults([])); }, []);
   return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-165 · 5단계 네이티브 인증 검증</Text>
-    <Text selectable>{results ? results.map((value) => `${value.name}: ${value.pass ? 'PASS' : 'FAIL'}`).join('\n') : '검증 중'}</Text></View>;
+    <Text selectable>{results ? `전체: ${summarizeCases(allCases, results).pass ? 'PASS' : 'FAIL / INCOMPLETE'} (${results.length}/${allCases.length})\n${results.map((value) => `${value.name}: ${value.pass ? 'PASS' : 'FAIL'}`).join('\n')}` : '검증 중'}</Text></View>;
 }
 registerRootComponent(AuthProbe);

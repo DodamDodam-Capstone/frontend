@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, jest } from '@jest/globals';
 import { createApiClient, type ApiFetch } from './client';
 import { prepareRequestBody } from './requestBody';
 import { parseApiResponse } from './response';
+import { classifyRecovery } from './recovery';
 
 const config = { appEnv: 'test', apiMode: 'real', apiBaseUrl: 'https://api.example.invalid/api/v1' };
 const requestId = '22222222-2222-4222-8222-222222222222';
@@ -85,7 +86,8 @@ describe('SCRUM-166 요청 준비→client→응답 파서', () => {
     const send = jest.fn<ApiFetch>(async (url) => url.endsWith('/auth/csrf') ? csrf() : error(status, code));
     const received = await client(send).request({ method: 'POST', path: '/guardian/lock' });
     if (received.kind !== 'response') throw new Error('Expected response');
-    expect(await parseApiResponse(received.response, { kind: 'empty', statuses: [204] })).toMatchObject({ kind: 'http_error', error: { code } });
+    const parsed = await parseApiResponse(received.response, { kind: 'empty', statuses: [204] });
+    expect(classifyRecovery(parsed, 'general').result).toMatchObject({ kind: 'http_error', error: { code } });
     expect(send.mock.calls.map(([url]) => url.split('/').pop())).toEqual(['csrf', 'lock']);
   });
 
@@ -123,7 +125,7 @@ describe('SCRUM-166 파서와 인증 전환 경계', () => {
       return parsed.kind === 'json' ? 'changed' : 'unknown';
     });
     expect(result.outcome).toBe('changed');
-    expect(result.refresh).toEqual(refreshStatus === 503 ? { ok: false, reason: 'http', status: 503, requestId } : { ok: true });
+    expect(result.refresh).toEqual(refreshStatus === 503 ? { ok: false, reason: 'http', status: 503, requestId, meta: { status: 503, headers: { requestId, location: null, retryAfter: null, contentType: 'application/json' } } } : { ok: true });
     if (result.operation.kind !== 'response') throw new Error('Expected original response');
     expect(result.operation.response.bodyUsed).toBe(false);
     expect(await parseApiResponse(result.operation.response, { kind: 'json', statuses: [200] })).toMatchObject({ kind: 'json', data: account });

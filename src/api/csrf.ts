@@ -1,25 +1,27 @@
+import { createCsrfHttpFailure } from './recovery';
+import type { ResponseMetadata } from './response';
+
 export type CsrfFailure =
-  | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' }
-  | { ok: false; reason: 'http'; status: number; requestId?: string };
+  | { ok: false; reason: 'network' | 'invalid_response' | 'auth_transition' | 'invalidated' }
+  | { ok: false; reason: 'http'; status: number; requestId?: string; meta: ResponseMetadata };
 export type CsrfResult = { ok: true } | CsrfFailure;
 
 // token은 client 내부 메모리에서만 사용하고 공개 준비 결과에는 포함하지 않는다.
 export function createCsrfManager(load: () => Promise<Response>, expectedUrl: string) {
   let token: string | undefined;
+  let revision = 0;
+  let version: object | undefined;
   let pending: Promise<CsrfResult> | undefined;
 
   async function issue(): Promise<CsrfResult> {
+    const started = revision;
     let response: Response;
     try {
       response = await load();
     } catch {
       return { ok: false, reason: 'network' };
     }
-    if (response.status !== 200) {
-      const id = response.headers.get('X-Request-ID');
-      const requestId = id && /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i.test(id) ? id : undefined;
-      return { ok: false, reason: 'http', status: response.status, ...(requestId ? { requestId } : {}) };
-    }
+    if (response.status !== 200) return createCsrfHttpFailure(response);
     if (response.redirected || (response.url && response.url !== expectedUrl)
       || response.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
       return { ok: false, reason: 'invalid_response' };
@@ -37,7 +39,11 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
       if (new Headers({ 'X-XSRF-TOKEN': value.token }).get('X-XSRF-TOKEN') !== value.token) {
         return { ok: false, reason: 'invalid_response' };
       }
+      // 만료 중 끝난 발급이 이전 token과 준비 성공을 되살리지 못하게 한다.
+      if (revision !== started) return { ok: false, reason: 'invalidated' };
       token = value.token;
+      // 같은 문자열이 재발급되어도 성공한 발급의 문맥은 새로 구분한다.
+      version = Object.freeze({});
       return { ok: true };
     } catch {
       return { ok: false, reason: 'invalid_response' };
@@ -51,8 +57,9 @@ export function createCsrfManager(load: () => Promise<Response>, expectedUrl: st
   }
 
   return {
-    prepare, token: () => token,
+    prepare, token: () => token, version: () => version,
     settlePending: () => pending,
-    invalidate: () => { token = undefined; },
+    // pending은 유지하여 이미 시작한 쿠키 응답의 대기 순서를 보존한다.
+    invalidate: () => { revision += 1; token = undefined; version = undefined; },
   };
 }

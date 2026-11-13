@@ -110,7 +110,7 @@ describe('SCRUM-166 관측 redirect 분리', () => {
     const send = jest.fn<ApiFetch>(async () => { throw new TypeError('synthetic-private'); });
     const configured = createApiClient({ appEnv: 'test', apiMode: 'real', apiBaseUrl: 'https://api.example.invalid/api/v1' }, { fetchImpl: send });
     if (!configured.ok) throw new Error('Invalid synthetic configuration');
-    expect(await configured.value.request({ method: 'GET', path: '/children/11111111-1111-4111-8111-111111111111/conversations/22222222-2222-4222-8222-222222222222/turns/33333333-3333-4333-8333-333333333333/audio' })).toEqual({ kind: 'transport_error' });
+    expect(await configured.value.request({ method: 'GET', path: '/children/11111111-1111-4111-8111-111111111111/conversations/22222222-2222-4222-8222-222222222222/turns/33333333-3333-4333-8333-333333333333/audio' })).toEqual({ kind: 'transport_error', context: expect.any(Object) });
     expect(send.mock.calls[0][1].redirect).toBe('error');
     expect(send).toHaveBeenCalledTimes(1);
   });

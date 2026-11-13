@@ -1,15 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Platform, Text, View } from 'react-native';
 import { registerRootComponent } from 'expo';
+import { safeReport, checksPassed, summarizeCases, responseCases, requiredResponseChecks } from './report';
 import { createApiClient, type ApiFetch } from '../../src/api/client';
 import { prepareRequestBody } from '../../src/api/requestBody';
 import { parseApiResponse, type ParsedApiResponse, type ResponseExpectation } from '../../src/api/response';
 
-const allCases = ['json', 'empty', 'end', 'multipart', 'binary', 'binary-empty', 'binary-error',
-  'json-invalid', 'json-mime', 'fields-missing', 'fields-invalid', 'delay-json', 'cancel-json', 'disconnect-json',
-  'delay-binary', 'cancel-binary', 'disconnect-binary', 'late-json', 'late-binary', 'late-clone-json', 'late-clone-binary', 'redirect', 'post-loss', 'post503', 'auth-json'];
+const allCases = responseCases;
 const selected = process.env.EXPO_PUBLIC_NATIVE_PROBE_CASE;
-const cases = selected && allCases.includes(selected) ? [selected] : allCases;
+const cases = selected ? (allCases.includes(selected) ? [selected] : []) : allCases;
 type State = { csrf: number; get: number; post: number; sourceBytes: number; bodyMatches: boolean; pairs: boolean;
   cookiePresent: boolean; headersSent: boolean; activeResponses: number; held: number; closed: number; finished: number; sink: number; positive: number };
 type Report = { platform: string; stage: '166-5'; pass: boolean; cleanup: boolean; fetchCalls: number; checks: Record<string, boolean>;
@@ -40,7 +39,7 @@ async function runCase(name: string) {
     const abort = new AbortController(); const stop = setTimeout(() => abort.abort(), 3000);
     try {
       const response = await fetch(`${root}/${path}`, { credentials: 'include', cache: 'no-store', redirect: 'error', signal: abort.signal,
-        ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
+        ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(safeReport(body, requiredResponseChecks(name))) } : {}) });
       if (response.status !== 200) throw new Error('probe_incomplete');
       return await response.json();
     } finally { clearTimeout(stop); }
@@ -139,7 +138,7 @@ async function runCase(name: string) {
       report.checks.notReplayed = state.post === (post ? 1 : 0) && state.get === (post ? 0 : 1)
         && state.csrf === (name === 'auth-json' ? 2 : 1) && report.fetchCalls === (name === 'auth-json' ? 3 : 2);
       if (name === 'redirect') report.checks.sinkBlocked = state.sink === 0 && state.positive === 1;
-      report.pass = Object.values(report.checks).every(Boolean);
+      report.pass = checksPassed(report.checks, requiredResponseChecks(name).filter((key) => key !== 'cleanupAbsent'));
     })(), deadline]);
   } catch { report.issue ??= 'incomplete'; report.pass = false; }
   finally {
@@ -153,7 +152,7 @@ async function runCase(name: string) {
       await control('finish', undefined, true);
       report.checks.cleanupAbsent = !(await control('api/v1/observe', undefined, true)).data.cookiePresent;
       report.cleanup = report.checks.cleanupAbsent;
-      report.pass = report.pass && report.cleanup;
+      report.pass = report.pass && report.cleanup && checksPassed(report.checks, requiredResponseChecks(name));
     } catch { report.issue ??= 'incomplete'; report.pass = false; }
   }
   try { await control('report', report, true); } catch { report.issue ??= 'incomplete'; }
@@ -170,6 +169,6 @@ function ResponseProbe() {
   const [results, setResults] = useState<{ name: string; pass: boolean }[]>();
   useEffect(() => { running ??= execute(); running.then(setResults, () => setResults([])); }, []);
   return <View style={{ padding: 36 }}><Text accessibilityRole="header">SCRUM-166 · 응답 파서 네이티브 검증</Text>
-    <Text selectable>{results ? results.map((value) => `${value.name}: ${value.pass ? 'PASS' : 'FAIL'}`).join('\n') : '검증 중'}</Text></View>;
+    <Text selectable>{results ? `전체: ${summarizeCases(allCases, results).pass ? 'PASS' : 'FAIL / INCOMPLETE'} (${results.length}/${allCases.length})\n${results.map((value) => `${value.name}: ${value.pass ? 'PASS' : 'FAIL'}`).join('\n')}` : '검증 중'}</Text></View>;
 }
 registerRootComponent(ResponseProbe);
