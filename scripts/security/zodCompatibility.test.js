@@ -12,9 +12,11 @@ const cliPackage = expoRequire.resolve('@expo/cli/package.json');
 const cliRequire = createRequire(cliPackage);
 const cliServer = join(dirname(cliPackage), 'build/src/start/server');
 const { z } = cliRequire('zod');
-const { PluginSchema } = realRequire(join(cliServer, 'DevToolsPlugin.schema.js'));
-const { createMCPDevToolsExtensionSchema } = realRequire(join(cliServer, 'createMCPDevToolsExtensionSchema.js'));
-const { DevToolsPluginCliExtensionResults } = realRequire(join(cliServer, 'DevToolsPluginCliExtensionResults.js'));
+const { validate, ValidationError } = cliRequire('@expo/schema-utils');
+// CLI 57.0.33의 plugin/output은 JSON Schema, MCP 명령은 주입받은 Zod를 사용한다.
+const { PluginSchema } = realRequire(join(cliServer, 'devtools/DevToolsPlugin.schema.js'));
+const { createMCPDevToolsExtensionSchema } = realRequire(join(cliServer, 'mcp/createMCPDevToolsExtensionSchema.js'));
+const { DevToolsPluginCliExtensionResults } = realRequire(join(cliServer, 'devtools/DevToolsPluginCliExtensionResults.js'));
 
 const plugin = {
   packageName: 'synthetic-devtools',
@@ -44,7 +46,7 @@ test('the CLI-resolved validator rejects bounded oversize before parsing element
 });
 
 test('the actual CLI plugin schema accepts its supported descriptor', () => {
-  expect(PluginSchema.safeParse(plugin).success).toBe(true);
+  expect(() => validate(PluginSchema, plugin)).not.toThrow();
 });
 
 test.each(['unknown', ''])('the actual CLI plugin schema rejects environment %p', environment => {
@@ -53,13 +55,12 @@ test.each(['unknown', ''])('the actual CLI plugin schema rejects environment %p'
     cliExtensions: { ...plugin.cliExtensions,
       commands: [{ ...plugin.cliExtensions.commands[0], environments: [environment] }] },
   };
-  const result = PluginSchema.safeParse(invalid);
-  expect(result.success).toBe(false);
-  expect(result.error.issues[0].path).toEqual(['cliExtensions', 'commands', 0, 'environments', 0]);
+  expect(() => validate(PluginSchema, invalid)).toThrow(ValidationError);
+  expect(() => validate(PluginSchema, invalid)).toThrow('.cliExtensions.commands[0].environments[0]');
 });
 
 test('the generated CLI command schema preserves primitive parameter types', () => {
-  const schema = createMCPDevToolsExtensionSchema(plugin);
+  const schema = createMCPDevToolsExtensionSchema(plugin, z);
   expect(schema.safeParse({ command: 'inspect', count: 2, approved: true, label: 'synthetic' }).success).toBe(true);
   expect(schema.safeParse({ command: 'inspect' }).success).toBe(true);
 });
@@ -70,7 +71,7 @@ test.each([
   { command: 'inspect', approved: 'true' },
   { command: 'inspect', unexpected: true },
 ])('the generated CLI command schema rejects %p', input => {
-  expect(createMCPDevToolsExtensionSchema(plugin).safeParse(input).success).toBe(false);
+  expect(createMCPDevToolsExtensionSchema(plugin, z).safeParse(input).success).toBe(false);
 });
 
 test('the actual CLI output parser preserves valid structured output', () => {

@@ -198,6 +198,15 @@ jobs:
           pod --version
           df -h .
 
+      - name: Test iOS inspector redirect stream ownership
+        run: |
+          xcrun swiftc -swift-version 5 \
+            node_modules/expo-modules-core/ios/DevTools/CdpNetworkTypes.swift \
+            node_modules/expo-modules-core/ios/DevTools/URLRequest+httpBodyData.swift \
+            scripts/native-session/inspectorRedirectRegression.swift \
+            -o "$RUNNER_TEMP/inspector-redirect-regression"
+          "$RUNNER_TEMP/inspector-redirect-regression"
+
       - name: Generate iOS project
         run: npx --no-install expo prebuild --platform ios --no-install
 
@@ -207,6 +216,16 @@ jobs:
       - name: Install CocoaPods
         working-directory: ios
         run: pod install
+
+      - name: Verify patched iOS core source is compiled
+        run: |
+          ruby -rxcodeproj -e '
+            project = Xcodeproj::Project.open("ios/Pods/Pods.xcodeproj")
+            target = project.targets.find { |item| item.name == "ExpoModulesCore" && item.is_a?(Xcodeproj::Project::Object::PBXNativeTarget) }
+            sources = target&.source_build_phase&.files_references || []
+            abort "Patched ExpoModulesCore source is not in the build" unless sources.any? { |file| file.path&.end_with?("CdpNetworkTypes.swift") }
+            puts "Patched ExpoModulesCore source is included in the build"
+          '
 
       - name: Compile unsigned iOS Simulator app
         run: |

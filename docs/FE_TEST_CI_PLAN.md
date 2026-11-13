@@ -1,13 +1,13 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 6단계 진단 보고서 보완·Android/iOS 네이티브 검증까지 로컬에서 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 후속 최종 리뷰/인계·원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 최종 로컬 리뷰·CI 및 Expo 57.0.32 호환성 보완·양 OS 네이티브 검증까지 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.31`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.32`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. [PR #29의 실행 결과](https://github.com/DodamDodam-Capstone/frontend/actions/runs/38769299920)에서 JS·Android·iOS와 최종 집계가 모두 통과했다.
 - 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사와 깨끗한 checkout의 양쪽 네이티브 빌드, PR 원격 CI가 통과했다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
@@ -245,6 +245,32 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 다른7개 checkout/worktree의 HEAD·index·미커밋 상태/내용 해시가 보존됐음을 최종 확인했다. 양 OS를 일반 index.ts 진입점으로 복귀시켜 bundle 요청을 확인한 뒤 앱·이번에 시작한 가상 기기·Metro·합성 서버와 adb reverse를 정리했다.
 
 최종 증빙: `/private/tmp/scrum167-stage6/native-results-final.log`, `android-matrix.log`, `ios-matrix.log`, `full-test-final.log`, `native-build-evidence.json`과 빌드 로그. 예비/리뷰 보완 전 로그는 이름에 preliminary/before-review-fix로 구분했다. 실제 계정 store173·연결 회귀174와 실서버129는 별도 책임이다. 다음 한 가지는 사용자 확인 후 **7단계 최종 리뷰·CI 준비·인계**다. PR/push/병합/Jira 변경은 하지 않았다.
+
+### SCRUM-167 7단계 — 로컬 최종 리뷰·Expo 호환성 보완·인계 · 2026-11-12~13
+
+기준 HEAD는 `4d3438262d8cc5c9ab52b24b1ca5f6151193ece8`이다. 원격 development `da9493fb`와 Jira 167 고영준·진행 중 상태를 재확인했다. 사용자가 로컬 최종 리뷰·CI와 이후 발견된 Expo 호환성 보완을 승인했다. PR/push/병합/Jira 변경은 수행하지 않았다.
+
+- 온라인 검사가 Expo 57.0.31→~57.0.32, dev-client 57.0.20→~57.0.21을 요구해 실패하여 두 의존성과 lockfile을 갱신했다. React/RN과 API 계약은 유지했다. 공식 tarball SHA512를 registry/lock과 대조했고 기존 fetch 3개 파일의 원본 SHA256이 57.0.31과 동일하여 해당 보완을 유지했다.
+- 새 CLI 57.0.33에서 내부 경로·JSON Schema·MCP schema의 Zod 인자 주입 API가 바뀌어 호환성 테스트가 실패했다. 실제 새 함수를 사용해 기존 13개 의미 검증을 유지했다. 프로젝트 Zod를 주입한 helper 호환성 검사이며 선택 기능인 expo-mcp 서버 기동/등록은 검증하지 않았다.
+- iOS 네이티브 검증 중 CDP 리디렉션의 `httpBodyData`→`CFStreamClose`에서 앱 종료를 관측했다. core 57.0.24/.25의 해당 경로 5개 파일은 동일하므로 새 버전이 도입한 오류로 단정하지 않는다. core 57.0.25의 `CdpNetworkTypes.swift`에서 리디렉션 진단 이벤트만 전송용 stream 재수집을 생략했다. 초기 요청/직접 Data 수집·메타데이터와 실제 전송은 유지하며, 개발 Network 탭에서 리디렉션 stream 본문이 표시되지 않는 제한이 있다.
+- 실제 Swift 소스의 307/308 회귀는 수정 전 55 assertion 중 10개 실패, 수정 후 55/55 통과했다. 설치기는 Expo/core 버전과 **4개 파일** 해시를 모두 검증한 뒤 쓰고 변조·일부 패치·심볼릭 링크·소스 빌드 설정 누락을 거절한다.
+- 첫 재빌드는 precompiled core를 사용해 실제 코드 바이너리가 바뀌지 않았다. 이 결과를 패치 반영 증거에서 제외했다. 공식 `expo.autolinking.apple.buildFromSource=["expo-modules-core"]`를 지정하고 CI에 Swift 회귀와 실제 Pods source phase 검사를 추가했다. 이전 prebuilt 프로젝트는 실패하며 최종 프로젝트는 통과한다. 최종 SwiftCompile 및 arm64/x86_64 패치 심볼을 확인했다.
+
+| 최종 검증 | 결과 |
+| --- | --- |
+| 깨끗한 설치 | Node 24.20.0/npm 11.19.0 `npm ci` 성공. Expo 57.0.32/core 57.0.25 네이티브 4개 파일 패치, 최종 iOS 격리 clone에서도 재현 |
+| JS CI | 온라인 Expo 호환성·manifest·lint·typecheck·diff 검사 통과. Jest **26 suites / 704 tests**, Jira 규칙 7건·환경 주입 14건·양 OS export 통과 |
+| iOS 추가 회귀 | 실제 Swift 소스 **55 assertion / 0 failure**, 패치 파일 source phase 검사 통과 |
+| 네이티브 빌드 | Android Debug 316 tasks 성공. iOS Simulator Debug 성공, 실제 패치 소스 컴파일과 양 아키텍처 심볼 확인 |
+| 최종 OS 실행 | Android 92/92 + iOS 92/92 = **184개 고유 사례 PASS**. 누락·중복·issue 0건, 필수 check·cleanup 통과, 관측 대상 held/activeResponses/waiters 0건, 원시 UUID 0개 |
+| 감사·경고 | 설치 감사 low 9·moderate 9·high 0·critical 0. allowScripts/의존성 deprecated 등 경고는 남음 |
+| Astra 리뷰 | API/진단 경계·의존성/설치기·CLI 호환성·iOS 보완/Swift 회귀·소스 빌드/CI에서 추가 조치가 필요한 지적 없음 |
+
+증빙은 `/private/tmp/scrum167-expo5732/logs/`의 `source-final-js-results.json`, `jest-source-final.log`, `final-js-results.json`, `native-results-final.log`, `native-summary-final.json`, `android-summary.json`, `ios-final-source-results.json`, `ios-final-source-linked-symbols.json`, `final-source-parity.json`이다. Android APK SHA는 `1ed6273f…`, 패치 포함 iOS debug dylib SHA는 `2c305891…`이며 전체 값은 해당 기록에 있다. 첫 iOS 충돌 및 prebuilt 제한 기록을 최종 184건에 합산하지 않았다. 빌드 중 추가한 CI 외 런타임 입력은 동일했고, CI 반영 후 소스 88개가 검증 clone과 일치했다. Android 바이너리는 같은 버전·같은 Android 소스로 만들었으며 후속 변경은 iOS 전용 소스/빌드 설정이다.
+
+양 OS를 일반 index.ts로 복귀시켜 실제 bundle 로드를 확인했다. 로컬 호스트 macOS 27.2 arm64는 GitHub Ubuntu 24.04/macOS 26 runner와 다르며, 실제 원격 필수 CI/리뷰는 PR 요청 후 최신 commit에서 확인한다. 이번 OS 실행은 합성 HTTP loopback·에뮬레이터/시뮬레이터로, 실기기·운영 HTTPS/쿠키·OAuth·실제 BE 129 완료를 뜻하지 않는다.
+
+후속 173은 요청 문맥을 유지하고 **마지막 await 뒤** `commitIfCurrent`로 동기 반영한다. 계약상 현재 401만 `expireIfCurrent`로 처리하며 전달된 next 문맥으로 비동기 정리를 보호한다. 174는 실제 store/화면에서 로그아웃·동일/다른 계정 재로그인과 늦은 성공/오류를 연결 검증한다. `recoverCsrf`는 원래 POST를 재실행하지 않으며 UI 자동 재시도·화면 이동은 공통 계층의 책임이 아니다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
