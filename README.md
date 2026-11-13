@@ -306,15 +306,15 @@ POST 재전송 없음, 인증 classifier clone/원본·CSRF 재획득을 검사�
 합성 바이트와 `audio/x-synthetic`은 실제 음성 형식·codec 정책이 아닙니다.
 
 Expo `57.0.31`의 원본 native buffered reader에서 Android의 부분 본문 성공과 iOS의 오류 후
-미완료 대기를 재현했습니다. `57.0.32` 공식 배포본도 패치 대상 3개 파일의 원본 SHA256이 같아
-현재 `57.0.32`에서도 이 보완을 유지합니다. `npm ci`의 postinstall은
+미완료 대기를 재현했습니다. `57.0.32`·`57.0.33` 공식 배포본도 패치 대상 3개 파일의 원본 SHA256이 같아
+현재 `57.0.33`에서도 이 보완을 유지합니다. `npm ci`의 postinstall은
 [`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)를 적용합니다. Android의 오류 상태
 보존과 Android/iOS `text()`·`arrayBuffer()` 및 늦은 clone의 stream 시작 시 오류 reject를 변경합니다. Expo/core 버전과 아래 코어 보완을 포함한 4개 소스의
 원본/패치 SHA256을 모두 확인하며, 예상과 다르면 설치가 실패합니다. SDK 갱신 시 이 보완을
 그대로 우회하지 말고 공식 수정 여부와 아래 실제 네이티브 회귀를 확인한 뒤 제거/갱신합니다.
 이미 빌드한 앱·Expo Go에는 적용되지 않으므로 **설치 후 development build 재빌드가 필요합니다.**
 
-core `57.0.25`의 iOS 개발용 Network 검사기가 리디렉션 요청의 전송용 body stream을 다시
+core `57.0.26`의 iOS 개발용 Network 검사기가 리디렉션 요청의 전송용 body stream을 다시
 열고 닫다가 종료되는 경로도 보완합니다. 리디렉션 진단 이벤트에서만 stream 본문 수집을 생략하며,
 초기 요청·메모리 Data 본문과 URL/메서드/헤더/리디렉션 메타데이터는 유지합니다.
 실제 요청·쿠키·리디렉션 거절·POST 전송 정책은 변경하지 않습니다. 개발 Network 탭에는

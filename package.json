@@ -23,7 +23,7 @@
     "preset": "jest-expo"
   },
   "dependencies": {
-    "expo": "57.0.32",
+    "expo": "57.0.33",
     "expo-dev-client": "~57.0.21",
     "expo-status-bar": "57.0.1",
     "expo-system-ui": "~57.0.4",

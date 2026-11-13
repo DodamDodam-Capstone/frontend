@@ -2,8 +2,8 @@ const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Expo 57.0.32의 본문/clone 읽기가 취소·단절을 성공/미완료로 처리하는 경로만 보완한다.
-// core 57.0.25의 iOS 리디렉션 진단은 전송 중인 body stream을 다시 읽지 않는다.
+// Expo 57.0.33의 본문/clone 읽기가 취소·단절을 성공/미완료로 처리하는 경로만 보완한다.
+// core 57.0.26의 iOS 리디렉션 진단은 전송 중인 body stream을 다시 읽지 않는다.
 // 공식 수정 버전 전환 시 실제 네이티브 회귀를 통과한 뒤 제거한다.
 const patches = [
   {
@@ -57,14 +57,14 @@ function apply() {
     || lock.packages?.['']?.name !== project.name || installed.name !== 'expo') {
     throw new Error('Unexpected Expo fetch project');
   }
-  if (project.dependencies?.expo !== '57.0.32' || lock.packages[''].dependencies?.expo !== '57.0.32'
-    || lock.packages['node_modules/expo']?.version !== '57.0.32' || installed.version !== '57.0.32') {
+  if (project.dependencies?.expo !== '57.0.33' || lock.packages[''].dependencies?.expo !== '57.0.33'
+    || lock.packages['node_modules/expo']?.version !== '57.0.33' || installed.version !== '57.0.33') {
     throw new Error('Unsupported Expo fetch version');
   }
   const core = JSON.parse(read('node_modules/expo-modules-core/package.json'));
-  if (core.name !== 'expo-modules-core' || core.version !== '57.0.25'
-    || lock.packages['node_modules/expo-modules-core']?.version !== '57.0.25'
-    || installed.dependencies?.['expo-modules-core'] !== '~57.0.25') {
+  if (core.name !== 'expo-modules-core' || core.version !== '57.0.26'
+    || lock.packages['node_modules/expo-modules-core']?.version !== '57.0.26'
+    || installed.dependencies?.['expo-modules-core'] !== '~57.0.26') {
     throw new Error('Unsupported Expo modules core version');
   }
   const sourceBuildPackages = project.expo?.autolinking?.apple?.buildFromSource;
@@ -86,7 +86,7 @@ function apply() {
   }
   // 네 파일과 설치 버전을 모두 확인한 뒤에만 쓴다. 실패 시 미확인 소스를 덮지 않는다.
   for (const [file, source] of updates) fs.writeFileSync(file, source, 'utf8');
-  console.log('Expo native request patches verified for 57.0.32 / core 57.0.25 (4 native files).');
+  console.log('Expo native request patches verified for 57.0.33 / core 57.0.26 (4 native files).');
 }
 if (require.main === module) apply();
 module.exports = { patches };

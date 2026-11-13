@@ -16,21 +16,21 @@ const originals = patches.map((patch) => {
   return patch.secondaryAfter ? bufferedOriginal.replaceAll(patch.secondaryAfter, patch.secondaryBefore) : bufferedOriginal;
 });
 const owned = [];
-function fixture(version = '57.0.32') {
+function fixture(version = '57.0.33') {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'expo-fetch-installer-'));
   owned.push(project);
   const metadata = { name: 'dodamdodam-frontend', dependencies: { expo: version },
     expo: { autolinking: { apple: { buildFromSource: ['expo-modules-core'] } } } };
   fs.writeFileSync(path.join(project, 'package.json'), JSON.stringify(metadata));
   fs.writeFileSync(path.join(project, 'package-lock.json'), JSON.stringify({ name: metadata.name, packages: {
-    '': metadata, 'node_modules/expo': { version }, 'node_modules/expo-modules-core': { version: '57.0.25' },
+    '': metadata, 'node_modules/expo': { version }, 'node_modules/expo-modules-core': { version: '57.0.26' },
   } }));
   const expo = path.join(project, 'node_modules/expo');
   fs.mkdirSync(expo, { recursive: true });
-  fs.writeFileSync(path.join(expo, 'package.json'), JSON.stringify({ name: 'expo', version, dependencies: { 'expo-modules-core': '~57.0.25' } }));
+  fs.writeFileSync(path.join(expo, 'package.json'), JSON.stringify({ name: 'expo', version, dependencies: { 'expo-modules-core': '~57.0.26' } }));
   const core = path.join(project, 'node_modules/expo-modules-core');
   fs.mkdirSync(core, { recursive: true });
-  fs.writeFileSync(path.join(core, 'package.json'), JSON.stringify({ name: 'expo-modules-core', version: '57.0.25' }));
+  fs.writeFileSync(path.join(core, 'package.json'), JSON.stringify({ name: 'expo-modules-core', version: '57.0.26' }));
   patches.forEach((patch, index) => {
     const file = path.join(project, 'node_modules', patch.packageName ?? 'expo', patch.file);
     fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, originals[index]);
@@ -77,17 +77,17 @@ test.each([0, 1, 2, 3])('%i번째 소스가 알려진 원본/패치가 아니면
 
 test.each(['project', 'root-lock', 'locked', 'installed'])('%s Expo 버전이 다르면 쓰지 않는다', (where) => {
   const project = fixture();
-  if (where === 'project') changeJson(project, 'package.json', (value) => { value.dependencies.expo = '57.0.33'; });
-  else if (where === 'root-lock') changeJson(project, 'package-lock.json', (value) => { value.packages[''].dependencies.expo = '57.0.33'; });
-  else if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo'].version = '57.0.33'; });
-  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.version = '57.0.33'; });
+  if (where === 'project') changeJson(project, 'package.json', (value) => { value.dependencies.expo = '57.0.34'; });
+  else if (where === 'root-lock') changeJson(project, 'package-lock.json', (value) => { value.packages[''].dependencies.expo = '57.0.34'; });
+  else if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo'].version = '57.0.34'; });
+  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.version = '57.0.34'; });
   const before = hashes(project); const result = run(project);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('Unsupported Expo fetch version');
   expect(hashes(project)).toEqual(before);
 });
 
-test.each(['57.0.31', '57.0.33'])('모든 메타데이터가 %s여도 승인한 버전이 아니면 쓰지 않는다', (version) => {
+test.each(['57.0.32', '57.0.34'])('모든 메타데이터가 %s여도 승인한 버전이 아니면 쓰지 않는다', (version) => {
   const project = fixture(version);
   const before = hashes(project); const result = run(project);
   expect(result.status).not.toBe(0);
@@ -97,9 +97,9 @@ test.each(['57.0.31', '57.0.33'])('모든 메타데이터가 %s여도 승인한 
 
 test.each(['locked', 'installed', 'expo-dependency'])('modules-core의 %s 버전이 다르면 어느 파일도 쓰지 않는다', (where) => {
   const project = fixture();
-  if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo-modules-core'].version = '57.0.26'; });
-  else if (where === 'installed') changeJson(project, 'node_modules/expo-modules-core/package.json', (value) => { value.version = '57.0.26'; });
-  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.dependencies['expo-modules-core'] = '~57.0.26'; });
+  if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo-modules-core'].version = '57.0.27'; });
+  else if (where === 'installed') changeJson(project, 'node_modules/expo-modules-core/package.json', (value) => { value.version = '57.0.27'; });
+  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.dependencies['expo-modules-core'] = '~57.0.27'; });
   const before = hashes(project); const result = run(project);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('Unsupported Expo modules core version');

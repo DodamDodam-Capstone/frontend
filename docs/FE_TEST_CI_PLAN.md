@@ -1,13 +1,13 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 최종 로컬 리뷰·CI 및 Expo 57.0.32 호환성 보완·양 OS 네이티브 검증까지 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 최종 로컬 리뷰·CI 및 Expo 57.0.33 호환성 보완·iOS 추가 네이티브 검증까지 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.32`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.33`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. [PR #29의 실행 결과](https://github.com/DodamDodam-Capstone/frontend/actions/runs/38769299920)에서 JS·Android·iOS와 최종 집계가 모두 통과했다.
 - 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사와 깨끗한 checkout의 양쪽 네이티브 빌드, PR 원격 CI가 통과했다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
@@ -271,6 +271,19 @@ CSRF 복구는 같은 실패 token 버전의 진행 중 Promise를 공유한다.
 양 OS를 일반 index.ts로 복귀시켜 실제 bundle 로드를 확인했다. 로컬 호스트 macOS 27.2 arm64는 GitHub Ubuntu 24.04/macOS 26 runner와 다르며, 실제 원격 필수 CI/리뷰는 PR 요청 후 최신 commit에서 확인한다. 이번 OS 실행은 합성 HTTP loopback·에뮬레이터/시뮬레이터로, 실기기·운영 HTTPS/쿠키·OAuth·실제 BE 129 완료를 뜻하지 않는다.
 
 후속 173은 요청 문맥을 유지하고 **마지막 await 뒤** `commitIfCurrent`로 동기 반영한다. 계약상 현재 401만 `expireIfCurrent`로 처리하며 전달된 next 문맥으로 비동기 정리를 보호한다. 174는 실제 store/화면에서 로그아웃·동일/다른 계정 재로그인과 늦은 성공/오류를 연결 검증한다. `recoverCsrf`는 원래 POST를 재실행하지 않으며 UI 자동 재시도·화면 이동은 공통 계층의 책임이 아니다.
+
+### SCRUM-167 7단계 후속 — PR #36 온라인 호환성 보완 · 2026-11-13
+
+[PR #36](https://github.com/DodamDodam-Capstone/frontend/pull/36)을 development 대상으로 게시했다. 첫 커밋 `a2798f5`의 원격 리뷰는 지적 없이 완료됐고 Jira 키·제목 검사는 통과했다. 그러나 [첫 Frontend CI](https://github.com/DodamDodam-Capstone/frontend/actions/runs/43363659010)는 온라인 Expo 검사가 `57.0.32` 대신 `~57.0.33`을 요구하여 실패했다. 로컬에서도 같은 실패를 재현했다. 이후 JS 단계와 Android/iOS 빌드는 skipped이며 성공으로 집계하지 않는다.
+
+- 공식 Expo `57.0.33` / core `57.0.26` tarball의 SHA512와 이전 배포본을 대조했다. 기존 패치 대상 4개 원본 및 패치 결과 SHA256이 모두 같아 보완을 유지한다. 설치기는 새 정확한 버전만 허용하며 파일 해시·경로·전체 검증 후 쓰기·소스 빌드 요구를 완화하지 않았다. dev-client는 `~57.0.21`을 유지한다.
+- Expo/core/constants의 Android·iOS 런타임 소스는 동일하지만 core podspec과 autolinking의 prebuilt 선택 경로가 변경됐다. `buildFromSource`를 유지하고 새 Pods의 실제 source phase·SwiftCompile·arm64/x86_64 패치 심볼을 재검증했다. 앱 debug dylib SHA256은 `5ce486b9206acee4f710447f941923bbaa22595dee92b525e887c940fe88542e`다.
+- 새 버전 테스트를 기존 설치기에 적용해 16개 실패/8개 통과를 확인한 뒤 버전 guard를 갱신했다. 최종 깨끗한 설치·온라인 Expo 검사·manifest·lint·typecheck·Jest **26 suites / 704 tests**·Jira 규칙 7건·환경 14건·양 OS export가 통과했다.
+- 새 iOS 격리 빌드와 실제 Swift **55/55**, 새 앱의 네이티브 **92/92**(복구 15·전송 26·인증 26·응답 25)가 통과했다. 누락·중복·issue·관측 중인 미정리 요청·원시 UUID는 0이다. 일반 index.ts로 복귀시켜 bundle 로드를 확인한 뒤 이번에 시작한 앱·시뮬레이터·Metro·수신자를 정리했다.
+- 이번 후속 수정에서 Android 로컬 빌드·기기 92건은 반복하지 않았다. Android 런타임 소스가 동일한 근거와 이전 `.32` 실행을 보존하고, 새 `.33` Android 컴파일은 PR의 원격 CI로 확인한다. 이전 양 OS 184건을 새 `.33` 실행 결과로 표현하지 않는다.
+- 설치 감사는 low 9·moderate 8·high 0·critical 0이며 설치 스크립트 경고는 남는다. 후속 변경 로컬 리뷰에서 추가 수정 지적은 없었다. 최신 커밋의 원격 CI·리뷰는 재확인 전까지 미완료다. 병합·Jira 변경은 하지 않았다.
+
+후속 증빙: `/private/tmp/scrum167-expo5733/comparison.json`, `native-diff.json`, `fix-review.md`, `logs/local-ci.json`, `logs/ios-results.json`, `logs/ios-source-snapshot.json`, `logs/ios-matrix.log`, `logs/native-summary.json`. 후속 173/174와 실제 BE 129의 책임 및 개발 Network 탭의 stream 본문 표시 제한은 앞 기록과 같다.
 
 ### SCRUM-166 1단계 — 작업 공간·계약 기준 · 2026-10-28
 
