@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~3단계 계약·기준선 확인과 대표 계약 연결 테스트를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~4단계 계약 연결·민감정보 비복사 테스트 보강을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -171,6 +171,19 @@ FE `41875136bfb4c3569f9459293013b9f01d317ec0`, BE `1e66ddb895789bbaf72c21e3b7644
 - 증빙: `/private/tmp/scrum168-stage3-20261114-iskk5f9r/`의 `contract-integration`, `api-regression`, `lint`, `typecheck` 로그·JSON. 전체 Jest·native runtime은5단계에서 검증한다.
 
 **3단계 완료 지점:** C1~C3와 관련 회귀 통과. **다음:** 4단계 실제 DTO별 민감정보 비복사 검사. **차단:** 없음.
+
+
+### SCRUM-168 4단계 — 실제 DTO별 민감정보 비복사 · 2026-11-14
+
+- [recovery.security.test.ts](../src/api/recovery.security.test.ts)의 기존 성공 사례를 email/password→정상 AccountView로 보강했다. 본문 읽기1회·선택 메타데이터의 Set-Cookie 제외·현재 문맥 수신자 도달을 확인한다. 전체 인증 전환은3단계 C1의 책임이며 여기의 일반 request 호출을 로그인 수명주기 예제로 쓰지 않는다.
+- S1은 앞자리0을 보존한 PIN으로 guardian/unlock400 PIN_INVALID를 읽고 pin_invalid를 수신자에 인계한다. S2는6자리 인증번호 검증200의 파싱된 verificationToken을 가입 본문으로 전달하고201 accountId/Location을 인계한다. Location은 고정 OpenAPI의 `/api/v1/accounts/{accountId}` 생성 식별 URI 예시를 사용했으며 GET 지원을 가정하지 않는다. 정확한 URL·본문·CSRF 헤더·요청 수로 실행 도달과 추가 요청 부재를 확인했다.
+- 기존 transport/body 예외 fixture에 인증번호·검증 토큰을 추가했다. 정상 오류와 민감값을 잘못 돌려준 서버의 방어 fixture를 주석으로 구분했다. 기존 오류 원문 메모리 보유·취소/복구 실패·진단 허용목록 검사는 유지했다. 제품 코드·의존성·진단 runtime은 변경하지 않았다.
+- Node24.20.0에서 `npm test -- --runTestsByPath src/api/recovery.security.test.ts`: **1 suite/8 tests** 통과(기존6+신규2). requestBody/csrfFailure/report/recoveryReceiver 회귀: **4 suites/116 tests** 통과. `npm run lint`, `npm run typecheck`, `git diff --check` 통과. 신규 검사는 기존 구현에서 처음부터 통과했다.
+- 제품 `src`의 비테스트 파일에서 console·AsyncStorage·SecureStore·웹 storage·파일 쓰기 호출 검색 결과는 없었고 신규 import/의존성도 없다. 이는 정적 조사와 해당 JS 경로의 URL·콘솔·웹 storage 관측이며 RN/OS/전이 의존성 전체의 안전성 보증이 아니다.
+- 독립 정적 코드 리뷰에서 수정이 필요한 지적은 없었다.
+- 증빙: `/private/tmp/scrum168-stage4-gjfg00j6/`의 `recovery-security`, `security-regression`, `lint`, `typecheck` 로그·JSON.
+
+**4단계 완료 지점:** 실제 DTO의 정상/오류 인계와 비복사 검사 통과. **다음:** 5단계 전체 검사·양OS runtime 회귀. **차단:** 없음.
 
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
