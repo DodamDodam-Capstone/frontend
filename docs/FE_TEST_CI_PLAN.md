@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1단계 계약·기준선 확인을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~2단계 계약·기준선 확인과 AC별 검증 사례 구체화를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-168](https://dodamdodam.atlassian.net/browse/SCRUM-168)의 계약 테스트·민감정보 비저장 확인이다.** 아래168의 기준을 적용하고, 159~167 기록은 당시 실행 이력으로 보존한다. 단계별 결과를 보고하고 사용자 확인 후 다음 단계로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
+**현재 작업 대상은 [SCRUM-168](https://dodamdodam.atlassian.net/browse/SCRUM-168)의 계약 테스트·민감정보 비저장 확인이다.** 아래168의 기준을 적용하고, 159~167 기록은 당시 실행 이력으로 보존한다. 후속 사용자 지시에 따라 각 단계의 검증을 통과하면 다음 단계로 이어가고 전체 구현·검증·로컬 리뷰 후 보고한다. 부모123과 실제 서버129의 완료와 구분한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -96,6 +96,70 @@ API 계약 **v3.1**, OpenAPI 문법 `3.0.3`과 `info.version: 3.1.0`을 구분�
 CONTRIBUTING·팀/Jira 가이드·README·SECURITY·PR 템플릿·테스트 계획·실제 workflow는 위 FE 출발점에서 확인했다. 팀/Jira 가이드에는 다른 Write 권한자 승인1건 문구가 남아 있다. 반면 원래AGENTS·10/16 결정·README는 최신 GitHub GPT/Codex 리뷰를 요구한다. 11/14 development Ruleset21153783은 승인0, last-push 승인false, 대화 해결, strict 필수검사 `frontend-quality`·`gitmoji-conventional-title`·`jira-issue-key`, squash다. 차이를 기록하고 보호 설정이나 협업 문서를 이 작업에서 변경하지 않는다.
 
 **현재 완료:** 1단계 작업 공간·계약·기존 기준선 확인. **다음 한 가지:** 사용자 확인 후2단계 AC1~5의 테스트별 증거·누락 매핑. **현재 차단:** 없음. 구현·전체SCRUM-168 완료, 원격CI·실서버 성공으로 확대하지 않는다.
+
+
+### SCRUM-168 2단계 — 완료 기준별 증거·추가 사례 확정 · 2026-11-14
+
+FE `41875136bfb4c3569f9459293013b9f01d317ec0`, BE `1e66ddb895789bbaf72c21e3b76441bce251aa61`와 Jira168·부모123의 상태·범위를 다시 조회해1단계와 같음을 확인했다. 읽은 작업 HEAD는 `9fad3a9baffea8ddbde11781cbcd3ec2ad67fc32`다. 아래는 실제 테스트 이름과 소스의 정적 대조 결과이며 새 테스트 실행 결과가 아니다. 제품 결함을 새로 재현한 것은 없고, 정상 DTO로 연결한 증거의 공백을 확인했다.
+
+#### 부모 AC1~5와 재사용할 증거
+
+파일 링크의 이름은 현 소스의 `it`/`it.each` 제목 그대로다. `%s`·`%i`·`$name` 등은 기존 매개변수 표기다.
+
+| 완료 기준 | 기존 파일·정확한 테스트 이름 | 입증 범위·남은 경계 |
+| --- | --- | --- |
+| AC1 쿠키·POST CSRF | [client.test.ts](../src/api/client.test.ts): `생성만으로 요청하지 않고 GET은 쿠키 포함·캐시 금지·redirect 거절 설정으로 전송한다`, `동시 최초 POST는 하나의 CSRF 발급을 공유하고 발급 전에는 전송하지 않는다` | credentials/include·no-store·redirect/error와 초기 발급 공유. 실제 OS 쿠키 저장·송수신 증거와 구분 |
+| AC1 인증 후 갱신 | [authTransition.test.ts](../src/api/authTransition.test.ts): `로그인 성공의 원래 응답을 보존하고 새 CSRF를 다음 POST에 사용한다`, `로그아웃 204는 0바이트 POST를 유지하고 익명 CSRF를 다시 준비한다` | 전환·갱신 프로토콜. 로그인 응답은 authenticated fixture이며 전체 정상 DTO 흐름은 C1에서 보강 |
+| AC2 JSON·204 | [response.test.ts](../src/api/response.test.ts): `%i JSON envelope에서 nullable DTO 값을 보존한다`, `data:unknown을 변형하지 않으며 업무 DTO를 보증하지 않는다: %#`, `허용한204는 Content-Type이나 본문을 요구하지 않고 읽지 않는다` | envelope·null·204 본문 미읽기. 공통 파서가 업무 DTO validator라는 뜻은 아님 |
+| AC2 0바이트 POST | [requestBody.test.ts](../src/api/requestBody.test.ts): `%s의 POST에 body를 추가하지 않고 쿠키·CSRF를 적용한다`; [response.integration.test.ts](../src/api/response.integration.test.ts): `0바이트 lock 요청의204는 읽기나 JSON 변환 없이 완료된다` | logout/lock/resume/end의 body 부재와 요청→응답 연결. 같은 사례 중복 추가하지 않음 |
+| AC2 음성·빈 본문 | [response.binary.test.ts](../src/api/response.binary.test.ts): `성공 bytes를 변경하거나 JSON으로 읽거나 clone하지 않는다`, `0바이트200은 FE 빈2xx 규칙으로 거절하며204 성공으로 바꾸지 않는다`, `실제 client의 음성 GET은 쿠키를 포함하고 CSRF 발급 없이 bytes를 인계한다` | 합성 bytes 운반·빈200 거절. 실제 재생/codec·D13/D14 형식 확정 증거는 아님 |
+| AC2 OAuth·302 | [oauth.test.ts](../src/api/oauth.test.ts): `복귀 URI나 그 query를 OAuth 시작 URL에 붙이지 않는다`, `주소 준비만으로 fetch·OS 이동·원문 로그를 실행하지 않는다`; [response.binary.test.ts](../src/api/response.binary.test.ts): `redirect:error로 거절된 전송을 관측302로 바꾸지 않는다` | 주소 준비와 redirect 결과 분리. 실제 브라우저 이동·복귀/세션 인계는126·129 |
+| AC3 오류 전달 | [response.test.ts](../src/api/response.test.ts): `fields 누락만 빈 배열로 호환하고 미정의 필드를 결과로 복사하지 않는다`, `fields의 이름·사유를 전달하되 임의 원문 필드는 전달하지 않는다`, `대화 시작409 ACTIVE_CONVERSATION_EXISTS에서만 ID 확장을 보존한다` | code/fields/requestId 및 문맥별 확장. 정상 헤더/본문 추적ID 일치는 C3에서 연결 |
+| AC3 HTTP/code 분류 | [recovery.test.ts](../src/api/recovery.test.ts): `%i %s를 별도 복구 종류로 전달한다`, `미등록 조합 %i %s를 인증 만료나 재시도로 추측하지 않는다`; [authContext.test.ts](../src/api/authContext.test.ts): `인증 성공+CSRF 갱신503 실패에도 전환 문맥과 인증 결과를 보존한다` | 순수 분류와 인증/갱신 결과 분리. 실제 화면·store 소비는173·174 및 해당 기능 책임 |
+| AC3 늦은 반영 | [recovery.integration.test.ts](../src/api/recovery.integration.test.ts): `로그아웃 후 $nextAccount 상태에서 이전 $name 본문이 상태·CSRF를 바꾸지 않는다`, `파싱 완료 후 추가 await 중 재로그인해도 $name 결과를 반영하지 않는다`, `현재 문맥의 정상 결과는 반영된다` | 최소 수신자의 마지막 await 뒤 commitIfCurrent 및 긍정 대조군. 모든 실제 화면이 연결됐다는 증거는 아님 |
+| AC3·4 동시성 | [recovery.integration.test.ts](../src/api/recovery.integration.test.ts): `동시401은 한 번만 만료·통지하고 원래 POST를 재실행하지 않는다`, `만료 통지의 비동기 정리가 끝날 때 새 로그인을 덮어쓰지 않는다`, `같은 버전의 두403은 복구1회로 연결되고 로그인 유지·원래POST2회를 보존한다` | 세대별 만료·비동기 정리·CSRF single-flight. 기존 회귀로 재사용 |
+| AC4 자동 재전송 금지 | [response.integration.test.ts](../src/api/response.integration.test.ts): `%i 오류 해석이 CSRF 갱신이나 POST 재전송을 일으키지 않는다`; [csrfRecovery.test.ts](../src/api/csrfRecovery.test.ts): `분류한 CSRF 오류만 복구하고 원래 POST를 재실행하지 않는다` | 401·403·429·503와 명시적 CSRF 복구. C3에서도 업무 POST1회 확인 |
+| AC4 대기·준비 실패 | [recovery.test.ts](../src/api/recovery.test.ts): `%s를 정확한 초로 전달한다`, `누락은 대기 시간이 확정되지 않은 상태다`, `%s를 기본 지연이나 즉시 재시도로 보정하지 않는다`; [csrfFailure.test.ts](../src/api/csrfFailure.test.ts): `초기429에서 POST는 미전송이며 헤더를 먼저 전달하고 공유된 본문을 한 번만 읽는다`, `인증 성공 뒤 갱신%i 실패를 인증 결과와 분리하고 POST를 재전송하지 않는다` | Retry-After 정수 초/누락/invalid와 인증 성공 후 실패 분리. 임의 기본 지연이나 scheduler 추가 없음 |
+| AC5 민감값 운반 | [requestBody.test.ts](../src/api/requestBody.test.ts): `JSON에만 합성 자격 증명을 담고 URL·로그·저장소로 복사하지 않는다`; [recovery.security.test.ts](../src/api/recovery.security.test.ts): `성공 응답까지 처리해도 자격 증명은 요청 본문·CSRF 헤더에만 전송한다` | 기존 password/PIN/code/verificationToken 운반 증거. login에 여러 값을 함께 넣은 fixture는 endpoint DTO 증거가 아니므로 S1·S2와 기존 사례 보강 필요 |
+| AC5 오류·예외 비복사 | [recovery.security.test.ts](../src/api/recovery.security.test.ts): `오류 원문·fields·requestId를 메모리에 보존하면서 로그·저장소·추가 URL로 복사하지 않는다`, `%s 예외의 합성 민감값을 반환·로그에 노출하지 않는다`; [csrfFailure.test.ts](../src/api/csrfFailure.test.ts): `HTTP 실패 객체를 직렬화해도 원시 Response 본문·쿠키를 포함하지 않는다` | 오류 원문의 필요한 메모리 보유와 외부 복사 금지를 구분. 예외 fixture에 인증번호·검증 토큰 추가 예정 |
+| AC5 진단 출력 | [report.test.js](../scripts/native-session/report.test.js): `전송 직전 원시 CSRF 실패·응답·예외·임의 키를 enum/count/boolean으로 제한한다`; [recoveryReceiver.test.js](../scripts/native-session/recoveryReceiver.test.js): `보고서는 허용된 검사·횟수만 기록하고 원문·헤더·임의 필드를 버린다` | 송신 전·수신 후 허용 필드 추출. 실제 OS probe는5단계, 개발자 도구 전체의 민감값 제거를 보장하지 않음 |
+
+`response.integration.test.ts`의 기존201은 자녀 생성이며, `clientRequestId`의 기존 사례는 FormData 운반이다. 대화 시작 JSON의 업무ID와 서버 추적ID를 연결한 정상201·429는 없다. `response.test.ts`의 `body UUID를 v4로 제한하지 않고 헤더 ID 불일치·Retry-After를 원형 보존한다`와 `recovery.test.ts`의 `fields 누락의 빈 배열과 서로 다른 본문/헤더 requestId를 보존한다`는 비정상 입력의 보존 시험이며 정상 서버 계약의 ID 일치 증거로 쓰지 않는다.
+
+#### 3단계에 추가할 정상 계약 사례 — 아직 미구현·미실행
+
+기존 [response.integration.test.ts](../src/api/response.integration.test.ts)에 아래3개만 추가한다. 실제 prepareRequestBody/client/parser/classifier와 최소 동기 수신자를 사용하고 fetch 응답만 합성한다. 업무 DTO validator·상태 store·API별 service·새 공용 테스트 프레임워크를 만들지 않는다.
+
+| 사례·예정 제목 | 요청·기대 결과·종료 조건 |
+| --- | --- |
+| C1 `확정 DTO로 로그인·계정 조회·0바이트 로그아웃과 CSRF 갱신을 연결한다` | 동일 client에서 GET csrf→POST login→GET csrf→GET me→POST logout→GET csrf, 총6회. login은 email/password만, 응답은 AccountView 전체 필드와 nullable 값. me는 body·CSRF 헤더 없는 GET. logout은 로그인 후 token을 쓰는 body 없는 POST,204 본문 미읽기. 인증 결과·갱신 성공을 각각 확인하고 마지막 await 후 현재 문맥에서만 테스트 상태를 반영한다. 로그인/로그아웃 POST 각1회, 최종 prepareCsrf는 추가 요청 없이 성공 |
+| C2 `대화 시작201의 업무 ID와 서버 추적 ID를 구분하고 Location을 자동 요청하지 않는다` | POST children/{childId}/conversations에 clientRequestId=A 하나만 보냄. StartConversationResult의 conversationId/status/startedAt/serviceDate/scheduledEndAt을 그대로 인계. 서버 X-Request-ID=B, A≠B. 명세의 상대 Location 보존, 분류 none·현재 문맥 반영1회. csrf1회+업무POST1회, 추가 GET 없음 |
+| C3 `대화 시작429의 추적 ID·대기 정보를 전달하고 인증 만료·자동 재전송하지 않는다` | 같은 시작 DTO의 A와 별개인 B를 오류본문 requestId와 X-Request-ID에 동일하게 사용.429 RATE_LIMITED·fields·Retry-After 전달, rate_limited 분류·현재 문맥 유지. Retry-After의2초는 합성 관측값이며 운영 기본값이 아님. csrf1회+업무POST1회, 오류 해석 뒤 추가 발급·POST·만료 통지 없음 |
+
+기존 authTransition 성공 fixture, 확정 DTO 로그인→CSRF까지만 연결한 response.integration 사례, 로그인 body 없는 recovery.integration 전환 helper를 C1 전체 흐름의 증거로 대체 인용하지 않는다. 늦은 응답·single-flight·만료 사례는 위 기존 테스트를 회귀 실행하며 복제하지 않는다. C2·C3의 classifyRecovery operation은 기존 `general`을 사용한다.
+
+#### 4단계에 보강할 비복사 사례 — 아직 미구현·미실행
+
+[recovery.security.test.ts](../src/api/recovery.security.test.ts)의 기존 출력/웹 storage 관측·정확한 URL 대조를 재사용한다. 정상 계약 오류는 민감값을 echo하지 않으며, 오류 message/fields에 민감값을 넣은 기존 방어 fixture는 그 목적을 유지한다.
+
+| 대상 | 확정할 관측·변경 |
+| --- | --- |
+| 비밀번호·CSRF·세션 | 기존 성공 사례를 email/password와 정상 AccountView 응답으로 보강한다. 이는 요청 운반/분류 시험이며 전체 인증 전환은 C1이 담당한다. body·CSRF 헤더 허용 운반, Set-Cookie가 선택 메타데이터·진단으로 복사되지 않음, credentials/include·caller Cookie/Authorization 부재를 확인. 세션을 DTO에 넣지 않음 |
+| S1 `PIN 해제 오류를 전달하면서 PIN을 URL·로그·저장소로 복사하지 않는다` | 실제 GuardianUnlockRequest `{pin}`으로 POST guardian/unlock. 앞자리0인4자리 문자열 보존,400 PIN_INVALID 정상 오류를 parse/classify해 pin_invalid 인계, 현재 문맥 유지. csrf1회+POST1회, 정상 결과 도달·오류 인계까지 확인해 미실행 통과 방지 |
+| S2 `인증번호 검증과 가입에서 번호·검증 토큰을 허용 본문 외부로 복사하지 않는다` | verify에 challengeId와 앞자리0인6자리 code→200 VerificationGrant의 verificationToken/tokenExpiresAt→signup에 verificationToken/password→201 accountId. 토큰은 UUID+점+43자 Base64url 형식의 합성값, 새 비밀번호는15~128 코드포인트. 파싱한 토큰의 메모리 전달은 허용하며 URL·로그·웹 storage로 복사하지 않음. csrf1회+각POST1회, 가입 뒤 자동로그인·추가 발급 없음. Location의 실제 endpoint 형태를 임의로 확정하지 않음 |
+| 예외·진단·취소 | 기존 transport/body 예외 fixture에 code·verificationToken을 포함한다. 오류 원문 보유·취소/복구 실패·report/receiver 허용목록 테스트를 재사용하고 새 진단 프레임워크는 만들지 않는다 |
+
+검사는 실행된 요청·정확한 본문·응답 읽기·분류·수신자 호출 횟수를 함께 확인한다. `console.log/info/warn/error/debug`와 웹 `localStorage/sessionStorage.setItem` spy의 통과 범위는 해당 JS 경로다. 제품 소스의 저장 API/로그 호출 및 신규 import를 함께 검토하며 RN AsyncStorage/SecureStore 전체·OS 쿠키 저장·DevTools/전이 의존성 안전성으로 확대하지 않는다. 세션 쿠키의 OS 보관은 인증 전송에 필요한 경로이고 별도 영구 저장소 복사 금지와 구분한다.
+
+#### 검증·후속 책임·이번 종료 지점
+
+- 3단계는 대상 integration 테스트와 기존 client/authTransition/requestBody/response/binary/oauth/authContext/recovery/csrfRecovery/csrfFailure 회귀 및 lint/typecheck를 실행한다. 4단계는 보안·본문·진단 report/receiver 회귀와 필요한 정적 검사를 실행한다. 실패하면 먼저 결함을 재현하고 제품 코드 수정 필요성을 판단한다.
+- 5단계 전체 Jest·test:env·양OS export와 recovery15개×양OS를 실행한다. 현재CI는 전체Jest를 발견하므로 기존 파일의 신규 테스트도 포함되며 runtime probe는 CI 밖의 로컬 증거다. 신규 native 행동이 필요할 때만1단계의 probe/receiver/report 동시 보강 조건을 적용한다.
+- 공통 계층은 결과·문맥·복구 의도를 인계한다. 실제 계정 정리173·화면/store 소비174, 해당 기능124/125, OAuth 실제 이동/복귀126, 실제BE/쿠키/CORS·서버 멱등성129의 책임은 유지한다. 129 완료를168의 새 선행으로 만들지 않는다. 현재 단계에서 이슈·운영값·승인 절차를 추가하지 않았다.
+- 이번2단계는 문서만 변경했다. 실제 테스트 제목·파일 링크·diff 공백 오류를 검증하고, 제품/테스트/스크립트/설정71개 파일의 SHA-256과 기존8개 작업 공간 보존을 확인한다. 제품 변경이 없으므로1단계의26 suites/704 tests 기준선을 반복 실행하지 않았으며 신규 사례는 아직 통과로 표시하지 않는다.
+- 증빙: `/private/tmp/scrum168-stage2-20261114-uq603ya4/`의 코드 해시·테스트 참조 검증·작업 공간 스냅샷·최종 결과. 저장소에는 이 요약만 남긴다.
+
+**2단계 완료 지점:** AC별 재사용 증거와 계약3개·보안2개 추가 사례 확정. **다음:** 3단계 계약 연결 테스트 구현. **차단:** 없음. 사용자의 후속 지시에 따라 단계별 검증을 통과하면 자동으로 다음 단계로 진행하고, 전체 구현·검증·로컬 리뷰 후 보고한다. push·PR·병합·Jira 변경은 별도 요청 범위다.
 
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
