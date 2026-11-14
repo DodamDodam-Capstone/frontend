@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~4단계 계약 연결·민감정보 비복사 테스트 보강을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~5단계 계약·보안 테스트 보강과 로컬·양OS 회귀 검증을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -184,6 +184,35 @@ FE `41875136bfb4c3569f9459293013b9f01d317ec0`, BE `1e66ddb895789bbaf72c21e3b7644
 - 증빙: `/private/tmp/scrum168-stage4-gjfg00j6/`의 `recovery-security`, `security-regression`, `lint`, `typecheck` 로그·JSON.
 
 **4단계 완료 지점:** 실제 DTO의 정상/오류 인계와 비복사 검사 통과. **다음:** 5단계 전체 검사·양OS runtime 회귀. **차단:** 없음.
+
+
+### SCRUM-168 5단계 — 전체 검사·양OS 복구 회귀 · 2026-11-14
+
+검증 대상은4단계 커밋 `86dd9571d818679fa27e868ef12f46f7dc856b98`다. 제품·lock·native patch·진단 runtime 변경이 없어 계획대로 기존 recovery15개/OS를 재실행했다. 새 DTO/업무ID 검증은 Jest이며 기존 합성 native 프로토콜과 구분한다. 이번 단계는 실행 증빙만 기록한다.
+
+| 실제 실행 | 결과·범위 |
+| --- | --- |
+| 전체 `npm test` | **26 suites/709 tests 통과**. 기준704에서 계약3·보안2 추가. snapshot0 |
+| `npm run test:env` | Android/iOS 각7개 환경 조합, 총14개 통과 |
+| `npx --no-install expo export --platform android/ios --output-dir <임시경로>` | 양OS JS/asset export 성공. 색상 환경변수 경고는 남았지만 exit0 |
+| manifest·workflow 검사 | `validate_frontend_project.mjs` 통과, Python Jira workflow7개 통과. 실제 workflow 파일 미변경 |
+| 설치된 소스의 Swift 회귀 | CI와 같은3개 Swift 소스로 컴파일 후 **55 assertions/0 failures** |
+| Android 격리 빌드 | 확정 SHA의 새 archive에서 npm ci→prebuild android→`:app:assembleDebug --no-daemon`, **316 tasks 성공**. Node24.20.0/npm11.19.0/JDK17.0.20.1/API36. 빌드 전후 추적 원본 변경0·패치4개 SHA 일치 |
+| iOS recovery | 새 iPad Simulator/iOS26.5에서 **15/15**, 누락·중복·실패0. 기존 Expo57.0.33/core57.0.26 앱 바이너리의 SHA와 native 입력 동등성을 확인해 재사용. 이번 iOS 전체 재빌드는 하지 않음 |
+| Android recovery | 새 Pixel Tablet AVD/API36에 위 APK 설치, **15/15**, 누락·중복·실패0 |
+
+Swift 최초 컴파일은 상속된 `SDKROOT=/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk`의 Swift6.4.2 SDK와 Xcode의 Swift6.3.3 컴파일러가 맞지 않아 실패했다. `xcode-select -p`, `xcrun --find swiftc`, `xcrun --sdk macosx --show-sdk-path`로 원인을 확인하고 **그 명령의 SDKROOT만 Xcode의 MacOSX26.5.sdk로 지정**해 같은 소스·검사를 통과시켰다. 시스템 설정·제품 코드·CI를 바꾸지 않았으며 첫 실패 로그도 보존했다.
+
+iOS 최초 개발 클라이언트 연결은 probe 시작 전에 실패했다(수신자 사례0). Metro의 최초 bundle 준비15504ms와 준비 후200 응답을 확인하고 개발 링크로 다시 연결한 실행에서15개가 통과했다. 부분 실행을 성공에 합치거나 검사 제한시간을 바꾸지 않았다. Android는 bundle200 준비 후 시작했다.
+
+양OS에서 필수 check `prepared/result/counts/pairs/cleanupAbsent`, 각 실제 csrf/login/logout/post/get 횟수, 미결 held/activeResponses/waiters0, 쿠키 정리와 issue 부재를 모두 대조했다. 수신자 JSON은 OS별 새 로그로 분리했고 합성 UUID·쿠키값·CSRF 헤더·원문 오류를 포함하지 않는지도 확인했다. wire stage는 기존 **167-6**을 유지하고 외부 증빙만168의 runtime 재실행으로 귀속했다. 기존92개/OS 전체 행렬·실기기·HTTPS/운영 쿠키·실제 BE·OAuth 복귀 완료로 확대하지 않는다.
+
+- Android APK SHA256: `b89c446803e4d56e4f98bcb29d4f77ce3fcb22ba3d01cbe3460c5d217fe06dd8`.
+- 재사용 iOS `app.debug.dylib` SHA256: `5ce486b9206acee4f710447f941923bbaa22595dee92b525e887c940fe88542e`. 기존 최종57.0.33 빌드 기록과 일치하며 현재 package/lock/app/plugin/patch 변경0을 확인했다.
+- 기존 사용자 기기 대신 새 가상 기기만 사용했다. 검사 후 시험 앱·가상 기기·해당 adb reverse·Metro·수신자를 종료하고8082/48591/48592 포트 반환을 확인했다. 새 시험 기기는 꺼진 상태로 남겼으며 기존 기기 데이터는 건드리지 않았다. 기존8개 Git 작업 공간의 HEAD/index/diff/변경 파일 해시는 일치했다.
+- 증빙: `/private/tmp/scrum168-stage5-20261114-xsat432n/`의 각 명령 로그·JSON, `android-build-final-results.json`, `ios-device.json`, OS별 `*-receiver.log`/`*.result.json`, PASS 화면, `runtime-cleanup.json`, `stage5-result.json`. 재현 스크립트·빌드 산출물은 저장소에 넣지 않았다.
+
+**5단계 완료 지점:** 계획한 전체 로컬 검사와 recovery30개 통과. **다음:** 6단계 Astra 로컬 리뷰·문서 인계·최종 보존 대조. **차단:** 없음. 원격CI·GitHub 리뷰·PR·병합·Jira 변경은 수행하지 않았다.
 
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
