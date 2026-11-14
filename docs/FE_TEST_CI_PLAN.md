@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~2단계 계약·기준선 확인과 AC별 검증 사례 구체화를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~3단계 계약·기준선 확인과 대표 계약 연결 테스트를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -160,6 +160,17 @@ FE `41875136bfb4c3569f9459293013b9f01d317ec0`, BE `1e66ddb895789bbaf72c21e3b7644
 - 증빙: `/private/tmp/scrum168-stage2-20261114-uq603ya4/`의 코드 해시·테스트 참조 검증·작업 공간 스냅샷·최종 결과. 저장소에는 이 요약만 남긴다.
 
 **2단계 완료 지점:** AC별 재사용 증거와 계약3개·보안2개 추가 사례 확정. **다음:** 3단계 계약 연결 테스트 구현. **차단:** 없음. 사용자의 후속 지시에 따라 단계별 검증을 통과하면 자동으로 다음 단계로 진행하고, 전체 구현·검증·로컬 리뷰 후 보고한다. push·PR·병합·Jira 변경은 별도 요청 범위다.
+
+
+### SCRUM-168 3단계 — 정상 계약 연결 테스트 · 2026-11-14
+
+- [response.integration.test.ts](../src/api/response.integration.test.ts)에2단계 C1~C3를 구현했다. 로그인 email/password→AccountView→me→0바이트 logout204→CSRF의6회 요청, 대화 시작201·429에서 업무 clientRequestId와 서버 추적ID 구분·오류본문/헤더ID 일치·Retry-After·최종 현재 문맥 반영을 확인한다. 예상 요청 목록으로 자동 재전송·Location 추적·추가 발급 부재를 검증한다.
+- 기존 csrf fixture에 선택 token 인자를 추가했으며 기본값은 유지했다. 제품 코드·의존성·CI·네이티브 소스는 변경하지 않았다. 기존 구현에서 신규 테스트가 처음부터 통과했으므로 제품 결함의 RED→GREEN 수정으로 기록하지 않는다. 실제 BE·OS 쿠키·실제 화면/store 검증과는 구분한다.
+- Node24.20.0에서 `npm test -- --runTestsByPath src/api/response.integration.test.ts`: **1 suite/16 tests** 통과(기존13+신규3). 별도 client/authTransition/requestBody/response/binary/oauth/authContext/recovery/recovery.integration/csrfRecovery/csrfFailure 회귀: **11 suites/460 tests** 통과. `npm run lint`, `npm run typecheck`, `git diff --check` 통과.
+- 독립 정적 코드 리뷰에서 수정이 필요한 지적은 없었다. 테스트 실행 결과와 별도로 기록한다.
+- 증빙: `/private/tmp/scrum168-stage3-20261114-iskk5f9r/`의 `contract-integration`, `api-regression`, `lint`, `typecheck` 로그·JSON. 전체 Jest·native runtime은5단계에서 검증한다.
+
+**3단계 완료 지점:** C1~C3와 관련 회귀 통과. **다음:** 4단계 실제 DTO별 민감정보 비복사 검사. **차단:** 없음.
 
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
