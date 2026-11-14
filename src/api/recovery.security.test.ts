@@ -6,16 +6,23 @@ import { parseApiResponse } from './response';
 
 const config = { appEnv: 'test', apiMode: 'real', apiBaseUrl: 'https://api.example.invalid/api/v1' };
 const requestId = '22222222-2222-4222-8222-222222222222';
-const secrets = { password: 'synthetic-password', pin: '0012', token: 'synthetic-csrf', session: 'synthetic-session' };
+const challengeId = '88888888-8888-4888-8888-888888888888';
+const secrets = {
+  password: 'synthetic-password', pin: '0012', token: 'synthetic-csrf', session: 'synthetic-session',
+  code: '000123', verificationToken: `${challengeId}.${'A'.repeat(43)}`,
+};
 const outputs = ['log', 'info', 'warn', 'error', 'debug'] as const;
 const storageNames = ['localStorage', 'sessionStorage'] as const;
 const writes = jest.fn();
 let storageDescriptors: (PropertyDescriptor | undefined)[];
 
 function json(body: unknown, status = 200, headers: Record<string, string> = {}) {
-  return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json', ...headers } });
+  return new Response(JSON.stringify(body), { status, headers: {
+    'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-Request-ID': requestId, ...headers,
+  } });
 }
 function csrf() { return json({ headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: secrets.token }); }
+// 서버가 민감값을 잘못 돌려준 상황의 방어 fixture다. 정상 오류 계약의 예시가 아니다.
 function error(code: string) {
   return { code, message: secrets.password, requestId, fields: [{ field: 'pin', reason: secrets.pin }] };
 }
@@ -68,24 +75,107 @@ afterEach(() => {
 // 웹 저장 API 관측은 아래 JS 경로만 검증한다. RN 전체 저장소·OS 쿠키 저장의 증거가 아니다.
 describe('SCRUM-167 연결 경로의 민감정보 비복사', () => {
   it('성공 응답까지 처리해도 자격 증명은 요청 본문·CSRF 헤더에만 전송한다', async () => {
-    const send = jest.fn<ApiFetch>(async (url) => url.endsWith('/auth/csrf') ? csrf() : json(
-      { data: { accepted: true } }, 200, { 'Set-Cookie': `SESSION=${secrets.session}; HttpOnly` },
-    ));
+    const account = {
+      accountId: '11111111-1111-4111-8111-111111111111', email: 'guardian@example.com',
+      childId: null, hasPin: false, guardianUnlockedUntil: null,
+    };
+    const loginResponse = json({ data: account }, 200, { 'Set-Cookie': `JSESSIONID=${secrets.session}; HttpOnly` });
+    const read = jest.spyOn(loginResponse, 'text');
+    const send = jest.fn<ApiFetch>(async (url) => url.endsWith('/auth/csrf') ? csrf() : loginResponse);
     const api = client(send);
-    // 공통 운반 경계 시험이며 endpoint DTO의 허용 필드 검사가 아니다.
-    const value = { password: secrets.password, pin: secrets.pin };
+    // 확정 DTO를 사용하는 공통 운반 시험이다. 전체 인증 전환·갱신은 계약 연결 C1에서 검증한다.
+    const value = { email: 'guardian@example.com', password: secrets.password };
     const prepared = prepareRequestBody({ kind: 'json', value });
     if (!prepared.ok) throw new Error('Expected prepared body');
     const received = response(await api.request({ method: 'POST', path: '/auth/login', ...prepared.value }));
     const parsed = await parseApiResponse(received.response, { kind: 'json', statuses: [200] });
     const decision = classifyRecovery(parsed, 'login');
-    expect(decision).toMatchObject({ kind: 'none', result: { kind: 'json', data: { accepted: true } } });
+    expect(decision).toMatchObject({ kind: 'none', result: { kind: 'json', data: account } });
+    expect(parsed.meta.headers).toEqual({ requestId, location: null, retryAfter: null, contentType: 'application/json' });
+    expect(JSON.stringify(decision)).not.toContain(secrets.session);
+    expect(read).toHaveBeenCalledTimes(1);
     const apply = jest.fn<() => undefined>();
     expect(api.commitIfCurrent(received.context, apply)).toBe(true);
     expect(apply).toHaveBeenCalledTimes(1);
     expect(send.mock.calls[1][1].body).toBe(JSON.stringify(value));
     expect(new Headers(send.mock.calls[1][1].headers).get('X-XSRF-TOKEN')).toBe(secrets.token);
     checkRequests(send, ['/auth/csrf', '/auth/login']);
+  });
+
+  it('PIN 해제 오류를 전달하면서 PIN을 URL·로그·저장소로 복사하지 않는다', async () => {
+    const expected = { code: 'PIN_INVALID', message: '보호자 PIN이 일치하지 않습니다.', requestId, fields: [] };
+    const pinResponse = json({ error: expected }, 400);
+    const read = jest.spyOn(pinResponse, 'text');
+    const send = jest.fn<ApiFetch>(async (url) => url.endsWith('/auth/csrf') ? csrf() : pinResponse);
+    const api = client(send);
+    const prepared = prepareRequestBody({ kind: 'json', value: { pin: secrets.pin } });
+    if (!prepared.ok) throw new Error('Expected PIN body');
+    const received = response(await api.request({ method: 'POST', path: '/guardian/unlock', ...prepared.value }));
+    const parsed = await parseApiResponse(received.response, { kind: 'json', statuses: [200] });
+    const decision = classifyRecovery(parsed, 'general');
+    expect(decision).toMatchObject({ kind: 'pin_invalid', result: {
+      kind: 'http_error', error: expected, meta: { status: 400, headers: { requestId } },
+    } });
+    expect(read).toHaveBeenCalledTimes(1);
+    const apply = jest.fn<(result: typeof decision) => undefined>();
+    expect(api.commitIfCurrent(received.context, () => apply(decision))).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith(decision);
+    expect(api.isCurrentContext(received.context)).toBe(true);
+    expect(send.mock.calls[1][1]).toMatchObject({ method: 'POST', body: '{"pin":"0012"}' });
+    expect(new Headers(send.mock.calls[1][1].headers).get('X-XSRF-TOKEN')).toBe(secrets.token);
+    checkRequests(send, ['/auth/csrf', '/guardian/unlock']);
+  });
+
+  it('인증번호 검증과 가입에서 번호·검증 토큰을 허용 본문 외부로 복사하지 않는다', async () => {
+    const grant = { verificationToken: secrets.verificationToken, tokenExpiresAt: '2026-09-30T10:15:00+09:00' };
+    const accountId = '11111111-1111-4111-8111-111111111111';
+    // 생성 리소스 식별 URI를 관측할 뿐 이 주소의 GET 지원이나 자동 이동을 가정하지 않는다.
+    const location = `/api/v1/accounts/${accountId}`;
+    const verifyResponse = json({ data: grant });
+    const signupResponse = json({ data: { accountId } }, 201, { Location: location });
+    const verifyRead = jest.spyOn(verifyResponse, 'text');
+    const signupRead = jest.spyOn(signupResponse, 'text');
+    const send = jest.fn<ApiFetch>()
+      .mockResolvedValueOnce(csrf())
+      .mockResolvedValueOnce(verifyResponse)
+      .mockResolvedValueOnce(signupResponse);
+    const api = client(send);
+    const verificationBody = prepareRequestBody({ kind: 'json', value: { challengeId, code: secrets.code } });
+    if (!verificationBody.ok) throw new Error('Expected verification body');
+    const verification = response(await api.request({ method: 'POST', path: '/auth/email-verifications/verify', ...verificationBody.value }));
+    const verified = await parseApiResponse(verification.response, { kind: 'json', statuses: [200] });
+    expect(classifyRecovery(verified, 'general').kind).toBe('none');
+    if (verified.kind !== 'json') throw new Error('Expected verification JSON');
+    const parsedGrant = verified.data as typeof grant;
+    expect(parsedGrant).toEqual(grant);
+    const receiveGrant = jest.fn<(value: typeof grant) => undefined>();
+    expect(api.commitIfCurrent(verification.context, () => receiveGrant(parsedGrant))).toBe(true);
+    expect(receiveGrant).toHaveBeenCalledTimes(1);
+    expect(receiveGrant).toHaveBeenCalledWith(grant);
+
+    const signupBody = prepareRequestBody({ kind: 'json', value: {
+      verificationToken: parsedGrant.verificationToken, password: secrets.password,
+    } });
+    if (!signupBody.ok) throw new Error('Expected signup body');
+    const signup = response(await api.request({ method: 'POST', path: '/auth/signup', ...signupBody.value }));
+    const signedUp = await parseApiResponse(signup.response, { kind: 'json', statuses: [201] });
+    const decision = classifyRecovery(signedUp, 'general');
+    expect(decision).toMatchObject({ kind: 'none', result: {
+      kind: 'json', data: { accountId }, meta: { status: 201, headers: { requestId, location } },
+    } });
+    const apply = jest.fn<(result: typeof decision) => undefined>();
+    expect(api.commitIfCurrent(signup.context, () => apply(decision))).toBe(true);
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(apply).toHaveBeenCalledWith(decision);
+    expect(verifyRead).toHaveBeenCalledTimes(1);
+    expect(signupRead).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls[1][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ challengeId, code: '000123' }) });
+    expect(send.mock.calls[2][1]).toMatchObject({ method: 'POST', body: JSON.stringify({ verificationToken: grant.verificationToken, password: secrets.password }) });
+    for (const [, init] of send.mock.calls.slice(1)) {
+      expect(new Headers(init.headers).get('X-XSRF-TOKEN')).toBe(secrets.token);
+    }
+    checkRequests(send, ['/auth/csrf', '/auth/email-verifications/verify', '/auth/signup']);
   });
 
   it('오류 원문·fields·requestId를 메모리에 보존하면서 로그·저장소·추가 URL로 복사하지 않는다', async () => {
@@ -158,7 +248,7 @@ describe('SCRUM-167 연결 경로의 민감정보 비복사', () => {
     } else {
       const parsed = await parseApiResponse(response(received).response, { kind: 'json', statuses: [200] });
       expect(parsed).toEqual({ kind: 'body_read_error', reason: 'read_failed', meta: {
-        status: 200, headers: { requestId: null, location: null, retryAfter: null, contentType: 'application/json' },
+        status: 200, headers: { requestId, location: null, retryAfter: null, contentType: 'application/json' },
       } });
       expect(classifyRecovery(parsed, 'general').kind).toBe('unclassified');
     }
