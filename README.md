@@ -349,6 +349,33 @@ iOS의 단절 시험은 전체 Content-Length로 잘림을 명확하게 만듭�
 이 검사는 에뮬레이터/시뮬레이터의 HTTP loopback 검사입니다. 운영 HTTPS·실기기·BE·OAuth callback,
 확정 음성 codec/크기/TTL 검증과 원격 PR CI는 별도로 수행해야 합니다.
 
+### 공통 API 계약·민감정보 회귀
+
+[계약 연결 테스트](src/api/response.integration.test.ts)는 확정 DTO의 로그인→me→0바이트 로그아웃과 CSRF 갱신,
+대화 시작201·429의 업무 `clientRequestId`와 서버 추적 `requestId`를 구분합니다.
+[보안 연결 테스트](src/api/recovery.security.test.ts)는 실제 DTO의 비밀번호·PIN·인증번호·검증 토큰과
+CSRF/세션의 허용 운반을 확인하고, 해당 JS 경로가 URL·콘솔·웹 storage로 복사하지 않는지 검사합니다.
+필요한 메모리 보유는 허용하며 웹 storage spy를 RN/OS 저장소 전체의 증거로 해석하지 않습니다.
+두 파일은 기존 `npm test`와 PR의 `js-quality`에 포함되며 별도 CI 선택자를 추가할 필요가 없습니다.
+
+인증 문맥·복구의 네이티브 회귀는 기존 receiver와 Metro 명령을 사용하되 bundle을
+`scripts/native-session/recovery.bundle`로 지정합니다. **`EXPO_PUBLIC_NATIVE_PROBE_CASE` 없이**
+각 OS의15개를 모두 실행하고, OS별 새 receiver 로그에서 각 사례가 정확히 한 번씩 통과했는지 확인합니다.
+필수 `prepared/result/counts/pairs/cleanupAbsent`, 실제 요청 횟수, 미결 응답·대기자0, cleanup도 모두 통과해야 합니다.
+최초 bundle 생성은 개발 클라이언트 연결보다 오래 걸릴 수 있으므로 bundle200 준비 후 개발 링크를 여는 것이 좋습니다.
+
+```text
+http://127.0.0.1:8082/scripts/native-session/recovery.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true
+```
+
+iOS는 `platform=ios`로 바꿉니다. 전체 URL을 percent-encode해 위 development-client scheme의 `url`에 전달합니다.
+이 probe의 `167-6`은 기존 합성 프로토콜 식별자로 유지하며 새 DTO 계약의 실제 서버 검증으로 재명명하지 않습니다.
+일반 앱에서 probe를 import하지 않으며 기존 사용자 기기 데이터 대신 별도 시험 기기를 사용할 수 있습니다.
+별도 시험 기기는 검사 후 앱·기기·해당 reverse·Metro·receiver를 종료해 정리합니다.
+2026-11-14 SCRUM-168에서는 Jest709개·Swift55개·양OS recovery30개를 통과했습니다.
+Android는 새 격리 빌드, iOS는 SHA와 native 입력 동등성을 확인한 기존57.0.33 앱을 재사용했습니다.
+실제 BE/운영 환경·화면/store 연결 및 원격CI 완료와 구분하며 상세 근거는 [테스트·CI 계획](docs/FE_TEST_CI_PLAN.md)에 있습니다.
+
 ### 로그인·로그아웃의 CSRF 갱신
 
 125 호출부는 인증 상태를 바꾸는 POST에 `authTransition(request, classify)`를 사용합니다.

@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~5단계 계약·보안 테스트 보강과 로컬·양OS 회귀 검증을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~6단계 계약·보안 테스트 보강, 로컬·양OS 회귀, 최종 로컬 리뷰·인계를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 PR·원격CI·GitHub 리뷰와 별도 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -213,6 +213,17 @@ iOS 최초 개발 클라이언트 연결은 probe 시작 전에 실패했다(수
 - 증빙: `/private/tmp/scrum168-stage5-20261114-xsat432n/`의 각 명령 로그·JSON, `android-build-final-results.json`, `ios-device.json`, OS별 `*-receiver.log`/`*.result.json`, PASS 화면, `runtime-cleanup.json`, `stage5-result.json`. 재현 스크립트·빌드 산출물은 저장소에 넣지 않았다.
 
 **5단계 완료 지점:** 계획한 전체 로컬 검사와 recovery30개 통과. **다음:** 6단계 Astra 로컬 리뷰·문서 인계·최종 보존 대조. **차단:** 없음. 원격CI·GitHub 리뷰·PR·병합·Jira 변경은 수행하지 않았다.
+
+
+### SCRUM-168 6단계 — 최종 로컬 리뷰·인계 · 2026-11-14
+
+- Astra 독립 로컬 리뷰에서 코드의 Critical/Important 지적0건이었다. 고정 BE OpenAPI·실제 공통 API와 신규5개 테스트의 실행 도달·요청 수·DTO를 대조하고, 저장된 Jest/native 증거도 확인했다. 리뷰어가 테스트를 다시 실행한 것은 아니다. 문서 상단에 이미 끝난 계약·보안 보강을 남은 일로 표시한 Minor1건은 이번 최종 상태 갱신으로 정정했다.
+- 최종 변경은 `src/api/response.integration.test.ts`, `src/api/recovery.security.test.ts`, 이 문서, `README.md`의4개 파일이다. 새 테스트5개와 기존 보안 fixture 보강·증거 매핑·재현 설명을 남겼다. 제품 구현의 새로운 결함은 재현되지 않아 client/csrf/parser/recovery·의존성·CI·native 코드를 수정하지 않았다.
+- README에 신규 테스트의 기존 CI 포함과 recovery15개/OS 재현·합격 기준·증거 한계를 추가했다. 코드 변경 후 최신 검증은3~5단계의 lint/typecheck·Jest709·환경14·workflow7·양OS export·Swift55·Android 빌드·native30 결과다. 이후 변경은 문서뿐이므로 같은 테스트를 이유 없이 재실행하지 않았다. 테스트 제목41개 참조·신규 제목5개·파일 링크·diff 공백 오류를 대조했다.
+- 부모AC1~4의 기존 회귀와 대표 정상 계약 연결, AC5의 실제 DTO/오류/예외 비복사를 로컬 범위에서 확인했다. 계정 정리173·실제 화면/store174·OAuth126·실제 서버129의 후속 책임을 유지하며 부모123의 전체 완료를 선언하지 않는다. 129 완료는168의 새 선행이 아니다.
+- 기본 checkout의 변경10개·번역 worktree의 변경7개를 포함한 기존8개 작업 공간을 보존했고, SCRUM-168 관련 파일만 같은 키의 단계별 커밋으로 저장했다. author/committer는 youngjun1227이며 공동 작성자 표기는 없다.
+
+**최종 로컬 완료:** 승인된1~6단계. **다음 한 가지:** 사용자 요청 후 development 대상 PR·원격CI·GitHub 코드 리뷰. **남은 외부 상태:** branch 미push, PR 미생성, Jira168 해야 할 일·부모123 진행 중 유지. 병합·Jira 변경은 별도 요청 범위다. 로컬 구현 완료와 원격/실서버 완료를 구분한다.
 
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
