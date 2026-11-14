@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
-작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)은 development 병합·Jira 완료이며, 현재 SCRUM-167은 최종 로컬 리뷰·CI 및 Expo 57.0.33 호환성 보완·iOS 추가 네이티브 검증까지 완료했다.** FE 출발점은 `da9493fb`, 부모123은 진행 중이다. 167의 원격 CI/리뷰·병합과 후행168·실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
+상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1단계 계약·기준선 확인을 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 계약·보안 연결 보강과 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-167](https://dodamdodam.atlassian.net/browse/SCRUM-167)의 오류·인증 만료·복구 정책이다.** 아래 167의 기준을 적용하고, 159~166 기록은 당시 실행 이력으로 보존한다. 단계별 결과를 보고하고 사용자 확인 후 다음 단계로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
+**현재 작업 대상은 [SCRUM-168](https://dodamdodam.atlassian.net/browse/SCRUM-168)의 계약 테스트·민감정보 비저장 확인이다.** 아래168의 기준을 적용하고, 159~167 기록은 당시 실행 이력으로 보존한다. 단계별 결과를 보고하고 사용자 확인 후 다음 단계로 진행한다. 부모123과 실제 서버129의 완료와 구분한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,76 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-168 1단계 — 작업 공간·계약·기준선 확인 · 2026-11-14
+
+사용자가 승인한 6단계 계획 중 **1단계만 완료**했다. 이번 변경은 착수 기록이며 제품 코드·테스트·의존성·CI·네이티브 설정은 변경하지 않았다. 2단계 AC별 기존 증거 매핑과 신규 테스트 작성은 아직 시작하지 않았다.
+
+#### 출발점과 보존
+
+- 작업 공간: `/Users/youngjun/.codex/worktrees/scrum-168-contract-security/frontend`, branch `feature/SCRUM-168-contract-security`.
+- FE 출발점: development [`41875136bfb4c3569f9459293013b9f01d317ec0`](https://github.com/DodamDodam-Capstone/frontend/commit/41875136bfb4c3569f9459293013b9f01d317ec0). [SCRUM-167 PR #36](https://github.com/DodamDodam-Capstone/frontend/pull/36)의 2026-11-13 15:00:52 KST squash 병합 커밋이다. GitHub branch SHA와 fetch 후 `origin/development`의 일치를 확인하고 `--no-track`으로 새 브랜치를 만들었다. 공유 이력 재작성이나 기존 development checkout의 pull은 하지 않았다.
+- BE 기준: development [`1e66ddb895789bbaf72c21e3b76441bce251aa61`](https://github.com/DodamDodam-Capstone/backend/commit/1e66ddb895789bbaf72c21e3b76441bce251aa61). 아래 계약 링크는 이 SHA에 고정한다.
+- Jira [SCRUM-168](https://dodamdodam.atlassian.net/browse/SCRUM-168): 계획123-S4, 담당 고영준, 해야 할 일. 선행121·165·166·167은 완료, 부모123은 진행 중이다. 현재 스프린트 종료는 **2026-11-17 18:00 KST**이며 과거11/3 목표와 구분한다. Jira 상태·스프린트·댓글은 변경하지 않았다.
+- 원래 checkout의 변경10개와 번역 worktree의 변경7개를 포함해 기존8개 작업 공간의 HEAD·브랜치·index 항목·diff·미커밋 파일 SHA-256을 전후 대조해 보존했다. 없어져 prunable로 표시된 과거 임시 worktree는 정리하지 않았다. 원래 경로의 `AGENTS.md`를 적용하며 새 worktree에 하위 AGENTS는 없다.
+
+#### 적용 계약과 책임 경계
+
+API 계약 **v3.1**, OpenAPI 문법 `3.0.3`과 `info.version: 3.1.0`을 구분한다. Jira가 참조하는 원문 공통 계약v0.4는 앞선 작업에서 출처로 기록한 자료이며 원문 세부 절 직접 대조를 수행했다고 주장하지 않는다. 이번에는 현재 게시된 다음 계약의 파일·절을 적용한다.
+
+| 고정된 파일·절 | SCRUM-168 적용 내용 |
+| --- | --- |
+| [공통 §3·3.1·3.2·5](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/api/01-common.md) | 쿠키·POST CSRF·갱신, envelope와 예외, no-store, 오류 정보, 서버 추적 ID와 업무 ID, 민감정보 비기록 |
+| [인증 §4.2~4.4·6.1·6.3~6.7](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/api/02-auth.md) | 인증번호·검증 토큰·가입·로그인의 실제 DTO, CSRF 발급, 로그인·로그아웃 갱신, logout204 |
+| [보호자 §4.8·6.12~6.13](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/api/04-guardian.md) | PIN 본문·앞자리0, PIN 오류와 세션 만료 구분, lock0바이트 |
+| [대화 §4.10·7.1·7.3·7.7](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/api/06-conversations.md) | clientRequestId JSON 운반, 시작201/200·429, resume/end0바이트와 명시적 종료 재확인 |
+| [오류·복구 §9·미정 값 §10](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/api/08-errors-and-validation.md) / [OpenAPI paths·responses·schemas](https://github.com/DodamDodam-Capstone/backend/blob/1e66ddb895789bbaf72c21e3b76441bce251aa61/docs/p0/Integrated_OpenAPI.yaml) | endpoint별 HTTP/code·필수 필드·헤더, Retry-After, 미확정 값의 경계 |
+
+- 정상 계약 fixture, 공통 운반 fixture, 비정상 응답 방어 fixture를 구분한다. 정상 오류의 `X-Request-ID`와 `error.requestId`는 같은 서버 UUID이며 업무 `clientRequestId`와 다르다. 시작201과 같은 endpoint의429에서 요청 준비→client→파서→복구 분류를 연결한다. 서버의 실제 멱등성 검증이나 재시도 스케줄러 구현으로 확대하지 않는다.
+- 비밀번호·PIN·인증번호·검증 토큰은 해당 DTO의 본문, CSRF는 전용 헤더, 세션은 OS 쿠키 경로를 사용한다. 세션을 요청 DTO에 넣지 않는다. 공통 계층이 URL·로그·별도 영구 저장소·진단 산출물로 복사하지 않는지 검사하며 필요한 메모리 보유와 원문 오류 전달 계약은 유지한다. 일반 query는 그대로 전달되는 API이므로 모든 민감 query 자동 차단을 보장하지 않는다.
+- 현재 테스트에서 다루는 인증번호·검증 토큰의 운반 검증도 재사용한다. 다섯 민감값마다 실제 실행·요청 횟수·결과 도달을 함께 확인한다. 웹 storage spy는 RN 전체 저장소 안전성의 증거가 아니다. 진단은 직렬화·전송 전 허용 필드 추출과 수신 후 검사를 유지한다.
+- 후속 계정 store173·화면 연결174·실제 서버129·OAuth 실제 복귀 및 운영 쿠키/CORS 검증은 별도 책임이다. D13/D14·D17 미확정 운영값을 fixture 정책으로 만들지 않는다. 기존 클라이언트·파서·복구 API는 재사용하고 실제 결함이 확인될 때만 제품 코드를 최소 수정한다.
+
+#### 승인된 실행 순서와 중간 지점
+
+| 단계 | 수행 범위 | 종료 기준 |
+| --- | --- | --- |
+|1 작업 공간·계약 | 새 작업 공간, 기준 SHA·명세·환경, 기존 변경 보존, 고정 설치와 기본 검사 | 아래 이번 실행 결과와 보존 대조 확인. 제품 코드 미변경 |
+|2 AC별 증거 매핑 | 부모AC1~5 → 기존 테스트 이름·검증 경계 → 누락·후속 책임 | 추가 테스트·정상/방어 fixture·기대 결과 확정 |
+|3 계약 연결 보강 | 로그인/조회/로그아웃, 시작201·429의 업무/추적 ID, 기존 늦은 응답·CSRF 복구 재사용 | 실제 요청·파싱·분류·최종 반영과 횟수 확인, 관련 회귀 통과 |
+|4 민감정보 비복사 | 확정 DTO별 다섯 민감값과 CSRF, URL·로그·연결된 저장 경로·보고서 | 허용 운반과 금지 복사를 구분하고 미실행으로 인한 잘못된 통과 방지 |
+|5 로컬·네이티브·CI 준비 | 전체 Jest·환경·export, 기존 recovery15개×양OS, 변경 영향에 따른 확대 | 누락·중복·cleanup 실패 없이 최신 코드/환경에 결과 귀속 |
+|6 리뷰·인계 | Astra 로컬 리뷰, 이 문서·필요한 README, 최종diff·보존 확인 | 로컬 PR 제출 준비. 요청 후 원격CI·GitHub 리뷰, 별도 요청한 병합/Jira 확인 |
+
+2~3시간 회차마다 완료 지점·검증·커밋·다음 한 가지·차단 사항을 보고하고 단계별 사용자 확인 후 이어간다. 단계별 실제 변경과 검증이 있는 경우 SCRUM-168 키로 저장하며 준비만 한 경우 빈 커밋을 만들지 않는다. 이번 로컬 착수 승인은 push·PR 생성·병합·Jira 변경을 포함하지 않는다.
+
+기본 네이티브 실행은 기존 recovery15개를 **각 OS에서 전부** 실행한다. 선택한 일부 사례는 전체 기대 목록과 비교하면 FAIL이므로 판정을 완화하지 않는다. 기존167 합성 프로토콜 실행은 런타임 회귀, 새DTO/ID는 Jest 계약 검증으로 구분한다. 전송·쿠키·취소·인증 수명주기·패치 변경 또는 Jest만으로 판단 불가능한 누출이 발견되면 관련 신규 사례와92개/OS 전체 행렬의 영향 범위를 정한다. 새 진단 행동을 추가할 때만 probe·receiver·report의 stage/허용필드/필수check/기대목록/cleanup을 함께 보강한다. 기존167 결과를168 신규 행동 검증으로 재명명하지 않는다.
+
+#### 이번 실행 결과
+
+로컬 환경은 macOS **27.2.1 (26B131), arm64**, Node **24.20.0**, npm **11.19.0**이다. 새 작업 공간의 제품/테스트/lockfile은 출발점41875136과 동일하다.
+
+| 명령·확인 | 실제 결과 |
+| --- | --- |
+| `npm ci` | 성공. 967개 설치, Expo57.0.33/core57.0.26의 기존 네이티브4개 파일 패치 확인. lockfile 미변경 |
+| `npx --no-install expo install --check` | 온라인 검사 성공, `Dependencies are up to date` |
+| `npm run lint` | 성공, 오류·경고0 |
+| `npm run typecheck` | 성공 |
+| `npm test` | **26 suites / 704 tests 통과**, snapshot0. 기존 기준선이며168 신규 테스트는 아직 없음 |
+| 기존8개 작업 공간 | HEAD·브랜치·index 항목·diff·변경파일 내용 보존 |
+
+설치 중 감사 요약은 low9·moderate8, high/critical 보고0이며 deprecated 및 allowScripts 미등록 경고가 남아 있다. 이번에 의존성·설치 허용 정책을 변경하거나 `npm audit fix`를 실행하지 않았다. 별도 전체 재감사·취약점 수정 완료로 보고하지 않는다.
+
+`test:env`, 양OS export·Swift 직접 실행·네이티브 빌드·probe·원격CI는 이번1단계에서 실행하지 않았다. 이들은5단계 및 PR 요청 후 검증으로 구분한다. 현재CI가 전체Jest를 실행하고 환경 주입·양OS export·Swift 회귀·양OS 빌드를 수행하는 것은 확인했으며 실제 OS probe 실행은 포함하지 않는다. 과거167의704/Swift55/네이티브92 결과를168 변경 후 통과 증거로 재사용하지 않는다.
+
+증빙: `/private/tmp/scrum168-stage1-20261114-3px9ymgn/`의 `npm-ci.log`, `expo-check.log`, `lint.log`, `typecheck.log`, `jest.log`와 각 명령의 JSON 결과, `preservation-before.json`, `preservation-after.json`, `preservation-result.json`. 로그는 로컬 임시 증빙이며 저장소에는 이 요약만 남긴다.
+
+#### 문서·현재 설정 차이와 다음 작업
+
+CONTRIBUTING·팀/Jira 가이드·README·SECURITY·PR 템플릿·테스트 계획·실제 workflow는 위 FE 출발점에서 확인했다. 팀/Jira 가이드에는 다른 Write 권한자 승인1건 문구가 남아 있다. 반면 원래AGENTS·10/16 결정·README는 최신 GitHub GPT/Codex 리뷰를 요구한다. 11/14 development Ruleset21153783은 승인0, last-push 승인false, 대화 해결, strict 필수검사 `frontend-quality`·`gitmoji-conventional-title`·`jira-issue-key`, squash다. 차이를 기록하고 보호 설정이나 협업 문서를 이 작업에서 변경하지 않는다.
+
+**현재 완료:** 1단계 작업 공간·계약·기존 기준선 확인. **다음 한 가지:** 사용자 확인 후2단계 AC1~5의 테스트별 증거·누락 매핑. **현재 차단:** 없음. 구현·전체SCRUM-168 완료, 원격CI·실서버 성공으로 확대하지 않는다.
+
 
 ### SCRUM-167 1단계 — 작업 공간·계약·API 기준 · 2026-11-04~05
 
