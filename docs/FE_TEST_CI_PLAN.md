@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이다. 1~3단계 구현과 승인된 4단계 전체 검증·Astra 지적 사항 보완은 아래 실행 기록을 따른다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-16 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 공통 UI의 승인된 1~3단계다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-162](https://dodamdodam.atlassian.net/browse/SCRUM-162)의 P0 폰트·색상·로고다.** 사용자는 1~3단계 이후 4단계 전체 검증·Astra 리뷰까지 승인했다. PR·push·병합·Jira 변경은 이번 실행에 포함하지 않는다. 159~168 기록은 당시 이력으로 보존한다.
+**현재 작업 대상은 [SCRUM-163](https://dodamdodam.atlassian.net/browse/SCRUM-163)의 버튼·입력·모달·로딩·오류다.** 사용자는 1~3단계 구현·필요 검증·단계별 로컬 커밋을 승인했다. 4단계 최종 전체 검증·Astra 리뷰, push·PR·병합·Jira 변경과 다음 Subtask는 이번 실행에 포함하지 않는다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,40 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
+
+- 부모122는 진행 중, 163 담당자는 고영준이며 Jira 상태는 해야 할 일이다. 121·123·162의 완료를 확인했다. 164의 전체 초기 화면 조합 검증, 125의 인증 동작, 129의 실제 서버 검증을 포함하지 않는다.
+- 원래 checkout의 clean 상태와 `d73c3be`/원격 development `980dee5`의 동일 tree를 확인했다. 기존 clean development worktree를 `pull --ff-only` 후 원래 폴더에 `feature/SCRUM-163-common-ui`를 분기했다. 7개 타 worktree HEAD/index/diff/미커밋 내용 및159의 10개 보존 파일은 대조 결과 동일하다.
+- 디자인은 [P0](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-1761)의 실제 노드 기준이다. 원본과 엔지니어링 보완 상태를 구분한다. 새 UI 라이브러리·색상 체계·API 정책은 만들지 않는다.
+
+| 컴포넌트·상태 | P0 근거 / 보완 | 표시·동작 / 검증 |
+| --- | --- | --- |
+| Button 기본·보조 | 로그인835:2010/2012, 온보딩835:1900 | 최소60dp, radius20, 20EB. primary 배경#75CC3F/글씨#1F1103은 대비 개선을 사용자가 승인한 변경(원본 글씨#FFFDFA와 구분). 누르기 콜백·이름 확인 |
+| Button 누름·포커스·비활성·로딩 | 원본에 없는 상태는 기존 토큰으로 보완 | 누름 opacity, 진한 포커스 테두리, 비활성 배경border. disabled 또는 loading이면 콜백 차단; loading이면 이름 유지+busy+spinner. 부모가 상태를 갱신하기 전 API 중복 제출 방지는 호출자 책임 |
+| TextField 기본·숨김 입력 | 835:2023/2025, 라벨835:2021/2022 | 최소60dp·radius20·border2·17R, 보이는15EB 라벨, controlled 값/콜백, secureTextEntry. 값 가공·저장·검증 없음 |
+| TextField 포커스·도움말·오류·비활성 | 기존 토큰으로 보완 | 포커스 테두리3, 오류는 문구로도 구분. 오류가 도움말보다 우선하며 포커스 중 유지. disabled 편집/변경 차단 |
+| Dialog 열림·닫힘·키보드 | 이메일 modal835:2943, close835:2946/2947 | maxWidth516·radius40, 유동 높이/스크롤. X/Android back 동일 콜백, 배경 터치 닫힘 없음. 입력 초기/복귀 포커스와 SR 제목 포커스를 구분해 검사 |
+| LoadingIndicator·ErrorMessage | 별도 원본 상태 없음; 기존 토큰 사용 | spinner+호출자 문구, 오류 문구+명시적 재시도 콜백만. 네트워크/타이머/HTTP 분류/자동 재요청 없음 |
+| CommonUiPreview | 개발용 예제, 제품 화면 아님 | 별도 Metro 진입점. 입력→수동 로딩→오류→명시적 재시도, 모달 열기/닫기, 긴 문구·큰 글씨·키보드 확인 |
+
+| 단계 | 범위와 종료 증거 |
+| --- | --- |
+| 1 | 상태표·Button/TextField·RNTL·OS 기본 확인 후 커밋 |
+| 2 | Dialog·초기/복귀 포커스·접근성 배경 분리·닫기·OS 확인 후 커밋 |
+| 3 | LoadingIndicator/ErrorMessage·예제 연결·RNTL·양 OS 예제 번들/실행·문서·커밋 |
+| 4 (미승인) | 최종 전체 회귀·export·필요 검사·Astra 리뷰, 남은 검증 정리 |
+
+- 인터페이스 대조: 1의 Button(ref/disabled/loading)·TextField(ref/controlled)를 2의 Dialog actions/focus 및 3의 예제가 재사용한다. 업무 API와 연결하지 않으므로 인증 문맥·DTO 변경은 없다.
+- 실행 조정: 첫 단계부터 native 기본 동작을 확인하려고 3단계의 분리 예제를 최소 상태로 먼저 만들고 2~3단계에서 확장한다. 일반 App/index에서는 import하지 않는다. 별도 임시 화면을 만들고 버리는 중복을 피한다.
+- 기존 CI의 `npm test`는 인접 `*.test.tsx`를 실행한다. 예제 테스트는 registerRootComponent 진입점이 아닌 컴포넌트를 렌더한다. 일반앱 export만으로 예제 번들 통과를 주장하지 않는다.
+
+### SCRUM-163 1단계 실행 기록
+
+- Button/TextField 테스트부터 실행해 미구현 실패를 확인했다. RNTL14에 없는 구버전 matcher 사용 실패는 설치된 role query의 busy 조건으로 수정했다. 이후 신규9개 테스트·typecheck·lint 통과. `npm test` 전체29 suites/720 tests도 통과했다. 1단계 구현을 저장하되 위 Android 조작·전체 접근성 검증은 미완료로 유지한다.
+- iPad Pro 11(M5), iOS26.5, 가로: 라벨·입력·Tab/Return 입력 간 이동·포커스 테두리·숨김 입력·기본 버튼 실행1회·비활성/busy 상태 확인. 전체 VoiceOver·전체 키보드 접근 모드의 버튼 순회는 별도 미검증이다.
+- Android Pixel Tablet API36 가로 앱 렌더링을 확인했다(2560×1600 캡처; OS stylus 안내가 일부를 덮음). CUA가 raw emulator 창을 앱으로 인식하지 못하므로 실제 키보드/터치 조작 검증은 현재 미완료이며 Jest 결과로 대체하지 않는다.
+- 네이티브 입력11개와 native 보완 소스4개가162 최종 검증 앱과 동일해 해당 앱을 재사용한다. 새 네이티브 빌드 통과로 설명하지 않는다. 로컬 로그/화면은 `/tmp/scrum163-evidence`에 둔다.
 
 ### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
 
