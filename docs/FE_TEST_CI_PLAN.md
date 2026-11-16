@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **SCRUM-165(PR #33)·166(PR #35)·167(PR #36)은 development 병합·Jira 완료이며, SCRUM-168은 전용 작업 공간에서1~6단계 계약·보안 테스트 보강, 로컬·양OS 회귀, 최종 로컬 리뷰·인계를 완료했다.** 168의 FE 출발점은 `41875136`, 부모123은 진행 중이고 Jira168은 해야 할 일이다. 168의 PR·원격CI·GitHub 리뷰와 별도 실제 서버129는 남아 있다. 아래 과거 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이며 1~3단계 실행만 승인됐다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-168](https://dodamdodam.atlassian.net/browse/SCRUM-168)의 계약 테스트·민감정보 비저장 확인이다.** 아래168의 기준을 적용하고, 159~167 기록은 당시 실행 이력으로 보존한다. 후속 사용자 지시에 따라 각 단계의 검증을 통과하면 다음 단계로 이어가고 전체 구현·검증·로컬 리뷰 후 보고한다. 부모123과 실제 서버129의 완료와 구분한다.
+**현재 작업 대상은 [SCRUM-162](https://dodamdodam.atlassian.net/browse/SCRUM-162)의 P0 폰트·색상·로고다.** 사용자는 1~3단계 연속 실행을 승인했고 4단계 전체 검증·Astra 리뷰는 별도 승인 후 진행한다. PR·push·병합·Jira 변경은 이번 실행에 포함하지 않는다. 159~168 기록은 당시 이력으로 보존한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,31 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
+
+- 범위: Figma P0의 NanumSquareRound Regular/Bold/ExtraBold, 확인된 색상, 정적 로고, 후속 모션 참고. 배경 이미지·캐릭터 제작과 실제 스플래시 재생·화면 전환은 제외한다. 공통 UI는163, 화면 조합 검증은164, 실서버는129다.
+- 사용자 요청에 따라 새 worktree 없이 원래 frontend 폴더에서 `feature/SCRUM-162-font-colors-logo`를 생성했다. 기존 development checkout의 clean 상태를 확인하고 `pull --ff-only origin development`로 갱신했다. 출발 HEAD와 재조회한 원격 development는 `3ad2710a9eb2f85abf6dcd2677a350aa0d5db89a`다.
+- 원래159의 HEAD `4dcf760`과 변경10개를 외부 백업 및 stash `ea280dd5bf3c13a7f49ec74dcf45e58bea34a3e5`에 보존하고 파일 해시를 대조했다. 백업: `/Users/youngjun/Documents/dodamdodam-backups/pre-SCRUM-162-20261116-171047`. `before.json`, `ignored-manifest.json`, `RECOVERY.txt`에 복구 기준이 있다. ignored 파일18,663개 대조 후 기존 android/ios를 백업의 `original-generated/`로 이동했다. stash는162에 적용·삭제하지 않는다.
+- 기존 설치 Expo57.0.30과 iOS 생성물의 Expo57.0.29는 이번 출발점과 다르다. 2단계에서 현재 lockfile로 설치하고 양 OS 네이티브를 새로 생성·빌드한다. 과거 앱을 새 폰트의 검증 증거로 재사용하지 않는다.
+
+#### 원본과 품질 판정
+
+- 디자인: [P0](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-1761), [온보딩1](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-1882), [로그인](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005), [스플래쉬_모션](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3764). 조회·원본 확보 기준은2026-11-16이다.
+- 폰트: [네이버 공식 배포](https://hangeul.naver.com/fonts/search?f=nanum), [원본 ZIP](https://hangeul.naver.com/hangeul_static/webfont/zips/nanum-square-round.zip), [OFL1.1 전문](https://help.naver.com/service/30016/contents/18088?osType=PC&lang=ko). 원본 TTF의 파일명/PostScript명은 `NanumSquareRoundR/B/EB`, 실제 weight400/700/800이다. 원본 변환·서브셋·임의 굵기를 적용하지 않는다.
+- 폰트 파일명과 PS명이 같으므로 expo-font의 `fonts` 배열에 TTF3개를 등록하고 같은 `fontFamily`를 사용한다. 별도 `fontWeight`와 런타임 폰트 로딩·스플래시 제어를 추가하지 않는다. 실제 등록·렌더링은2단계에서 확인한다.
+- 로고 노드835:3770~3774는 심볼214×182, 글자80/83/79/98×100이다. 일반 노드 export5개는 모두 alpha255이며 배경색이 합쳐져 있어 제품 에셋으로 사용하지 않는다.
+- **계획 보완:** 디자인 코드가 참조하는 투명 PNG 원본3개(각1448×1086)를 변경 없이 보관하고, 원본의 잘림 영역을 RN View5개에서 표시한다. 심볼·글자1·2는 같은 원본, 글자3·4는 각 노드에 지정된 별도 원본을 사용한다. 다섯 파일을 다시 그리거나 배경 제거·확대 복원하지 않는다. 원본 차이를 동일 파일로 합치지 않는다.
+- Figma 내부 이미지 표시 크기는566×424.5이므로 원본 픽셀 비율은약2.558이다. 최종 로고 프레임332×274 기준으로332dp@2x와280dp@3x가 원본 해상도 안에 든다. 기본 폭280dp로 구현하고140/280dp 및 태블릿332dp를 대조한다. 임의 확대의 선명도는 보장하지 않는다. 원본의 미세한 가장자리 흔적은 수정하지 않는다.
+
+#### 실행·검증·중단 기준
+
+1. **보존·자료 확정:** 현재 단계. 백업·stash 내용, 출발 SHA, 공식 폰트·라이선스와 로고 투명 원본 확보를 확인했다. 원본과 조사 자료는 백업의 `sources/`에도 보존한다. 사용자 변경이나 FF 충돌을 발견하면 강제 정리 없이 보고한다.
+2. **폰트·색상:** `assets/fonts/`, `src/theme/tokens.ts`, 기존 `App.tsx` 최소 사용처, 개발 전용 `src/examples/DesignAssetsPreview.tsx`와 진단 진입점을 구성한다. lint/typecheck/관련 테스트 및 새 Android/iOS 빌드·실행으로 폰트3종의 등록·한글·행간·잘림을 확인한다. 단순 색상 상수 복제 테스트는 추가하지 않는다.
+3. **정적 로고:** `assets/images/logo/`, `src/components/Logo.tsx`에서 원본 좌표와 최종 정지 상태를 보존한다. 접근성 중복 안내 방지, 실제OS의 크기·비율·배경 경계와 이미지 로딩을 확인한다. 캔버스·기준점·등장 시간·scale/translation/easing은 이 문서에 인계하고 재생 모듈은 추가하지 않는다.
+4. **미승인:** 최종 전체검사·양OS export·CI 대상 확인·Astra 리뷰. 1~3단계 결과 보고 뒤 별도 승인한다. PR 생성/push/병합/Jira 수정은 별도 요청 사항이다.
+
+각 구현 단계의 필요한 검증 후 SCRUM-162 키·Gitmoji·Conventional 형식으로 커밋한다. author/committer는 현재 youngjun1227이며 coauthor를 추가하지 않는다. 시험 결과에는 명령·환경·실행 여부를 구분한다. 시뮬레이터/에뮬레이터 검증을 실기기·원격CI·BE 연동으로 설명하지 않는다.
 
 ### SCRUM-168 1단계 — 작업 공간·계약·기준선 확인 · 2026-11-14
 
@@ -947,7 +972,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 | Subtask | 테스트와 확인 항목 |
 | --- | --- |
-| [162](https://dodamdodam.atlassian.net/browse/SCRUM-162) 에셋 | 초기 화면에 쓰는 원본 폰트·색상·캐릭터의 출처와 적용 결과를 디자인 프레임과 대조한다. 임시 자산을 원본 완료로 표시하지 않는다. 단순 색상 상수 복제 테스트는 만들지 않는다. |
+| [162](https://dodamdodam.atlassian.net/browse/SCRUM-162) 에셋 | 초기 화면에 쓰는 원본 폰트·색상·로고의 출처와 적용 결과를 디자인 프레임과 대조한다. 임시 자산을 원본 완료로 표시하지 않는다. 단순 색상 상수 복제 테스트는 만들지 않는다. |
 | [163](https://dodamdodam.atlassian.net/browse/SCRUM-163) 공통 UI | 버튼·입력·모달·로딩·오류의 실제 사용 상태를 RNTL로 검사한다. 누름·입력·비활성화·오류 노출 등 사용자 행동과 접근 가능한 이름/라벨을 확인한다. |
 | [164](https://dodamdodam.atlassian.net/browse/SCRUM-164) 최종 대조 | 실제 초기 화면 조합에서 키보드·포커스·라벨과 시각 차이를 Android·iOS로 확인한다. 162·163의 개별 테스트를 다시 작성하지 않는다. |
 
