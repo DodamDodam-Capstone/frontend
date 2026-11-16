@@ -40,7 +40,38 @@ npm run ios
 
 `npm run ios`는 macOS에서 실행합니다. 현재 앱은 iPad에서 가로 전체 화면을 사용하므로
 Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네이티브 빌드·실행을
-검증한 것으로 기록하지 않습니다.
+검증한 것으로 기록하지 않습니다. 기기 실행·화면 확인도 항상 가로 방향으로 진행합니다.
+
+## P0 폰트·색상·로고 확인 — SCRUM-162
+
+P0의 서체·색상은 [`src/theme/tokens.ts`](src/theme/tokens.ts)를 사용합니다.
+나눔스퀘어라운드 원본 TTF 3종과 [라이선스](assets/fonts/LICENSE.txt)를
+`assets/fonts/`에 보관하며 `expo-font` config plugin으로 앱에 내장합니다.
+`plugins/withFontLicense.js`는 같은 라이선스 원문을 Android의
+`assets/licenses/NanumSquareRound-LICENSE.txt`와 iOS 앱 번들의
+`NanumSquareRound-LICENSE.txt`에 함께 넣습니다.
+`fonts.regular/bold/extraBold`에 별도 `fontWeight`를 더하지 않습니다.
+폰트·라이선스 파일이나 내장 설정을 바꾸면 네이티브 폴더의 로컬 변경을 보존한 뒤
+prebuild로 설정을 다시 반영하고 앱을 다시 빌드합니다.
+
+개발용 비교 화면은 [`scripts/design-assets/preview.tsx`](scripts/design-assets/preview.tsx)입니다.
+일반 앱에서 연결하지 않습니다. 개발 클라이언트와 아래 포트의 Metro를 사용하고,
+Android는 `adb reverse tcp:8082 tcp:8082`를 설정합니다.
+
+```bash
+EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082
+```
+
+진단 bundle URL은 `http://127.0.0.1:8082/scripts/design-assets/preview.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`입니다.
+iOS는 `platform=ios`로 바꿉니다. URL 전체를 percent-encode하여
+`exp+dodamdodam://expo-development-client/?url=…`로 엽니다.
+서체별 등록 확인과 한글·영문·숫자·색상을 비교하고, 검사 후 일반 Metro URL로 복귀합니다.
+정적 로고는 [`Logo`](src/components/Logo.tsx)를 사용합니다. 기본 폭은 280dp이며,
+`width`로 같은 비율의 크기를 지정하고 시작 화면에서는 `accessibilityRole="header"`로 사용합니다.
+다섯 조각은 하나의 접근 가능한 이름으로 안내됩니다. `assets/images/logo/`의 투명 원본 3개를
+Figma 좌표로 잘라 표시하며, 원본을 수정하거나 임시 Figma URL을 런타임에서 사용하지 않습니다.
+현재 시작 화면은 정적 최소 사용처입니다. 실제 스플래시 재생·반복·종료 전환과 캐릭터는 구현하지 않았습니다.
+디자인 출처·모션 인계값·해상도 범위·OS별 검증 기록은 [테스트 계획](docs/FE_TEST_CI_PLAN.md)에 있습니다.
 
 ## 공개 환경 설정과 공통 경로 — SCRUM-160
 
