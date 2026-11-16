@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-16 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 공통 UI의 승인된 1~3단계다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 공통 UI의 승인된 1~3단계와 Android 추가 검증이다. 일반 버튼의 포커스 복귀 결함은 미해결이다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -57,9 +57,9 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 ### SCRUM-163 1단계 실행 기록
 
-- Button/TextField 테스트부터 실행해 미구현 실패를 확인했다. RNTL14에 없는 구버전 matcher 사용 실패는 설치된 role query의 busy 조건으로 수정했다. 이후 신규9개 테스트·typecheck·lint 통과. `npm test` 전체29 suites/720 tests도 통과했다. 1단계 구현을 저장하되 위 Android 조작·전체 접근성 검증은 미완료로 유지한다.
+- Button/TextField 테스트부터 실행해 미구현 실패를 확인했다. RNTL14에 없는 구버전 matcher 사용 실패는 설치된 role query의 busy 조건으로 수정했다. 이후 신규9개 테스트·typecheck·lint 통과. `npm test` 전체29 suites/720 tests도 통과했다. 이 시점에는 Android 조작·전체 접근성 검증을 미완료로 남겼으며 후속 Android 결과는 아래11/17 기록에 구분한다.
 - iPad Pro 11(M5), iOS26.5, 가로: 라벨·입력·Tab/Return 입력 간 이동·포커스 테두리·숨김 입력·기본 버튼 실행1회·비활성/busy 상태 확인. 전체 VoiceOver·전체 키보드 접근 모드의 버튼 순회는 별도 미검증이다.
-- 초기 Android 가로 캡처는3단계에서 설치 APK 불일치가 발견돼 최종 증거에서 제외했다. CUA가 raw emulator 창을 앱으로 인식하지 못하므로 실제 키보드/터치 조작 검증은 현재 미완료이며 Jest 결과로 대체하지 않는다.
+- 초기 Android 가로 캡처는3단계에서 설치 APK 불일치가 발견돼 최종 증거에서 제외했다. CUA가 raw emulator 창을 앱으로 인식하지 못해 보류했으며, 이후 사용자 승인으로 아래 ADB 조작 검증을 수행했다. Jest 결과로 대체하지 않는다.
 - 네이티브 입력11개와 native 보완 소스4개가162 최종 산출물과 동일하다. iOS 설치 앱 실행파일도 일치해 재사용했다. Android 설치본은3단계에서 따로 대조/갱신했다. 새 네이티브 빌드 통과로 설명하지 않는다. 로컬 로그/화면은 `/tmp/scrum163-evidence`에 둔다.
 
 ### SCRUM-163 2단계 실행 기록
@@ -69,7 +69,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - native onShow에서 현재 초기 ref(없으면 닫기 버튼)에 입력 포커스를 요청하고, 제목에는 별도의 accessibility focus를 요청한다. 호출자 예제는 배경에 `accessibilityElementsHidden`/`no-hide-descendants`를 적용한다. iOS는 dismiss 완료, Android는 애니메이션 없는 닫힘 반영 다음 frame에 복귀를 요청한다. 재열림/사라진 ref를 확인해 오래된 복귀 요청을 막는다.
 - 미구현 실패 이후 Dialog7개 테스트, lint/typecheck와 `npm test` 전체30 suites/727 tests 통과. RNTL14는 composite/UNSAFE query가 없어 native Modal 경계 이벤트는 host root에 전달한다. ref 테스트는 올바른 대상/시점의 **요청** 증거이며 OS 실제 포커스 보장은 아니다.
 - iPad 가로: 초기 입력 포커스, 가상 값 입력, X 닫기 후 외부 입력 포커스 복귀, 배경 접근성 트리 숨김 확인. 소프트 키보드를 띄워 모달 제목·입력·확인 버튼이 키보드 위에 표시되는 것을 확인했다. `stage2-ios-keyboard.png` 기록.
-- Android의 실제 닫힘/Back/포커스 복귀 및 기본 닫기 버튼에 대한 양 OS 전체 키보드 포커스·VoiceOver/TalkBack 순회는 미검증이다. 도구 제약이 있는 검증을 완료로 표시하지 않는다. 제어 가능한 환경에서 다음 로컬 확인이 필요하다.
+- 이 시점에 보류한 Android 실제 닫힘/Back/입력 포커스 복귀·Tab 이동은 아래11/17에 확인했다. 일반 버튼 자동 복귀는 실패했으며 양 OS 전체 VoiceOver/TalkBack 순회는 여전히 미검증이다.
 
 ### SCRUM-163 3단계 실행 기록
 
@@ -80,7 +80,19 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - iPad 가로에서 로딩→긴 한글 오류→명시적 재시도1회→로딩 전환을 확인했다. 소프트 키보드 위 모달 입력/닫기 확인은2단계 증거다. Dynamic Type `large`→`accessibility-large`에서 버튼·입력·라벨의 확대/줄바꿈을 확인하고 `large`로 복원했다. 확대 상태의 전체 스크롤/긴 오류·모달 끝까지 확인은 CUA `noWindowsAvailable` 오류로 미완료다. VoiceOver 실제 발화/전체 순회와 Jest의 안내 요청 횟수 검증은 구분한다.
 - Android 설치 앱 SHA를 직접 대조하니 초기 설치본은 `faecb421a7dc0217982fc6cf05115a6b0a7f5b1a097555f0976f42049b456f9d`로162 최종 APK와 달랐다. 과거 snapshot에 남은 앱으로 추정하며 초기 Android 화면은 최종 증거에서 제외한다. 최종 APK를 `adb install -r`로 설치하고 설치 경로의 SHA256 `bbb14cb63defbd5f141525ed8ec4dea24df0c60443a29a03860a05f6088d9ae7` 일치를 다시 확인했다. 설치 후 현재 예제의 가로 렌더링·내장 폰트·버튼/입력 표시를 새 캡처 `stage3-android-verified-app.png`에서 확인했다. 새 빌드는 아니다.
 - 네이티브 입력11개는3단계 최종 코드 기준에도 재사용 산출물 입력과 byte 일치한다. `/tmp/scrum163-evidence/native-inputs.json`, `android-installed-sha.txt`, OS별 bundle과 로그에 기록했다.
-- 4단계 최종 검증·Astra 리뷰, PR/push/병합/Jira 변경은 미착수다. Android 실제 터치/키보드/Back/복귀 포커스·양 OS 기본 닫기 버튼의 키보드 포커스·화면 읽기 순회, 확대 상태 전체 스크롤은 아직 완료로 표시하지 않는다. CUA 실행 규칙상 다른 입력 방식은 사용자의 명시적 요청이 필요해 Android ADB 입력 방식 허용 여부를 물었으며 답변 전까지 그 방식은 실행하지 않는다. 1~3단계 구현은 저장하지만 이 필수 기기 검증의 완료나 Subtask 완료를 주장하지 않는다.
+- 4단계 최종 검증·Astra 리뷰, PR/push/병합/Jira 변경은 미착수다. 당시 CUA 제약으로 ADB 입력 승인을 요청했고, 사용자 승인 후 아래 후속 검증을 수행했다. 1~3단계 구현 저장과 Subtask 완료는 구분한다.
+
+### SCRUM-163 Android 추가 검증·수정 — 2026-11-17 KST
+
+- 사용자의 **“ADB로 남은 Android 검증 진행”** 승인에 따라 Pixel Tablet API36 에뮬레이터에서 가로2560×1600으로 시험했다. 설치 APK SHA256은 위162 최종 산출물과 일치한다. 기존 앱에 Metro JS를 반영했으며 새 네이티브 빌드·실기기·원격 CI·실제 BE 검증이 아니다. 증빙 경로는 `/tmp/scrum163-evidence/android-followup`이다.
+- 기본 버튼 실행1회, disabled/loading 버튼 콜백 차단, 가상 문자열 입력·숨김 입력·Return 이동·비활성 입력 차단을 확인했다. ADB Tab/Enter로 버튼 포커스 테두리와 실행을 확인했으며 물리 키보드 연결 시험으로 설명하지 않는다(`02`, `04`~`08`, `21`~`22`).
+- 모달 초기 TextInput 포커스, 배경 접근성 트리 제외, 배경 터치 시 유지, X/Android Back 닫기와 편집 가능한 외부 입력으로 복귀를 확인했다. 모달 내부 Tab 이동 및 Enter 닫기도 확인했다(`09`~`13`, `25`~`26`).
+- **실제 결함 수정:** Android 소프트 키보드 상단은 y864였으나 입력 y833~953·확인 y993~1113이 가려졌다(`28`). Android KeyboardAvoidingView에 `height`를 적용한 뒤 입력 y465~585·확인 y625~745가 키보드 위에 놓이고 실제 입력→확인 터치→닫기→외부 입력 복귀가 통과했다(`30`~`31`). iOS의 `padding`은 유지했다. 렌더러 mock으로 이 기기 회피 동작을 통과 처리하지 않는다.
+- 기본 글자 크기에서 입력값 유지·로딩 중 편집 차단→긴 한글 오류→명시적 재시도1회→로딩 전환을 확인했다(`34`~`37`). `font_scale=2.0`에서는 긴 오류 끝·재시도까지 스크롤 및 실제 재시도1회를 확인했다(`38`~`44`). 확대 모달은 소프트 키보드가 열린 상태로 본문 끝·입력·확인 버튼에 도달하고 닫을 수 있었다(`48`~`50`, `61`~`63`). 로딩으로 비활성화된 외부 입력에는 복귀하지 않으며(`50`), 편집 가능한 입력은 복귀했다(`63`).
+- **알려진 미해결:** 초기 ref 없는 분리 시험에서 키보드(Tab/Enter)로 열면 닫기 버튼에 포커스가 있고 모달 내부 Tab 이동이 가능했다(`55`~`57`). 터치로 열 때 닫기 버튼의 자동 입력 포커스는 없었고(`52`), 닫은 뒤 일반 Button/View 호출자로 자동 복귀하지 않았다(`54`, `58`). TextInput 복귀 성공을 일반 버튼 성공으로 확대하지 않는다. 설치 RN0.86.3의 일반 View focus 명령은 기본 false인 `enableImperativeFocus`에 의존한다. 실험 flag·TV 전용 prop·새 native 모듈을 추가하지 않았으며 버튼 복귀는 SCRUM-163 완료 전에 보완할 항목이다. 임시 분리 진입점은 증빙에 소스를 남기고 저장소에서 제거했다.
+- 시험 후 글자 크기1.0, `show_ime_with_hard_keyboard=0`, `stylus_handwriting_enabled` 미설정 상태를 복원하고 재조회했다(`restored-settings.json`, `64`). Android launcher로 벗어난 `15`~`16`, 첫 Gboard 안내로 입력이 중단된 사례는 앱 기능 통과 증거에서 제외한다.
+- 키보드 수정 후 Dialog/예제 **2 suites/9 tests**, `npm run lint`, `npm run typecheck`, `npm test` 전체 **32 suites/734 tests** 통과. 원격 검사는 실행하지 않았다. 단계별 커밋 이후 이번 수정은 별도 로컬 커밋으로 저장한다.
+- **남은 범위:** 일반 버튼 포커스 복귀 보완, iOS 확대 상태 전체 스크롤·긴 오류/모달 끝·기본 닫기/버튼 순회, 양 OS VoiceOver/TalkBack 실제 발화·전체 순회. 4단계와 다음 Subtask는 사용자 승인 전 진행하지 않으며 SCRUM-163 전체 완료로 표시하지 않는다.
 
 ### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
 

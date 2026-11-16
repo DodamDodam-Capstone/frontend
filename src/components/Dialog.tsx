@@ -53,7 +53,7 @@ export function Dialog({ visible, title, children, actions, onRequestClose, init
       }}
     >
       {visible && (
-        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.panel} accessibilityViewIsModal importantForAccessibility="yes">
             <View style={styles.header}>
               <Text ref={titleRef} accessibilityRole="header" style={styles.title}>{title}</Text>

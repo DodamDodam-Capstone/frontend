@@ -87,6 +87,10 @@ Button의 기본 초록 배경에는 가독성 개선을 승인받은 진한 글
 | `LoadingIndicator` | 호출자가 제공한 label과 진행 표시. 요청·타이머를 실행하지 않습니다. |
 | `ErrorMessage` | 안전한 사용자 안내 `message`, 선택적 `onRetry/retryLabel`. 원본 서버 오류나 민감값을 message에 넣지 않습니다. 명시적으로 누를 때만 재시도 콜백을 호출합니다. |
 
+Dialog의 ref는 포커스를 **요청**하는 인터페이스입니다. 현재 Android 기기에서 TextInput의
+초기·복귀 포커스와 모달 내 Tab 이동은 확인했지만, 일반 Button/View로 닫힘 후 자동 복귀는
+동작하지 않았습니다. 버튼으로 복귀하는 화면에 적용하기 전 이 미해결 항목을 보완해야 합니다.
+
 위와 같은 Metro8082와 개발 클라이언트에서
 `http://127.0.0.1:8082/scripts/common-ui/preview.bundle?platform=ios&dev=true&minify=false&modulesOnly=false&runModule=true`
 전체를 percent-encode하여 `exp+dodamdodam://expo-development-client/?url=…`로 엽니다.
