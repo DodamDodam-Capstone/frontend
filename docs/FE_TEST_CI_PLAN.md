@@ -53,6 +53,17 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 각 구현 단계의 필요한 검증 후 SCRUM-162 키·Gitmoji·Conventional 형식으로 커밋한다. author/committer는 현재 youngjun1227이며 coauthor를 추가하지 않는다. 시험 결과에는 명령·환경·실행 여부를 구분한다. 시뮬레이터/에뮬레이터 검증을 실기기·원격CI·BE 연동으로 설명하지 않는다.
 
+### SCRUM-162 2단계 — 폰트·색상 적용 · 2026-11-16 KST
+
+- 변경: 원본 TTF3개·OFL 전문, `src/theme/tokens.ts`, 기존 App의 최소 서체/색상 사용처, 개발 전용 비교 화면과 Metro 진입점. `expo-font ~57.0.4`를 직접 의존성으로 올렸으며 실제57.0.4는 기존 Expo 하위의 같은 버전에서 최상위로 이동했다. Expo/RN 버전·CI·API 구현은 변경하지 않았다.
+- 색상 출처: 온보딩1의 제목#1F1103·본문#534536·말풍선#241204·주색#75CC3F·주색 위 글자#FFFDFA·패널#FDF8F2, 로그인의 라벨#523920·입력 안내#A18971·테두리#E3DACA·흰 바탕#FFFFFF·소셜 글자#3E3A32·가입 글자#3C1E1E. 실제 페이지의 배경 이미지나 전체 스플래시 배경을 구현한 것으로 설명하지 않는다.
+- 재현: 최신 development lockfile `npm ci` → `npx --no-install expo install expo-font` → `npx --no-install expo install --check` → `npx --no-install expo prebuild --no-install`. 기존 Expo 요청 보완4파일이 설치 시 검증됐다. 설치 전후 감사 요약은 동일한17건(low9/moderate8)이며 감사 전체 통과로 보고하지 않는다. 자동 audit fix는 실행하지 않았다.
+- JS: `npm run lint`, `npm run typecheck`, `npm test -- --runTestsByPath App.test.tsx` 통과(1suite/3tests). 기존 접근 가능한 헤더, mock 응답 수신, real 모드 서버 요청 없음의 회귀다. 정적 색상 상수 복제 테스트를 만들지 않았다. 전체 Jest와 환경/양OS export는4단계다.
+- iOS: Xcode26.6, CocoaPods1.16.2로 `pod install` 후 `xcodebuild -workspace ios/app.xcworkspace -scheme app -configuration Debug -destination 'generic/platform=iOS Simulator' -derivedDataPath /tmp/scrum162-derived-data CODE_SIGNING_ALLOWED=NO build` 성공. 새 빌드의 Info.plist UIAppFonts3개와 앱 번들 TTF3개의 SHA-256이 원본과 일치한다. ExpoModulesCore의 보완 소스 컴파일도 로그에서 확인했다. 의존성의 Swift Sendable·build phase 경고는 남아 있다.
+- iOS 실행: iPad Pro11(M5), iOS26.5 시뮬레이터의 가로 화면에서3종 모두 `getLoadedFonts()` 등록 확인, 같은24pt 문구의 굵기 차이·한글/영문/숫자·행간·잘림 없음 확인. 12색의 지정RGB가 실제 screenshot에 존재함도 확인했다. 일반 앱의 제목 적용을 확인했다. 시뮬레이터 상태를 지우지 않았다.
+- Android: JDK17/SDK36의 `:app:assembleDebug --no-daemon` 새 빌드 성공(316tasks). APK의 폰트3개 해시가 원본과 일치하고 기존 single-use POST plugin이 생성 소스에 유지됨을 확인했다. Pixel Tablet API36 에뮬레이터에서3종 등록·굵기·한글/영문/숫자·행간·잘림 없음과 색상을 확인했다. 사용자 데이터 초기화 없이 설치했고 root가 시작한 adb reverse8082를 사용했다.
+- 로그·화면 증빙: `/tmp/scrum162-evidence/`의 `stage2-*`, `ios-build.log`, `ios-stage2-fonts-landscape.png`, `ios-stage2-app.png`, `android-stage2-build.log`, `android-stage2-fonts.png`. 전체 보안 네이티브 회귀나 실서버 검증은 이 단계에서 실행하지 않았다.
+
 ### SCRUM-168 1단계 — 작업 공간·계약·기준선 확인 · 2026-11-14
 
 사용자가 승인한 6단계 계획 중 **1단계만 완료**했다. 이번 변경은 착수 기록이며 제품 코드·테스트·의존성·CI·네이티브 설정은 변경하지 않았다. 2단계 AC별 기존 증거 매핑과 신규 테스트 작성은 아직 시작하지 않았다.

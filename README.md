@@ -42,6 +42,28 @@ npm run ios
 Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네이티브 빌드·실행을
 검증한 것으로 기록하지 않습니다.
 
+## P0 폰트·색상 확인 — SCRUM-162
+
+P0의 서체·색상은 [`src/theme/tokens.ts`](src/theme/tokens.ts)를 사용합니다.
+나눔스퀘어라운드 원본 TTF 3종과 [라이선스](assets/fonts/LICENSE.txt)를
+`assets/fonts/`에 보관하며 `expo-font` config plugin으로 앱에 내장합니다.
+`fonts.regular/bold/extraBold`에 별도 `fontWeight`를 더하지 않습니다.
+폰트 파일·내장 설정을 바꾼 경우 Metro reload만으로 반영되지 않으므로 네이티브 앱을 다시 빌드합니다.
+
+개발용 비교 화면은 [`scripts/design-assets/preview.tsx`](scripts/design-assets/preview.tsx)입니다.
+일반 앱에서 연결하지 않습니다. 개발 클라이언트와 아래 포트의 Metro를 사용하고,
+Android는 `adb reverse tcp:8082 tcp:8082`를 설정합니다.
+
+```bash
+EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082
+```
+
+진단 bundle URL은 `http://127.0.0.1:8082/scripts/design-assets/preview.bundle?platform=android&dev=true&minify=false&modulesOnly=false&runModule=true`입니다.
+iOS는 `platform=ios`로 바꿉니다. URL 전체를 percent-encode하여
+`exp+dodamdodam://expo-development-client/?url=…`로 엽니다.
+서체별 등록 확인과 한글·영문·숫자·색상을 비교하고, 검사 후 일반 Metro URL로 복귀합니다.
+디자인 출처·적용 범위·OS별 검증 기록은 [테스트 계획](docs/FE_TEST_CI_PLAN.md)에 있습니다.
+
 ## 공개 환경 설정과 공통 경로 — SCRUM-160
 
 `.env.example`을 `.env.local`로 복사한 뒤 필요한 **공개 설정만** 입력합니다.

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { createExampleTransport } from './src/api/exampleTransport';
 import { readEnvironment } from './src/config/env';
+import { colors, typography } from './src/theme/tokens';
 
 function DevApiStatus() {
   const [example] = useState(() => {
@@ -45,18 +46,17 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
   },
   title: {
-    color: '#111',
-    fontSize: 28,
-    fontWeight: '600',
+    ...typography.title,
+    color: colors.textPrimary,
   },
   devStatus: {
-    color: '#444',
-    fontSize: 14,
+    ...typography.input,
+    color: colors.textSecondary,
     marginTop: 12,
   },
 });

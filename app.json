@@ -29,7 +29,17 @@
       "predictiveBackGestureEnabled": false
     },
     "plugins": [
-      "./plugins/withSingleUsePost"
+      "./plugins/withSingleUsePost",
+      [
+        "expo-font",
+        {
+          "fonts": [
+            "./assets/fonts/NanumSquareRoundR.ttf",
+            "./assets/fonts/NanumSquareRoundB.ttf",
+            "./assets/fonts/NanumSquareRoundEB.ttf"
+          ]
+        }
+      ]
     ]
   }
 }
