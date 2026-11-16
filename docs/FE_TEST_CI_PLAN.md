@@ -62,6 +62,15 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - Android Pixel Tablet API36 가로 앱 렌더링을 확인했다(2560×1600 캡처; OS stylus 안내가 일부를 덮음). CUA가 raw emulator 창을 앱으로 인식하지 못하므로 실제 키보드/터치 조작 검증은 현재 미완료이며 Jest 결과로 대체하지 않는다.
 - 네이티브 입력11개와 native 보완 소스4개가162 최종 검증 앱과 동일해 해당 앱을 재사용한다. 새 네이티브 빌드 통과로 설명하지 않는다. 로컬 로그/화면은 `/tmp/scrum163-evidence`에 둔다.
 
+### SCRUM-163 2단계 실행 기록
+
+- Dialog는 visible/title/children/actions/close 콜백과 선택적 초기/복귀 ref를 받는다. 모달 자체에 인증·재시도 정책이 없다. 화면 폭 안의 maxWidth516, 늘어나는 제목/본문, 스크롤과 키보드 회피를 적용했다. 원본 모달에서 확인한 제목#1C0D02·닫기/테두리#EFECE9는 컴포넌트 내부 사용값이며 overlay 투명도는 보완 상태다.
+- Figma plugin 조회가 응답 없이 지연돼 중단했다. 이미 확보한835:2947의 SVG를 다운로드해 원문 그대로 `assets/images/ui/close.svg`에 보존했다. `/tmp`에만 설치한 `@resvg/resvg-js@2.6.2`로 높이16/32/48px PNG를 렌더했다(기하·색상 편집 없음, 앱 dependency 변경 없음). 도구가 준 원본 URL: `https://www.figma.com/api/mcp/asset/61bce38b-9a27-4968-adb5-e98b41dc17b1.svg`. RN은 16dp 표시에서 밀도별 PNG를 고른다.
+- native onShow에서 현재 초기 ref(없으면 닫기 버튼)에 입력 포커스를 요청하고, 제목에는 별도의 accessibility focus를 요청한다. 호출자 예제는 배경에 `accessibilityElementsHidden`/`no-hide-descendants`를 적용한다. iOS는 dismiss 완료, Android는 애니메이션 없는 닫힘 반영 다음 frame에 복귀를 요청한다. 재열림/사라진 ref를 확인해 오래된 복귀 요청을 막는다.
+- 미구현 실패 이후 Dialog7개 테스트, lint/typecheck와 `npm test` 전체30 suites/727 tests 통과. RNTL14는 composite/UNSAFE query가 없어 native Modal 경계 이벤트는 host root에 전달한다. ref 테스트는 올바른 대상/시점의 **요청** 증거이며 OS 실제 포커스 보장은 아니다.
+- iPad 가로: 초기 입력 포커스, 가상 값 입력, X 닫기 후 외부 입력 포커스 복귀, 배경 접근성 트리 숨김 확인. 소프트 키보드를 띄워 모달 제목·입력·확인 버튼이 키보드 위에 표시되는 것을 확인했다. `stage2-ios-keyboard.png` 기록.
+- Android의 실제 닫힘/Back/포커스 복귀 및 기본 닫기 버튼에 대한 양 OS 전체 키보드 포커스·VoiceOver/TalkBack 순회는 미검증이다. 도구 제약이 있는 검증을 완료로 표시하지 않는다. 제어 가능한 환경에서 다음 로컬 확인이 필요하다.
+
 ### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
 
 - 범위: Figma P0의 NanumSquareRound Regular/Bold/ExtraBold, 확인된 색상, 정적 로고, 후속 모션 참고. 배경 이미지·캐릭터 제작과 실제 스플래시 재생·화면 전환은 제외한다. 공통 UI는163, 화면 조합 검증은164, 실서버는129다.
