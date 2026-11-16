@@ -40,15 +40,19 @@ npm run ios
 
 `npm run ios`는 macOS에서 실행합니다. 현재 앱은 iPad에서 가로 전체 화면을 사용하므로
 Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네이티브 빌드·실행을
-검증한 것으로 기록하지 않습니다.
+검증한 것으로 기록하지 않습니다. 기기 실행·화면 확인도 항상 가로 방향으로 진행합니다.
 
 ## P0 폰트·색상·로고 확인 — SCRUM-162
 
 P0의 서체·색상은 [`src/theme/tokens.ts`](src/theme/tokens.ts)를 사용합니다.
 나눔스퀘어라운드 원본 TTF 3종과 [라이선스](assets/fonts/LICENSE.txt)를
 `assets/fonts/`에 보관하며 `expo-font` config plugin으로 앱에 내장합니다.
+`plugins/withFontLicense.js`는 같은 라이선스 원문을 Android의
+`assets/licenses/NanumSquareRound-LICENSE.txt`와 iOS 앱 번들의
+`NanumSquareRound-LICENSE.txt`에 함께 넣습니다.
 `fonts.regular/bold/extraBold`에 별도 `fontWeight`를 더하지 않습니다.
-폰트 파일·내장 설정을 바꾼 경우 Metro reload만으로 반영되지 않으므로 네이티브 앱을 다시 빌드합니다.
+폰트·라이선스 파일이나 내장 설정을 바꾸면 네이티브 폴더의 로컬 변경을 보존한 뒤
+prebuild로 설정을 다시 반영하고 앱을 다시 빌드합니다.
 
 개발용 비교 화면은 [`scripts/design-assets/preview.tsx`](scripts/design-assets/preview.tsx)입니다.
 일반 앱에서 연결하지 않습니다. 개발 클라이언트와 아래 포트의 Metro를 사용하고,

@@ -39,7 +39,8 @@
             "./assets/fonts/NanumSquareRoundEB.ttf"
           ]
         }
-      ]
+      ],
+      "./plugins/withFontLicense"
     ]
   }
 }

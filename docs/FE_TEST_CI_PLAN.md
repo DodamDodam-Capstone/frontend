@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이며 승인된 1~3단계 구현·단계별 검증을 완료했다. 4단계 전체 검증·Astra 리뷰는 미실행이다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이다. 1~3단계 구현과 승인된 4단계 전체 검증·Astra 지적 사항 보완은 아래 실행 기록을 따른다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-162](https://dodamdodam.atlassian.net/browse/SCRUM-162)의 P0 폰트·색상·로고다.** 사용자는 1~3단계 연속 실행을 승인했고 4단계 전체 검증·Astra 리뷰는 별도 승인 후 진행한다. PR·push·병합·Jira 변경은 이번 실행에 포함하지 않는다. 159~168 기록은 당시 이력으로 보존한다.
+**현재 작업 대상은 [SCRUM-162](https://dodamdodam.atlassian.net/browse/SCRUM-162)의 P0 폰트·색상·로고다.** 사용자는 1~3단계 이후 4단계 전체 검증·Astra 리뷰까지 승인했다. PR·push·병합·Jira 변경은 이번 실행에 포함하지 않는다. 159~168 기록은 당시 이력으로 보존한다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -49,7 +49,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 1. **보존·자료 확정:** 현재 단계. 백업·stash 내용, 출발 SHA, 공식 폰트·라이선스와 로고 투명 원본 확보를 확인했다. 원본과 조사 자료는 백업의 `sources/`에도 보존한다. 사용자 변경이나 FF 충돌을 발견하면 강제 정리 없이 보고한다.
 2. **폰트·색상:** `assets/fonts/`, `src/theme/tokens.ts`, 기존 `App.tsx` 최소 사용처, 개발 전용 `src/examples/DesignAssetsPreview.tsx`와 진단 진입점을 구성한다. lint/typecheck/관련 테스트 및 새 Android/iOS 빌드·실행으로 폰트3종의 등록·한글·행간·잘림을 확인한다. 단순 색상 상수 복제 테스트는 추가하지 않는다.
 3. **정적 로고:** `assets/images/logo/`, `src/components/Logo.tsx`에서 원본 좌표와 최종 정지 상태를 보존한다. 접근성 중복 안내 방지, 실제OS의 크기·비율·배경 경계와 이미지 로딩을 확인한다. 캔버스·기준점·등장 시간·scale/translation/easing은 이 문서에 인계하고 재생 모듈은 추가하지 않는다.
-4. **미승인:** 최종 전체검사·양OS export·CI 대상 확인·Astra 리뷰. 1~3단계 결과 보고 뒤 별도 승인한다. PR 생성/push/병합/Jira 수정은 별도 요청 사항이다.
+4. **2026-11-16 승인:** 최종 전체 검사·양 OS export·CI 대상 확인·Astra 리뷰와 지적 사항 보완. 1~3단계 결과 보고 뒤 사용자가 진행을 승인했다. PR 생성/push/병합/Jira 수정은 별도 요청 사항이다.
 
 각 구현 단계의 필요한 검증 후 SCRUM-162 키·Gitmoji·Conventional 형식으로 커밋한다. author/committer는 현재 youngjun1227이며 coauthor를 추가하지 않는다. 시험 결과에는 명령·환경·실행 여부를 구분한다. 시뮬레이터/에뮬레이터 검증을 실기기·원격CI·BE 연동으로 설명하지 않는다.
 
@@ -95,7 +95,49 @@ Figma 원본 캔버스 1280×800, 최종 로고 영역은 (x475, y205, w332, h27
 
 - 실행 로그와 화면은 로컬 `/tmp/scrum162-evidence/`와 외부 백업의 `evidence/`에 보관한다. 대표 증빙은 `android-stage3-app.png`, `android-stage3-sizes.png`, `ios-stage3-app.png`, `ios-stage3-sizes.png`다. iOS simctl 캡처는 기기 원래축으로 저장되어 화면을 돌려 읽어야 한다. 디자인 원본·영상은 백업의 `sources/logo/`에 보관한다.
 - 기존 159 변경 10개의 백업·stash와 다른 7개 기존 worktree의 HEAD/index/diff/미커밋파일 내용을 다시 대조했다. 다른 작업의 변경을 162에 섞지 않았다. development 갱신과 현재 폴더의 162 분기는 승인 범위의 변경이다.
-- **다음 한 가지는 4단계 전체 검증·Astra 로컬 리뷰 승인이다.** 전체 Jest·환경주입·양OS export·최종 리뷰·원격CI·실기기·실제BE 검증은 이번 1~3단계 결과에 포함하지 않는다. PR/push/병합/Jira 변경도 수행하지 않았다.
+- **1~3단계 종료 당시 다음 단계는 4단계 전체 검증·Astra 로컬 리뷰 승인이었다. 이후 사용자 승인으로 아래 4단계를 실행했다.** 전체 Jest·환경주입·양OS export·최종 리뷰·원격CI·실기기·실제BE 검증은 이번 1~3단계 결과에 포함하지 않는다. PR/push/병합/Jira 변경도 수행하지 않았다.
+
+### SCRUM-162 4단계 — 전체 검증·리뷰 보완 · 2026-11-16 KST
+
+#### 범위·재현 환경
+
+- 재조회한 원격 development는 `3ad2710a9eb2f85abf6dcd2677a350aa0d5db89a`이며 작업 출발점과 같다. Jira162·부모122는 고영준 담당/진행 중이고, 121은 완료다. 최신 AC에 폰트·색상·로고·모션 참고 범위와 캐릭터·실제 스플래시 재생/전환 제외가 유지된다. Jira의 이전 조회 시점 미검증 메모를 현재 테스트 결과로 오인하지 않는다.
+- 사용자에게 열어둔 앱과 원래 checkout의 의존성·생성 소스를 보존하려고 `0bc72f8`의 `git archive`를 `/tmp/scrum162-stage4-d_qtvqta`에 풀어 검증했다. 새 worktree/작업 브랜치는 만들지 않았다. 아래 리뷰 보완의 `app.json`·plugin만 같은 복사본에 반영하고 재검증했다.
+- Node `24.20.0`, npm `11.19.0`, Expo `57.0.33`, core `57.0.26`, expo-font `57.0.4`다. 임시 폴더의 초기 셸이 Node26/npm11.17을 선택해 manifest 검사가 실패했으므로, 지정 버전의 절대 PATH로 `npm ci`부터 다시 실행했다. 초기 결과는 최종 통과 근거로 사용하지 않는다.
+- Swift 첫 실행은 상속된 `SDKROOT`가 Command Line Tools SDK를 가리켜 Xcode 컴파일러와 맞지 않았다. Xcode26.6의 macOS26.5 SDK를 `-sdk`로 명시한 뒤 같은 소스가 컴파일·실행됐다. 전역 도구 설정을 바꾸거나 검사를 완화하지 않았다.
+
+#### Astra 지적 사항과 수정
+
+Astra가 `3ad2710`→`0bc72f8` 전체 diff·원본·시각 증빙을 검토해 Important 1건, Critical/Minor 0건을 보고했다. 폰트의 저작권·OFL 전문은 저장소에 있었지만 TTF 내부와 APK/iOS 앱 번들에는 포함되지 않았다. 로컬 저장소 보관과 바이너리 배포 준비를 구분하고 다음처럼 보완했다.
+
+- `plugins/withFontLicense.js`와 `app.json` 등록으로 원본 `assets/fonts/LICENSE.txt`를 Android `assets/licenses/NanumSquareRound-LICENSE.txt`, iOS 앱 번들 `NanumSquareRound-LICENSE.txt`에 복사한다. 폰트/로고 원본·의존성·화면·API·CI는 이 보완에서 바꾸지 않았다.
+- 기존 두 앱 산출물에서 원문 일치를 요구하는 검사를 실행해 Android/iOS 모두 실패함을 먼저 확인했다. 보완 후 새 두 앱 산출물에서는 같은 검사가 모두 통과했다. 라이선스 SHA-256은 `15e7e66607b304c2a8646293d8ef7ff515e35feac778ffc3a5d5b42515d754b8`이다.
+- 이 변경은 네이티브 입력을 바꾸므로 2단계 빌드 재사용으로 끝내지 않았다. 임시 복사본의 새 prebuild·Pods·양 OS 빌드를 실행했고, 최종 앱 안의 원본 TTF 3개와 라이선스 바이트 일치를 확인했다. Android single-use POST 생성 코드와 iOS 보완 소스 컴파일도 유지됐다.
+
+#### 실제 실행 결과
+
+| 검사 | 실행 명령·범위 | 결과 |
+| --- | --- | --- |
+| 환경·설치 | `validate_frontend_project.mjs`, 지정 Node/npm의 `npm ci`, `expo install --check` | 통과; 설치 시 기존 native patch 4파일 확인 |
+| 정적 검사 | `npm run lint`, `npm run typecheck`, `git diff --check` | 통과; 라이선스 보완 후 재검증 |
+| 전체 Jest | `npm test` → `jest --ci --runInBand` | 27 suites / 711 tests 통과; 보완 후에도 동일 |
+| 환경 주입 | `npm run test:env` | Android/iOS 총14사례 통과 |
+| workflow 회귀 | `python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v` | 7개 통과 |
+| 양 OS export | `expo export --platform android/ios --output-dir …` 각각 실행 | 보완 후 둘 다 통과; 각 export의 PNG 3개가 원본과 바이트 일치 |
+| Swift 회귀 | 기존 CI의 3개 Swift 파일을 Xcode SDK로 컴파일 후 실행 | 55 assertions / 0 failures |
+| Android 빌드 | JDK17/SDK36, 새 prebuild 후 `:app:assembleDebug --no-daemon` | 성공; 316 tasks 실행, APK 라이선스·폰트 확인 |
+| iOS 빌드 | Xcode26.6, Pods1.16.2, 새 prebuild/Pods 후 Debug Simulator `xcodebuild` | 성공; 별도 `/tmp/scrum162-stage4-derived-data`의 새 앱 확인 |
+| 네이티브 실행 | 새 APK/iOS 앱 설치 후 Pixel Tablet API36·iPad Pro11(M5)/iOS26.5 실행 | 양쪽 모두 가로 화면·정적 로고·한글 부제 표시 확인 |
+
+폰트는 네이티브에 내장하므로 JS export에 TTF가 없는 것을 누락으로 판단하지 않는다. 기존 CI는 필터 없는 전체 Jest에서 `Logo.test.tsx`를 실제 실행 대상으로 포함한다. CI의 두 플랫폼 prebuild/빌드 경로에도 라이선스 plugin이 적용되며 workflow와 필수 검사 이름은 변경하지 않았다. 위 결과는 로컬 실행이며 새 원격 CI를 실행하거나 통과로 보고하지 않는다.
+
+#### 종료 기록·남은 경계
+
+- 4단계의 화면 코드는 3단계와 같다. 최종 기본 280dp 화면을 양쪽 새 앱에서 다시 확인했고, 140/332dp 비교는 3단계 증빙을 유지한다. 모든 실행은 가로 방향이다. 3x 실기기·VoiceOver/TalkBack 전체 조작·네이티브 전체92개/OS·실제 BE 연동은 수행하지 않았다.
+- 최종 커밋 대상으로 Astra의 좁은 재검토를 진행하며, 그 SHA와 판정은 커밋 뒤 최종 작업 보고와 외부 백업의 `evidence/stage4/astra-final-review.json`에 기록한다. 검토에서 추가 변경을 요구하지 않은 임의 로고 크기 정책·전체 화면/모션·접근성 전체 조작 시험은 이번 범위에 추가하지 않는다.
+- 실행 로그·명령·환경·실패와 수정 증거는 `/tmp/scrum162-evidence/stage4/`와 기존 외부 백업의 `evidence/stage4/`에 보관한다. `font-license-red.log`/`font-license-green.log`, `android-app.png`/`ios-app.png`를 포함한다. iOS 원본 캡처 축과 실제 가로 실행을 구분한다.
+- npm 감사 요약 17건(low 9 / moderate 8), 기존 의존성의 deprecated/설치 스크립트 안내·빌드 경고는 남아 있다. 자동 dependency/audit 수정이나 설치 스크립트 승인 정책 변경은 하지 않았다. 전체 감사 통과를 의미하지 않는다.
+- 기존 159 변경 10개의 백업/stash와 다른 7개 worktree의 HEAD/index/diff/파일 내용은 보존됐다. iOS 앱과 Metro는 사용자가 확인할 수 있도록 유지한다. PR·push·병합·Jira 변경·다음 Subtask는 별도 요청 없이 진행하지 않는다.
 
 ### SCRUM-168 1단계 — 작업 공간·계약·기준선 확인 · 2026-11-14
 
