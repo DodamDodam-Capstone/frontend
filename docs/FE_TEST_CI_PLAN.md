@@ -59,8 +59,8 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 - Button/TextField 테스트부터 실행해 미구현 실패를 확인했다. RNTL14에 없는 구버전 matcher 사용 실패는 설치된 role query의 busy 조건으로 수정했다. 이후 신규9개 테스트·typecheck·lint 통과. `npm test` 전체29 suites/720 tests도 통과했다. 1단계 구현을 저장하되 위 Android 조작·전체 접근성 검증은 미완료로 유지한다.
 - iPad Pro 11(M5), iOS26.5, 가로: 라벨·입력·Tab/Return 입력 간 이동·포커스 테두리·숨김 입력·기본 버튼 실행1회·비활성/busy 상태 확인. 전체 VoiceOver·전체 키보드 접근 모드의 버튼 순회는 별도 미검증이다.
-- Android Pixel Tablet API36 가로 앱 렌더링을 확인했다(2560×1600 캡처; OS stylus 안내가 일부를 덮음). CUA가 raw emulator 창을 앱으로 인식하지 못하므로 실제 키보드/터치 조작 검증은 현재 미완료이며 Jest 결과로 대체하지 않는다.
-- 네이티브 입력11개와 native 보완 소스4개가162 최종 검증 앱과 동일해 해당 앱을 재사용한다. 새 네이티브 빌드 통과로 설명하지 않는다. 로컬 로그/화면은 `/tmp/scrum163-evidence`에 둔다.
+- 초기 Android 가로 캡처는3단계에서 설치 APK 불일치가 발견돼 최종 증거에서 제외했다. CUA가 raw emulator 창을 앱으로 인식하지 못하므로 실제 키보드/터치 조작 검증은 현재 미완료이며 Jest 결과로 대체하지 않는다.
+- 네이티브 입력11개와 native 보완 소스4개가162 최종 산출물과 동일하다. iOS 설치 앱 실행파일도 일치해 재사용했다. Android 설치본은3단계에서 따로 대조/갱신했다. 새 네이티브 빌드 통과로 설명하지 않는다. 로컬 로그/화면은 `/tmp/scrum163-evidence`에 둔다.
 
 ### SCRUM-163 2단계 실행 기록
 
@@ -70,6 +70,17 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 미구현 실패 이후 Dialog7개 테스트, lint/typecheck와 `npm test` 전체30 suites/727 tests 통과. RNTL14는 composite/UNSAFE query가 없어 native Modal 경계 이벤트는 host root에 전달한다. ref 테스트는 올바른 대상/시점의 **요청** 증거이며 OS 실제 포커스 보장은 아니다.
 - iPad 가로: 초기 입력 포커스, 가상 값 입력, X 닫기 후 외부 입력 포커스 복귀, 배경 접근성 트리 숨김 확인. 소프트 키보드를 띄워 모달 제목·입력·확인 버튼이 키보드 위에 표시되는 것을 확인했다. `stage2-ios-keyboard.png` 기록.
 - Android의 실제 닫힘/Back/포커스 복귀 및 기본 닫기 버튼에 대한 양 OS 전체 키보드 포커스·VoiceOver/TalkBack 순회는 미검증이다. 도구 제약이 있는 검증을 완료로 표시하지 않는다. 제어 가능한 환경에서 다음 로컬 확인이 필요하다.
+
+### SCRUM-163 3단계 실행 기록
+
+- LoadingIndicator는 이름 있는 busy 진행 상태 하나를 제공한다. ErrorMessage는 호출자가 고른 안전한 문구와 선택적 재시도만 표시하며 mount/재렌더로 콜백을 실행하지 않는다. iOS는 같은 문구 재렌더를 중복 안내하지 않고 변경된 문구를 queue 안내하며, Android는 polite live region에 맡긴다. 자동 재요청·HTTP 분류·타이머·영구 저장은 없다.
+- 예제에서 입력→수동 로딩→오류→사용자 재시도 흐름을 재현한다. 입력값 유지/로딩 중 편집 차단/재시도 횟수/모달 배경 접근성 제외를 검사한다. 기존 component barrel/App/index에 예제 import를 추가하지 않았다.
+- 미구현 Feedback 테스트 실패와 예제 시작 동작 실패를 확인한 뒤 구현했다. Feedback5개·예제2개 통과. `npm run lint`, `npm run typecheck`, `npm test` 전체 **32 suites/734 tests** 통과(기존711+신규23). 기존 CI71행의 `npm run test`가 같은 인접 테스트를 실제 발견한다. 이번 원격 CI 실행 결과는 없다.
+- 별도 `scripts/common-ui/preview.bundle`을 iOS/Android 각각 HTTP200으로 생성해 저장했다. 개발 Metro 번들 검증이며 일반앱 production export·새 native 전체 빌드 통과로 설명하지 않는다.
+- iPad 가로에서 로딩→긴 한글 오류→명시적 재시도1회→로딩 전환을 확인했다. 소프트 키보드 위 모달 입력/닫기 확인은2단계 증거다. Dynamic Type `large`→`accessibility-large`에서 버튼·입력·라벨의 확대/줄바꿈을 확인하고 `large`로 복원했다. 확대 상태의 전체 스크롤/긴 오류·모달 끝까지 확인은 CUA `noWindowsAvailable` 오류로 미완료다. VoiceOver 실제 발화/전체 순회와 Jest의 안내 요청 횟수 검증은 구분한다.
+- Android 설치 앱 SHA를 직접 대조하니 초기 설치본은 `faecb421a7dc0217982fc6cf05115a6b0a7f5b1a097555f0976f42049b456f9d`로162 최종 APK와 달랐다. 과거 snapshot에 남은 앱으로 추정하며 초기 Android 화면은 최종 증거에서 제외한다. 최종 APK를 `adb install -r`로 설치하고 설치 경로의 SHA256 `bbb14cb63defbd5f141525ed8ec4dea24df0c60443a29a03860a05f6088d9ae7` 일치를 다시 확인했다. 설치 후 현재 예제의 가로 렌더링·내장 폰트·버튼/입력 표시를 새 캡처 `stage3-android-verified-app.png`에서 확인했다. 새 빌드는 아니다.
+- 네이티브 입력11개는3단계 최종 코드 기준에도 재사용 산출물 입력과 byte 일치한다. `/tmp/scrum163-evidence/native-inputs.json`, `android-installed-sha.txt`, OS별 bundle과 로그에 기록했다.
+- 4단계 최종 검증·Astra 리뷰, PR/push/병합/Jira 변경은 미착수다. Android 실제 터치/키보드/Back/복귀 포커스·양 OS 기본 닫기 버튼의 키보드 포커스·화면 읽기 순회, 확대 상태 전체 스크롤은 아직 완료로 표시하지 않는다. CUA 실행 규칙상 다른 입력 방식은 사용자의 명시적 요청이 필요해 Android ADB 입력 방식 허용 여부를 물었으며 답변 전까지 그 방식은 실행하지 않는다. 1~3단계 구현은 저장하지만 이 필수 기기 검증의 완료나 Subtask 완료를 주장하지 않는다.
 
 ### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
 
