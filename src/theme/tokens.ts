@@ -26,6 +26,7 @@ export const fonts = {
 export const typography = {
   title: { fontFamily: fonts.extraBold, fontSize: 32, lineHeight: 44.8, letterSpacing: -0.32 },
   body: { fontFamily: fonts.bold, fontSize: 20, lineHeight: 28, letterSpacing: -0.2 },
+  tagline: { fontFamily: fonts.bold, fontSize: 28, lineHeight: 39.2, letterSpacing: -0.28 },
   input: { fontFamily: fonts.regular, fontSize: 17, lineHeight: 23.8, letterSpacing: -0.17 },
   label: { fontFamily: fonts.extraBold, fontSize: 15, lineHeight: 21 },
 } satisfies Record<string, TextStyle>;

@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View } from 'react-native';
 import { createExampleTransport } from './src/api/exampleTransport';
 import { readEnvironment } from './src/config/env';
+import { Logo } from './src/components/Logo';
 import { colors, typography } from './src/theme/tokens';
 
 function DevApiStatus() {
@@ -34,9 +35,8 @@ function DevApiStatus() {
 export default function App() {
   return (
     <View style={styles.container}>
-      <Text accessibilityRole="header" style={styles.title}>
-        도담도담
-      </Text>
+      <Logo accessibilityRole="header" />
+      <Text style={styles.tagline}>도담도담 나눈 대화 속에서 자라나는 아이의 마음</Text>
       {__DEV__ && <DevApiStatus />}
       <StatusBar style="dark" />
     </View>
@@ -49,10 +49,13 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 32,
   },
-  title: {
-    ...typography.title,
-    color: colors.textPrimary,
+  tagline: {
+    ...typography.tagline,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginTop: 24,
   },
   devStatus: {
     ...typography.input,

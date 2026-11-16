@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이며 1~3단계 실행만 승인됐다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-16 KST 재확인: SCRUM-165~168과 부모123은 development 병합·Jira 완료다. 현재 작업은 SCRUM-162의 폰트·색상·로고 적용이며 승인된 1~3단계 구현·단계별 검증을 완료했다. 4단계 전체 검증·Astra 리뷰는 미실행이다.** PR #37의 squash 결과 `3ad2710`을 출발점으로 사용한다. 아래159~168 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -63,6 +63,39 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - iOS 실행: iPad Pro11(M5), iOS26.5 시뮬레이터의 가로 화면에서3종 모두 `getLoadedFonts()` 등록 확인, 같은24pt 문구의 굵기 차이·한글/영문/숫자·행간·잘림 없음 확인. 12색의 지정RGB가 실제 screenshot에 존재함도 확인했다. 일반 앱의 제목 적용을 확인했다. 시뮬레이터 상태를 지우지 않았다.
 - Android: JDK17/SDK36의 `:app:assembleDebug --no-daemon` 새 빌드 성공(316tasks). APK의 폰트3개 해시가 원본과 일치하고 기존 single-use POST plugin이 생성 소스에 유지됨을 확인했다. Pixel Tablet API36 에뮬레이터에서3종 등록·굵기·한글/영문/숫자·행간·잘림 없음과 색상을 확인했다. 사용자 데이터 초기화 없이 설치했고 root가 시작한 adb reverse8082를 사용했다.
 - 로그·화면 증빙: `/tmp/scrum162-evidence/`의 `stage2-*`, `ios-build.log`, `ios-stage2-fonts-landscape.png`, `ios-stage2-app.png`, `android-stage2-build.log`, `android-stage2-fonts.png`. 전체 보안 네이티브 회귀나 실서버 검증은 이 단계에서 실행하지 않았다.
+
+### SCRUM-162 3단계 — 정적 로고·모션 인계 · 2026-11-16 KST
+
+- `Logo`는 심볼과 글자 4개를 원본 비율로 표시한다. 기본 폭은 280dp, 예제 크기는 140/280/332dp다. 3개의 PNG는 Figma 디자인 컨텍스트가 지정한 파일과 바이트가 동일하다. 일반 App에는 제목 역할의 로고와 원문 부제(Bold 28 / lineHeight 39.2 / letterSpacing -0.28)를 연결했다. 기존 API 개발 상태 표시의 동작은 유지한다. 전체 P0 스플래시 화면·그라데이션·재생·화면 전환 구현을 의미하지 않는다.
+- 영상 참고: Figma 835:3764의 MP4(1280×800, 30fps, 파일 길이 2.033초)를 추출하고 1.5초의 정지 상태와 대조했다. 명세상 timeline은 2000ms이며 파일의 마지막 프레임을 포함한 길이와 구분한다. 영상은 제품에 넣지 않는다.
+- 검증: 로고 미구현 시 접근성 테스트 2개가 기대대로 실패한 뒤 구현 후 통과했다. `npm test -- --runTestsByPath src/components/Logo.test.tsx App.test.tsx`는 2 suites / 5 tests 통과. `npm run lint`, `npm run typecheck`, `git diff --check`도 통과했다. 픽셀 배치·폰트 실물을 Jest로 검증했다고 주장하지 않는다.
+- Android Pixel Tablet API36 및 iPad Pro 11(M5) / iOS 26.5에서 일반 App과 별도 예제의 140/280/332dp를 확인했다. 심볼/네 글자의 크기·간격·방향·잘림, 흰 배경과 App의 크림 배경에서 투명 경계, 한글 부제를 대조했다. 둘 다 2x 환경이며 280dp@3x는 원본 픽셀 수 기준의 허용 범위 계산일 뿐 3x 기기 실행 증거가 아니다. VoiceOver/TalkBack 전체 조작 시험도 수행하지 않았다.
+- 3단계는 JS/이미지만 변경했고 2단계 이후 폰트·app.json·lockfile·native plugin 입력은 동일하다. 2단계에서 새로 빌드한 앱에 Metro 변경을 반영했으며, 3단계에서 네이티브 전체 빌드를 재실행했다고 설명하지 않는다.
+- iOS 창 접근성 도구의 후속 조회는 창 식별 실패로 종료됐고, 네이티브 `simctl` 캡처로 세 크기의 렌더링을 확인했다. 결과 화면 자체의 실패가 아니다.
+
+#### 로고 원본·배치·모션 참고
+
+Figma 원본 캔버스 1280×800, 최종 로고 영역은 (x475, y205, w332, h274)이다. 모든 요소의 pivot은 중앙(50%,50%)이다. 다음 x/y는 원본 캔버스의 모션 전 위치, crop은 566×424.5로 표시한 원본 이미지 내부의 잘림 시작점이다. PNG 실제 크기는 1448×1086이다.
+
+| 노드 | 요소 | x,y / w,h | crop x,y | 원본 파일 |
+| --- | --- | --- | --- | --- |
+| 835:3770 | 심볼 | 533,333 / 214,182 | 172,64.25 | source-symbol-wordmark.png |
+| 835:3771 | 첫 글자 | 475,379 / 80,100 | 121,238.25 | source-symbol-wordmark.png |
+| 835:3772 | 둘째 글자 | 552,379 / 83,100 | 201,238.25 | source-symbol-wordmark.png |
+| 835:3773 | 셋째 글자 | 638,379 / 79,100 | 284,238.25 | source-third-glyph.png |
+| 835:3774 | 넷째 글자 | 709,379 / 98,100 | 355,238.25 | source-fourth-glyph.png |
+
+- 첫째~넷째 글자는 0ms의 scale 0에서 각각 204/401/598/802ms에 scale 1이 된다. scale easing은 `cubic-bezier(0.5,0,0.5,1)`이며 이후 2000ms까지 유지된다.
+- 심볼 scale은 0~598ms에 0, 999ms에 1.2, 1204.3ms에 1로 정착한다. 두 구간 easing은 같은 cubic-bezier다. translateY는 598ms까지 0, 599ms에 -89, 999ms에 -128이며 이동 트랙은 linear다. 최종 top은 333-128=205이다. 중앙 pivot과 디자인의 이동 좌표를 혼동하지 않는다.
+- 글자 2·4는 원본 이미지 변환과 레이어 반전이 상쇄된 표시다. 생성된 웹 참고 코드의 음수 width를 RN에 복사하지 않고 위 crop 값으로 정방향을 유지했다.
+- Figma의 loop는 참고 설정이다. 앱에서 몇 번 재생하고 어디로 이동할지는 이 작업이 확정하지 않는다. 별도 motion player/스키마/파서는 추가하지 않았다.
+- 원본 SHA-256: symbol-wordmark `20dac14a787ad7a69b0001ee30fa8dac12e45aefa00dfb6c192df9b6dce64621`, third-glyph `6d6bea7475e02c2973beafc0eff42a17ef9346069f9ee2d8c828546691d6396f`, fourth-glyph `62ffadbbb6509a5a47d22ce26a87bc6beaa0e0706adf6d793230099afe3c41e1`.
+
+#### 1~3단계 종료·다음 한 가지
+
+- 실행 로그와 화면은 로컬 `/tmp/scrum162-evidence/`와 외부 백업의 `evidence/`에 보관한다. 대표 증빙은 `android-stage3-app.png`, `android-stage3-sizes.png`, `ios-stage3-app.png`, `ios-stage3-sizes.png`다. iOS simctl 캡처는 기기 원래축으로 저장되어 화면을 돌려 읽어야 한다. 디자인 원본·영상은 백업의 `sources/logo/`에 보관한다.
+- 기존 159 변경 10개의 백업·stash와 다른 7개 기존 worktree의 HEAD/index/diff/미커밋파일 내용을 다시 대조했다. 다른 작업의 변경을 162에 섞지 않았다. development 갱신과 현재 폴더의 162 분기는 승인 범위의 변경이다.
+- **다음 한 가지는 4단계 전체 검증·Astra 로컬 리뷰 승인이다.** 전체 Jest·환경주입·양OS export·최종 리뷰·원격CI·실기기·실제BE 검증은 이번 1~3단계 결과에 포함하지 않는다. PR/push/병합/Jira 변경도 수행하지 않았다.
 
 ### SCRUM-168 1단계 — 작업 공간·계약·기준선 확인 · 2026-11-14
 

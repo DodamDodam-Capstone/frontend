@@ -42,7 +42,7 @@ npm run ios
 Split View·Slide Over는 지원하지 않습니다. Expo Go 실행만으로 네이티브 빌드·실행을
 검증한 것으로 기록하지 않습니다.
 
-## P0 폰트·색상 확인 — SCRUM-162
+## P0 폰트·색상·로고 확인 — SCRUM-162
 
 P0의 서체·색상은 [`src/theme/tokens.ts`](src/theme/tokens.ts)를 사용합니다.
 나눔스퀘어라운드 원본 TTF 3종과 [라이선스](assets/fonts/LICENSE.txt)를
@@ -62,7 +62,12 @@ EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 808
 iOS는 `platform=ios`로 바꿉니다. URL 전체를 percent-encode하여
 `exp+dodamdodam://expo-development-client/?url=…`로 엽니다.
 서체별 등록 확인과 한글·영문·숫자·색상을 비교하고, 검사 후 일반 Metro URL로 복귀합니다.
-디자인 출처·적용 범위·OS별 검증 기록은 [테스트 계획](docs/FE_TEST_CI_PLAN.md)에 있습니다.
+정적 로고는 [`Logo`](src/components/Logo.tsx)를 사용합니다. 기본 폭은 280dp이며,
+`width`로 같은 비율의 크기를 지정하고 시작 화면에서는 `accessibilityRole="header"`로 사용합니다.
+다섯 조각은 하나의 접근 가능한 이름으로 안내됩니다. `assets/images/logo/`의 투명 원본 3개를
+Figma 좌표로 잘라 표시하며, 원본을 수정하거나 임시 Figma URL을 런타임에서 사용하지 않습니다.
+현재 시작 화면은 정적 최소 사용처입니다. 실제 스플래시 재생·반복·종료 전환과 캐릭터는 구현하지 않았습니다.
+디자인 출처·모션 인계값·해상도 범위·OS별 검증 기록은 [테스트 계획](docs/FE_TEST_CI_PLAN.md)에 있습니다.
 
 ## 공개 환경 설정과 공통 경로 — SCRUM-160
 

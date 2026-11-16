@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts, typography } from '../theme/tokens';
+import { Logo } from '../components/Logo';
 
 // 일반 앱에서 import하지 않는 개발용 비교 화면이다. 실제 화면/진입 흐름은 후속 작업이다.
 export function DesignAssetsPreview() {
@@ -11,7 +12,15 @@ export function DesignAssetsPreview() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <StatusBar style="dark" />
-      <Text accessibilityRole="header" style={styles.title}>P0 폰트·색상 확인</Text>
+      <Text accessibilityRole="header" style={styles.title}>P0 폰트·색상·로고 확인</Text>
+      <View style={styles.logos}>
+        {[140, 280, 332].map((width) => (
+          <View key={width} style={styles.logoCard}>
+            <Logo width={width} />
+            <Text style={styles.label}>{width}dp</Text>
+          </View>
+        ))}
+      </View>
       <View style={styles.samples}>
         {Object.entries(fonts).map(([weight, fontFamily]) => (
           <View key={weight} style={styles.sample}>
@@ -39,6 +48,8 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, backgroundColor: colors.surface, padding: 32, gap: 20 },
   title: { ...typography.title, color: colors.textPrimary },
   samples: { gap: 16 },
+  logos: { flexDirection: 'row', alignItems: 'flex-end', flexWrap: 'wrap', gap: 20 },
+  logoCard: { alignItems: 'center', gap: 8, padding: 12, backgroundColor: colors.surfaceWhite },
   sample: { gap: 6 },
   label: { ...typography.input, color: colors.textSecondary },
   fontSample: { fontSize: 24, lineHeight: 33.6, color: colors.textPrimary },
