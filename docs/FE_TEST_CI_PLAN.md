@@ -30,7 +30,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 ### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
 
-- 부모122는 진행 중, 163 담당자는 고영준이며 Jira 상태는 해야 할 일이다. 121·123·162의 완료를 확인했다. 164의 전체 초기 화면 조합 검증, 125의 인증 동작, 129의 실제 서버 검증을 포함하지 않는다.
+- 11/16 확인 당시 부모122는 진행 중, 163 담당자는 고영준이며 Jira 상태는 해야 할 일이었다. 11/17 재조회에서는163이 진행 중(updated 18:07 KST)으로 바뀌어 있었다. 이번 로컬 작업에서 Jira를 변경하지 않았다. 121·123·162의 완료를 확인했다. 164의 전체 초기 화면 조합 검증, 125의 인증 동작, 129의 실제 서버 검증을 포함하지 않는다.
 - 원래 checkout의 clean 상태와 `d73c3be`/원격 development `980dee5`의 동일 tree를 확인했다. 기존 clean development worktree를 `pull --ff-only` 후 원래 폴더에 `feature/SCRUM-163-common-ui`를 분기했다. 7개 타 worktree HEAD/index/diff/미커밋 내용 및159의 10개 보존 파일은 대조 결과 동일하다.
 - 디자인은 [P0](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-1761)의 실제 노드 기준이다. 원본과 엔지니어링 보완 상태를 구분한다. 새 UI 라이브러리·색상 체계·API 정책은 만들지 않는다.
 
@@ -91,7 +91,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - **자동 검사:** 미적용 예제에서 제목 갱신 회귀2개 실패를 확인한 뒤 구현했다. 신규5개는 배율 왕복·회전/Android host 유지·현재 ref·입력 host/값·버튼 host/횟수·열린 모달 상태를 검사한다. 기존 CI와 같은 `npm test`: **35 suites/756 tests**, `npm run lint`, `npm run typecheck` 통과. Jest는 native 글자 높이·실제 포커스 증거가 아니다. CI 설정은 그대로이며 원격 CI는 실행하지 않았다.
 - **수정 후 iPad 확인:** 실행 중 확대→예제 시작→오류→재시도1회에서 기존 제목·도움말·버튼과 새 로딩 문구의 잘림이 사라졌다. 열린 모달을 기본→확대로 바꿔 제목·본문·닫기·확인 버튼 표시를 확인했다. VoiceOver 제목 자막도 관찰했다. 자동 이동 입력이 전달되지 않아 사용자가 직접 제목→닫기→본문→확인 버튼의 읽기 이동 및 Ctrl+Option+Space 닫기를 확인했고, 후속 화면에서 모달 닫힘·열린 횟수1을 확인했다. 이는 확대 모달의 직접 시험이며 일반 버튼 Full Keyboard Access 복귀나 모든 화면 읽기 통과를 뜻하지 않는다.
 - 증거: 무시된 `build/scrum-163-focus-20261117/ios27-final-validation/`의 `text-probe-ax-after-counter`, `text-probe-reverse-after-counter`, `fixed-live-large-retry`, `fixed-large-vo-title`, `fixed-large-vo-user-confirmed` 이미지/트리 및 같은 상위 폴더의 `dynamic-type-*.log`. 최초 수정 후 시작 캡처는 재부팅으로 장치가 세로/앱은 가로 창이었다. 이후 장치를 가로로 돌린 오류·재시도·모달 증거를 최종 가로 확인으로 사용한다.
-- **남은 검증:** iOS Full Keyboard Access 일반 버튼 복귀, 확대 입력 모달의 소프트 키보드/확인 접근·입력 보존의 최종 native 회귀, 양 OS 전체 화면 읽기/모달 배경 차단 순회, 최종 Android APK에서 200% 긴 오류·입력 모달 키보드 회귀. 앞선 APK에서 통과한 확대 입력/오류 기록과 새 APK의 제한된 확인을 구분한다. SCRUM-163 전체 완료·원격 CI·실서버 통합 완료로 표시하지 않는다.
+- **남은 검증:** iOS Full Keyboard Access 일반 버튼 복귀, iOS 확대 입력 모달의 소프트 키보드/확인 접근·입력 보존의 최종 native 회귀, 양 OS 전체 화면 읽기/모달 배경 차단 순회, 변경한 비동기 경로의 재열림/제거/비활성화 native 경계 확인. 자동 수명주기 회귀와 실제 기기 관찰 범위를 구분한다. 최종 Android APK의 확대 오류·입력 모달은 아래 추가 검증을 마쳤다. SCRUM-163 전체 완료·원격 CI·실서버 통합 완료로 표시하지 않는다.
+- Full Keyboard Access는 [Apple iPad 안내](https://support.apple.com/en-lamr/guide/ipad/ipad5f765d6f/ipados)의 설정→손쉬운 사용→키보드 및 입력→전체 키보드 접근 경로를 기준으로 한다. 현재27.2 시뮬레이터에서는 이 메뉴를 찾지 못했다. 실제 iPad용 안내만으로 Simulator 지원·미지원을 단정하지 않으며 Mac 호스트의 전체 키보드 접근으로 대체하지 않는다.
+- iOS 시험 후 VoiceOver·Capture Keyboard OFF, 글자 `large`(Device Hub3), 음량0.6을 복원했다. 사용자가 자막 패널을 OFF로 되돌렸고 설정 화면에서도 확인했다. iPad와 Metro를 종료한 뒤 다음 Android 검증을 시작했다.
+- 커밋 `72b8418bc4f3425b3d7bf1673fbdea8d009ffb92`의 최종 Astra 로컬 리뷰는 확정 코드 결함0건이며, 기존 글자 잘림 P1을 확인된 재현 경로에서 해결한 것으로 판정했다. 위 미완료 검증과 구분한다. 다른8개 작업 공간의 HEAD·index·diff·상태·기존 미커밋 파일 해시가 작업 전과 동일함을 확인했다.
+
+### SCRUM-163 GPU 실행·잔여 기기 검증 — 2026-11-17 KST
+
+- 사용자 승인에 따라 Android는 `-gpu host`로 실행했고 실제 renderer가 Apple M4임을 로그에서 확인했다. 이전 software renderer 실행과 구분한다. CPU 작업 전체를 GPU로 옮긴 것은 아니다. `-memory 2048`은 요청값이며 실제 guest RAM은4096MB였다. 이전 로컬 요약의 RAM2048 표기는 요청값으로 정정한다. 제품 코드·의존성·CI·native 및 APK는 변경하지 않았다.
+- 최종 APK `f7ed8b6…`와 JS `72b8418`의 가로200%에서 긴 오류·재시도1회를 확인했다(`android-final-validation/post-apptext/05-retry-once.xml`). 이어 실제 소프트 키보드로 시험값을 입력하고, 모달 본문을 스크롤해 확인 버튼 전체를 키보드 위에 노출한 뒤 한 번 눌러 닫기·외부 TextInput 포커스·재열기 값 보존을 확인했다(`android-guarded-validation/04-input-keyboard-visible`부터`07-input-reopen-preserved`까지 이미지/트리). TalkBack 전체 순회는 이번 통과 범위에 포함하지 않는다.
+- Android 검증 후 글자1.0·하드웨어 키보드 연결 시 IME0·TalkBack OFF·회전1/0을 복원하고 해당 앱·에뮬레이터·Metro를 종료했다. 증거는 무시된 `build/scrum-163-focus-20261117/android-guarded-validation/`의 `validation-summary.json`, `settings-restored.json`, `shutdown-check.json`이다. 해당 성공 실행의 감시 최대값은 소유 프로세스 CPU356.5%, Mac 전체CPU687.0%, 소유 프로세스 RSS4126.4MiB였다. CPU는 코어당100% 합산값이며 guest RAM과 host RSS는 다른 값이다. 메모리 압박 정상·관찰 구간 스왑 증가 없음으로 끝났다.
+- 로컬 감시기는 기기1대·Metro1개만 허용하는 실행 절차와 함께 사용했다. 일시적인 메모리 경고만으로 종료하지 않고, 심각한 압박·경고 지속과 빠른 스왑 증가·지속 CPU 초과·감시 실패 때 이 실행이 소유한 프로세스만 종료한다. 이는 이번 Mac의 실행 제한이며 제품/CI 설정이나 성능 보장은 아니다. 초기의 보수적인 감시 중단2회는 성공 검증과 분리해 `android-guarded-host/`, `android-guarded-gpu-memory/`에 남겼다.
+- Android 종료 후 iPad27.2 한 대를 시작했으나 부팅 중 `ps` 조회3초 초과로 감시기가 종료했다(`ios-guarded-validation/`). 조회 대기만10초로 늘리고 CPU·메모리 중단 기준은 유지한 재시도에서도 전체CPU900% 이상3회 연속으로 종료했다(`ios-guarded-validation-retry/`, 최대955.3%). 메모리 압박은 정상이고 스왑 증가는 없었다. iOS 프로세스는 launchd가 소유하므로 이 로그의 소유 RSS는 Metro만 의미하며 iOS 메모리 총량으로 사용하지 않는다. 앱 검증 화면에 진입하지 못했으므로 새로운 iOS 통과 항목은 없다. 두 번 모두 지정 iPad shutdown과 Metro 종료가 성공했고 최종 조회에서 booted 기기·qemu·8082 listener·Device Hub가 없음을 확인했다. 잔여 iOS 검증은 FE 담당자가 다음 단독 기기 실행 전 부하가 안정되는 환경을 먼저 확인한 뒤 이어간다.
 
 ### SCRUM-163 1단계 실행 기록
 
