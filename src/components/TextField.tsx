@@ -1,6 +1,7 @@
 import { forwardRef, useId, useState } from 'react';
-import { StyleSheet, Text, TextInput, type TextInputProps, View } from 'react-native';
+import { StyleSheet, TextInput, type TextInputProps, View } from 'react-native';
 
+import { AppText } from './AppText';
 import { colors, typography } from '../theme/tokens';
 
 export type TextFieldProps = Pick<TextInputProps,
@@ -25,7 +26,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
 
   return (
     <View style={styles.field}>
-      <Text nativeID={labelId} style={styles.label}>{label}</Text>
+      <AppText nativeID={labelId} style={styles.label}>{label}</AppText>
       <TextInput
         {...inputProps}
         ref={ref}
@@ -42,7 +43,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         selectionColor={colors.textLabel}
         style={[styles.input, !!error && styles.error, focused && !disabled && styles.focused, disabled && styles.disabled]}
       />
-      {!!message && <Text style={styles.message} accessibilityLiveRegion="polite">{message}</Text>}
+      {!!message && <AppText style={styles.message} accessibilityLiveRegion="polite">{message}</AppText>}
     </View>
   );
 });

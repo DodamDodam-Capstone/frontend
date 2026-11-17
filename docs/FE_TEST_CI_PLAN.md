@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 로컬 리뷰 후 승인된 포커스 보완·검증·재리뷰다. Android 일반 버튼 포커스 경로를 보완했으며 최종 기기 회귀를 진행 중이다. iOS 일반 버튼·Full Keyboard Access·VoiceOver는 미완료다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재는 SCRUM-163의 승인된 로컬 보완·검증·재리뷰다. Android 일반 버튼 포커스와 iOS 실행 중 글자 확대 후 잘림을 보완했다. 확대 모달 VoiceOver 읽기·닫기는 사용자 확인을 받았으며, Full Keyboard Access·양 OS 전체 화면 읽기 등 아래 잔여 검증은 미완료다.** 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -80,6 +80,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 위 최종 APK를 설치하고 잘못된/없는 tag, disabled, display:none 대상은 `unavailable`, 활성 대상은 실제 focus와 `focused`, 모달 뒤 호출자는 `window-unfocused`를 확인했다. 실제 공통 UI에서도 새 경로의 초기 닫기와 복귀를 확인했으며 최종 확대·화면 읽기 검증은 진행 중이다.
 - Apple autolinking에는 KeyboardFocus가 없다. iOS native 소스/의존성/설정은 변경하지 않았고 새 iOS 빌드를 실행하지 않았다. 기존 앱 재사용은 동일 native 입력의 JS 회귀에만 해당한다. 실기기에서는 서명·설치가 별도로 필요하다.
 - 환경 변경 이력: 초기에는 코드 서명 identity 0개와 Xcode26.6 GUI 호환성 오류를 확인했다. 이후 사용자 환경이 Xcode27.2(27B52)로 바뀌었고 GUI·`-checkFirstLaunchStatus`가 정상임을 확인했다. 위 Android 빌드는 이 업데이트 전 기록이다. 실제 iPad 연결은 이번 검증에서 제외하며, 서명 인증서 부재를 시뮬레이터 검증의 차단 사유로 사용하지 않는다. 이미 설치된27.2 시뮬레이터에 기존 iOS 앱을 설치해 가로 예제 실행까지 확인했지만, 과부하 중단 시점에는 VoiceOver·FKA 전체 검증 전이었다.
+
+### SCRUM-163 기기 회귀·실행 중 글자 확대 결함 보완 — 2026-11-17 KST
+
+- 실행은 Android 종료 후 iPad 한 대와 Metro 한 개로 진행했다. 자동 검사 전에 iPad와 Metro를 종료했고 완료 후 iPad만 다시 열었다. 기존 Android APK와 iOS 실행파일을 재사용했으며 이번 글자 수정은 JS에만 적용했다. native·의존성·CI 변경 및 새 native 빌드는 없다.
+- Android 최종 APK의 터치 열기→닫기 초기 포커스→Enter 닫기/호출 버튼 복귀→Space 재열기→Tab 확인/Shift+Tab 닫기→Space 닫기 6단계를 확인했다. TalkBack은 실제 자막의 도움말·기본 버튼·닫기 역할 일부만 확인했으며 전체 순회/제목·닫기 이름 안내는 미확인이다. 200% 기본 모달 표시·Back 닫기는 확인했다. 글자1.0, TalkBack·자막 OFF, 키보드·회전 설정 원복 후 종료했다. `android-final-validation/final-validation-summary.json`에 범위와 증거가 있다.
+- iPadOS27.2 가로에서 VoiceOver 커서와 실제 자막(기본 버튼, 모달 제목/머리말, 닫기/버튼)을 관찰했다. 자동 Ctrl+Option+Space는 OS 설정과 분리 native control에서도 전달이 불안정해 앱 결함이나 접근성 활성화 성공으로 단정하지 않았다. 사용자는 확대 상태 스크롤·긴 오류·재시도1회가 정상임을 확인했지만, 직후 기존 글자가 세로로 잘린다고 보고했다.
+- **결함 재현:** 기본 글씨 `large`에서 앱을 연 뒤 `accessibility-extra-large`로 바꾸면 처음에는 정상이다. `예제 시작`으로 React 상태를 갱신하면 이전부터 있던 제목·라벨·도움말의 높이가 축소되고 새로 나타난 글자는 정상이다. 확대 상태에서 앱을 다시 불러오면 재현되지 않았다. 분리한 native 비교에서는 명시 lineHeight 유무와 무관하게 잘렸고, 배율을 key로 삼아 내부 Text만 교체한 후보는 정상이었다. 역변경도 확인했다. [RN 공식 저장소 이슈 #57512](https://github.com/react/react-native/issues/57512)의 RN0.86 런타임 Dynamic Type 증상과 일치한다. 이슈의 후속 버전 비교를 이 프로젝트의 업그레이드 검증으로 간주하지 않는다.
+- **수정:** `AppText`가 RN Text props/ref를 그대로 전달하고 iOS fontScale 변경 때 내부 Text만 갱신한다. Button/TextField/Dialog/LoadingIndicator/ErrorMessage와 예제의 표시 글씨에 적용했다. TextInput·Pressable·ScrollView·모달은 유지하며 Android와 같은 배율의 화면 크기 변경에서는 Text host도 유지한다. 글자 확대 제한이나 새 포커스 강제 이동은 없다. 호출자가 Dialog 본문에 직접 넣는 RN Text에는 자동 적용되지 않는다. 상태 있는 Text 자식·선택 상태 보존은 제공하지 않는다. 호환 RN 수정 버전에서 재현 시험 후 제거한다.
+- **자동 검사:** 미적용 예제에서 제목 갱신 회귀2개 실패를 확인한 뒤 구현했다. 신규5개는 배율 왕복·회전/Android host 유지·현재 ref·입력 host/값·버튼 host/횟수·열린 모달 상태를 검사한다. 기존 CI와 같은 `npm test`: **35 suites/756 tests**, `npm run lint`, `npm run typecheck` 통과. Jest는 native 글자 높이·실제 포커스 증거가 아니다. CI 설정은 그대로이며 원격 CI는 실행하지 않았다.
+- **수정 후 iPad 확인:** 실행 중 확대→예제 시작→오류→재시도1회에서 기존 제목·도움말·버튼과 새 로딩 문구의 잘림이 사라졌다. 열린 모달을 기본→확대로 바꿔 제목·본문·닫기·확인 버튼 표시를 확인했다. VoiceOver 제목 자막도 관찰했다. 자동 이동 입력이 전달되지 않아 사용자가 직접 제목→닫기→본문→확인 버튼의 읽기 이동 및 Ctrl+Option+Space 닫기를 확인했고, 후속 화면에서 모달 닫힘·열린 횟수1을 확인했다. 이는 확대 모달의 직접 시험이며 일반 버튼 Full Keyboard Access 복귀나 모든 화면 읽기 통과를 뜻하지 않는다.
+- 증거: 무시된 `build/scrum-163-focus-20261117/ios27-final-validation/`의 `text-probe-ax-after-counter`, `text-probe-reverse-after-counter`, `fixed-live-large-retry`, `fixed-large-vo-title`, `fixed-large-vo-user-confirmed` 이미지/트리 및 같은 상위 폴더의 `dynamic-type-*.log`. 최초 수정 후 시작 캡처는 재부팅으로 장치가 세로/앱은 가로 창이었다. 이후 장치를 가로로 돌린 오류·재시도·모달 증거를 최종 가로 확인으로 사용한다.
+- **남은 검증:** iOS Full Keyboard Access 일반 버튼 복귀, 확대 입력 모달의 소프트 키보드/확인 접근·입력 보존의 최종 native 회귀, 양 OS 전체 화면 읽기/모달 배경 차단 순회, 최종 Android APK에서 200% 긴 오류·입력 모달 키보드 회귀. 앞선 APK에서 통과한 확대 입력/오류 기록과 새 APK의 제한된 확인을 구분한다. SCRUM-163 전체 완료·원격 CI·실서버 통합 완료로 표시하지 않는다.
 
 ### SCRUM-163 1단계 실행 기록
 

@@ -1,5 +1,6 @@
-import { ActivityIndicator, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 
+import { AppText } from './AppText';
 import { colors, typography } from '../theme/tokens';
 
 export function LoadingIndicator({ label }: { label: string }) {
@@ -7,7 +8,7 @@ export function LoadingIndicator({ label }: { label: string }) {
     <View accessible accessibilityRole="progressbar" accessibilityLabel={label}
       accessibilityState={{ busy: true }} style={styles.container}>
       <ActivityIndicator accessible={false} color={colors.textLabel} />
-      <Text accessible={false} style={styles.label}>{label}</Text>
+      <AppText accessible={false} style={styles.label}>{label}</AppText>
     </View>
   );
 }

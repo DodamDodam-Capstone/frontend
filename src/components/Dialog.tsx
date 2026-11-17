@@ -1,6 +1,7 @@
 import { type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, type Text, View } from 'react-native';
 
+import { AppText } from './AppText';
 import { colors, fonts } from '../theme/tokens';
 import type { CancelFocus, FocusTarget } from './keyboardFocus';
 import { useKeyboardFocus } from './useKeyboardFocus';
@@ -87,7 +88,7 @@ export function Dialog({ visible, title, children, actions, onRequestClose, init
         <KeyboardAvoidingView style={styles.overlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={styles.panel} accessibilityViewIsModal importantForAccessibility="yes">
             <View style={styles.header}>
-              <Text ref={titleRef} accessibilityRole="header" style={styles.title}>{title}</Text>
+              <AppText ref={titleRef} accessibilityRole="header" style={styles.title}>{title}</AppText>
               <Pressable ref={closeRef} accessibilityRole="button" accessibilityLabel="닫기" focusable
                 onPress={onRequestClose} onFocus={() => setCloseFocused(true)} onBlur={() => setCloseFocused(false)}
                 style={[styles.close, closeFocused && styles.closeFocused]}>

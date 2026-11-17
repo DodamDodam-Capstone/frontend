@@ -81,6 +81,7 @@ Button의 기본 초록 배경에는 가독성 개선을 승인받은 진한 글
 
 | 컴포넌트 | 호출자 경계 |
 | --- | --- |
+| `AppText` | RN Text props/ref를 전달합니다. iOS 실행 중 글자 배율 변경 시 텍스트만 다시 생성해 RN0.86.3의 잘못된 높이 재사용을 피합니다. |
 | `Button` | `label/onPress`, primary·secondary, disabled/loading, `ButtonHandle` ref. 로딩 중에도 이름을 유지하고 누르기를 막습니다. 부모 상태 갱신 전의 API 중복 제출 방지는 호출자가 담당합니다. |
 | `TextField` | 보이는 `label`, controlled `value/onChangeText`, helperText/error, disabled/secureTextEntry, 필요한 키보드 props와 TextInput ref. 검증·값 가공·저장은 하지 않습니다. |
 | `Dialog` | controlled `visible`, title/children/actions/onRequestClose, 선택적 initialFocusRef/returnFocusRef. X와 Android Back이 닫기 콜백을 호출합니다. 호출자는 모달이 열린 동안 배경에 `accessibilityElementsHidden`과 `importantForAccessibility="no-hide-descendants"`를 적용합니다. |
@@ -92,7 +93,14 @@ Dialog의 ref는 포커스를 **요청**하는 인터페이스입니다. 입력�
 Android의 일반 버튼은 로컬 `modules/keyboard-focus`와 실제 창 focus 이벤트를 사용합니다.
 새 모듈을 포함한 development build로 다시 설치해야 하며 Metro 갱신만으로는 적용되지 않습니다.
 Android에서 초기 닫기 버튼·호출 버튼 복귀·키보드 활성화를 확인했습니다.
-iOS의 일반 버튼 복귀·Full Keyboard Access와 실제 VoiceOver 검증은 아직 완료하지 않았습니다.
+iOS 확대 모달의 VoiceOver 읽기 이동·닫기는 사용자 직접 조작으로 확인했습니다.
+일반 버튼의 Full Keyboard Access 복귀와 양 OS 전체 화면 읽기 검증은 아직 완료하지 않았습니다.
+
+공통 UI의 표시 글씨는 `AppText`를 사용합니다. Dialog의 호출자 본문도 `AppText`로 작성합니다.
+글자 배율은 제한하지 않으며 입력창·버튼·모달 전체를 다시 생성하지 않습니다.
+다만 iOS 배율 변경 때 Text 내부 자식과 접근성 노드는 새로 생성되므로, 상태를 가진 자식이나
+텍스트 선택 상태를 보존하는 컨테이너로 사용하지 않습니다. 화면 전체에 key를 붙이지 않습니다.
+호환되는 RN 수정 버전으로 갱신한 뒤 확대→상태 변경→축소 회귀를 확인하고 이 임시 처리를 제거합니다.
 
 위와 같은 Metro8082와 개발 클라이언트에서
 `http://127.0.0.1:8082/scripts/common-ui/preview.bundle?platform=ios&dev=true&minify=false&modulesOnly=false&runModule=true`

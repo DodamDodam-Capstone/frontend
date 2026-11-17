@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
+import { AppText } from '../components/AppText';
 import { Button, type ButtonHandle } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { ErrorMessage } from '../components/ErrorMessage';
@@ -30,7 +31,7 @@ export function CommonUiPreview() {
       <StatusBar style="dark" />
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled"
         accessibilityElementsHidden={dialogVisible} importantForAccessibility={dialogVisible ? 'no-hide-descendants' : 'auto'}>
-        <Text accessibilityRole="header" style={styles.title}>공통 UI 상태 확인</Text>
+        <AppText accessibilityRole="header" style={styles.title}>공통 UI 상태 확인</AppText>
         <View style={styles.columns}>
           <View style={styles.column}>
             <TextField ref={returnInputRef} label="시험 입력" value={value} onChangeText={setValue} placeholder="가상 값만 입력하세요" disabled={exampleState === 'loading'}
@@ -46,17 +47,17 @@ export function CommonUiPreview() {
             <Button label="보조 버튼" variant="secondary" onPress={() => setPresses((count) => count + 1)} />
             <Button label="비활성 버튼" disabled onPress={() => setPresses((count) => count + 1)} />
             <Button label="처리 중 버튼" loading onPress={() => setPresses((count) => count + 1)} />
-            <Text style={styles.body}>실행 횟수: {presses}</Text>
+            <AppText style={styles.body}>실행 횟수: {presses}</AppText>
             <Button label="모달 열기" variant="secondary" onPress={() => { setDialogKind('input'); setDialogVisible(true); }} />
             <Button ref={returnButtonRef} label="버튼 복귀 모달 열기" variant="secondary" onPress={() => {
               setDialogKind('button'); setButtonDialogOpens((count) => count + 1); setDialogVisible(true);
             }} />
-            <Text style={styles.note}>버튼 모달 열린 횟수: {buttonDialogOpens}</Text>
+            <AppText style={styles.note}>버튼 모달 열린 횟수: {buttonDialogOpens}</AppText>
           </View>
         </View>
         <View style={styles.example}>
-          <Text accessibilityRole="header" style={styles.body}>입력·로딩·오류 연결 예제</Text>
-          <Text style={styles.note}>서버 요청 없이 버튼으로 상태를 바꿉니다. 시험 입력은 이 화면을 닫으면 사라집니다.</Text>
+          <AppText accessibilityRole="header" style={styles.body}>입력·로딩·오류 연결 예제</AppText>
+          <AppText style={styles.note}>서버 요청 없이 버튼으로 상태를 바꿉니다. 시험 입력은 이 화면을 닫으면 사라집니다.</AppText>
           {exampleState === 'idle' && <Button label="예제 시작" onPress={() => setExampleState('loading')} />}
           {exampleState === 'loading' && <>
             <LoadingIndicator label="입력 내용을 확인하고 있어요" />
@@ -65,7 +66,7 @@ export function CommonUiPreview() {
           {exampleState === 'error' && <ErrorMessage
             message="입력 내용을 처리하지 못했어요. 입력한 내용은 그대로 남아 있어요. 내용을 확인하고 다시 시도해 주세요. 같은 문제가 계속되면 잠시 후 다시 이용해 주세요."
             onRetry={() => { setRetries((count) => count + 1); setExampleState('loading'); }} />}
-          <Text style={styles.note}>재시도 실행 횟수: {retries}</Text>
+          <AppText style={styles.note}>재시도 실행 횟수: {retries}</AppText>
           {exampleState !== 'idle' && <Button label="예제 초기화" variant="secondary" onPress={() => setExampleState('idle')} />}
         </View>
       </ScrollView>
@@ -74,9 +75,9 @@ export function CommonUiPreview() {
         returnFocusRef={dialogKind === 'input' ? returnInputRef : returnButtonRef}
         actions={<Button label="확인하고 닫기" onPress={() => setDialogVisible(false)} />}>
         {dialogKind === 'input' ? <>
-          <Text style={styles.body}>입력과 닫기 동작을 확인하세요. 닫으면 바깥의 시험 입력으로 돌아갑니다.</Text>
+          <AppText style={styles.body}>입력과 닫기 동작을 확인하세요. 닫으면 바깥의 시험 입력으로 돌아갑니다.</AppText>
           <TextField ref={dialogInputRef} label="모달 시험 입력" value={dialogValue} onChangeText={setDialogValue} />
-        </> : <Text style={styles.body}>닫은 뒤 모달을 열었던 버튼에서 키보드로 다시 실행할 수 있는지 확인하세요.</Text>}
+        </> : <AppText style={styles.body}>닫은 뒤 모달을 열었던 버튼에서 키보드로 다시 실행할 수 있는지 확인하세요.</AppText>}
       </Dialog>
     </KeyboardAvoidingView>
   );

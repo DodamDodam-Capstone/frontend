@@ -1,7 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Platform, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Platform, StyleSheet, View } from 'react-native';
 
 import { Button } from './Button';
+import { AppText } from './AppText';
 import { colors, typography } from '../theme/tokens';
 
 export type ErrorMessageProps = {
@@ -23,7 +24,7 @@ export function ErrorMessage({ message, onRetry, retryLabel = '다시 시도' }:
 
   return (
     <View style={styles.container}>
-      <Text accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.message}>{message}</Text>
+      <AppText accessibilityRole="alert" accessibilityLiveRegion="polite" style={styles.message}>{message}</AppText>
       {onRetry && <Button label={retryLabel} variant="secondary" onPress={onRetry} />}
     </View>
   );

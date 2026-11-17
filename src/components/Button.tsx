@@ -1,6 +1,7 @@
 import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
+import { AppText } from './AppText';
 import { colors, fonts } from '../theme/tokens';
 import type { ButtonHandle } from './keyboardFocus';
 import { useKeyboardFocus } from './useKeyboardFocus';
@@ -42,7 +43,7 @@ export const Button = forwardRef<ButtonHandle, ButtonProps>(function Button(
       ]}
     >
       {loading && <ActivityIndicator color={colors.textPrimary} accessible={false} />}
-      <Text style={[styles.label, variant === 'secondary' && styles.secondaryLabel]}>{label}</Text>
+      <AppText style={[styles.label, variant === 'secondary' && styles.secondaryLabel]}>{label}</AppText>
     </Pressable>
   );
 });
