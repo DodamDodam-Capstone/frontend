@@ -2,8 +2,8 @@ import { type ReactNode, type RefObject, useCallback, useEffect, useLayoutEffect
 import { AccessibilityInfo, Image, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts } from '../theme/tokens';
-
-type FocusTarget = { focus: () => void };
+import type { CancelFocus, FocusTarget } from './keyboardFocus';
+import { useKeyboardFocus } from './useKeyboardFocus';
 
 export type DialogProps = {
   visible: boolean;
@@ -18,21 +18,52 @@ export type DialogProps = {
 export function Dialog({ visible, title, children, actions, onRequestClose, initialFocusRef, returnFocusRef }: DialogProps) {
   const titleRef = useRef<Text>(null);
   const closeRef = useRef<View>(null);
+  const closeFocus = useKeyboardFocus(closeRef, !visible);
   const [closeFocused, setCloseFocused] = useState(false);
   const wasVisible = useRef(visible);
   const current = useRef({ visible, initialFocusRef, returnFocusRef });
-  useLayoutEffect(() => { current.current = { visible, initialFocusRef, returnFocusRef }; });
-
-  const restoreFocus = useCallback(() => {
-    // 닫힌 직후 다시 열리거나 호출자가 사라지면 오래된 대상으로 이동하지 않는다.
-    if (!current.current.visible) current.current.returnFocusRef?.current?.focus();
+  const mounted = useRef(false);
+  const pending = useRef<{ cancel: CancelFocus; isCurrent: () => boolean } | undefined>(undefined);
+  const stopPending = useCallback(() => {
+    const previous = pending.current;
+    pending.current = undefined;
+    previous?.cancel();
   }, []);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; stopPending(); };
+  }, [stopPending]);
+  useLayoutEffect(() => {
+    current.current = { visible, initialFocusRef, returnFocusRef };
+    if (pending.current && !pending.current.isCurrent()) stopPending();
+  });
+
+  const requestFocus = useCallback((target: FocusTarget | null | undefined, afterModalDismiss: boolean) => {
+    stopPending();
+    if (!target) return;
+    const isCurrent = () => mounted.current && (afterModalDismiss
+      ? !current.current.visible && current.current.returnFocusRef?.current === target
+      : current.current.visible && (current.current.initialFocusRef?.current ?? closeFocus) === target);
+    if (!isCurrent()) return;
+    if (target.requestKeyboardFocus) {
+      const cancel = target.requestKeyboardFocus({ afterModalDismiss, isCurrent });
+      pending.current = { cancel, isCurrent };
+    } else {
+      // TextInput 등 기존 공개 focus 계약은 그대로 사용한다.
+      target.focus();
+    }
+  }, [closeFocus, stopPending]);
+  const restoreFocus = useCallback(() => {
+    if (current.current.visible) return;
+    requestFocus(current.current.returnFocusRef?.current, true);
+  }, [requestFocus]);
 
   useEffect(() => {
     if (visible) { wasVisible.current = true; return; }
     if (!wasVisible.current) return;
     wasVisible.current = false;
-    // RN onDismiss는 iOS 전용이다. Android는 애니메이션 없는 닫힘 반영 후 요청한다.
+    // RN onDismiss는 iOS 전용이다. frame은 닫힘 반영용이며 창 준비 완료의 증거가 아니다.
+    // 일반 버튼은 실제 Activity focus 이벤트를 기다리는 별도 경로를 사용한다.
     if (Platform.OS === 'android') {
       const frame = requestAnimationFrame(restoreFocus);
       return () => cancelAnimationFrame(frame);
@@ -47,7 +78,7 @@ export function Dialog({ visible, title, children, actions, onRequestClose, init
       onDismiss={restoreFocus}
       onShow={() => {
         if (!current.current.visible) return;
-        (current.current.initialFocusRef?.current ?? closeRef.current)?.focus();
+        requestFocus(current.current.initialFocusRef?.current ?? closeFocus, false);
         // 화면 읽기 시작 위치와 입력 장치 포커스는 서로 다른 요청이다.
         if (titleRef.current) AccessibilityInfo.sendAccessibilityEvent(titleRef.current, 'focus');
       }}

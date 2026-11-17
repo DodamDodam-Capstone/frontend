@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { Button } from '../components/Button';
+import { Button, type ButtonHandle } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -18,7 +18,7 @@ export function CommonUiPreview() {
   const [dialogVisible, setDialogVisible] = useState(false);
   const [dialogKind, setDialogKind] = useState<'input' | 'button'>('input');
   const [buttonDialogOpens, setButtonDialogOpens] = useState(0);
-  const returnButtonRef = useRef<View>(null);
+  const returnButtonRef = useRef<ButtonHandle>(null);
   const [dialogValue, setDialogValue] = useState('');
   const dialogInputRef = useRef<TextInput>(null);
   const returnInputRef = useRef<TextInput>(null);

@@ -81,15 +81,18 @@ Button의 기본 초록 배경에는 가독성 개선을 승인받은 진한 글
 
 | 컴포넌트 | 호출자 경계 |
 | --- | --- |
-| `Button` | `label/onPress`, primary·secondary, disabled/loading. 로딩 중에도 이름을 유지하고 누르기를 막습니다. 부모 상태 갱신 전의 API 중복 제출 방지는 호출자가 담당합니다. |
+| `Button` | `label/onPress`, primary·secondary, disabled/loading, `ButtonHandle` ref. 로딩 중에도 이름을 유지하고 누르기를 막습니다. 부모 상태 갱신 전의 API 중복 제출 방지는 호출자가 담당합니다. |
 | `TextField` | 보이는 `label`, controlled `value/onChangeText`, helperText/error, disabled/secureTextEntry, 필요한 키보드 props와 TextInput ref. 검증·값 가공·저장은 하지 않습니다. |
 | `Dialog` | controlled `visible`, title/children/actions/onRequestClose, 선택적 initialFocusRef/returnFocusRef. X와 Android Back이 닫기 콜백을 호출합니다. 호출자는 모달이 열린 동안 배경에 `accessibilityElementsHidden`과 `importantForAccessibility="no-hide-descendants"`를 적용합니다. |
 | `LoadingIndicator` | 호출자가 제공한 label과 진행 표시. 요청·타이머를 실행하지 않습니다. |
 | `ErrorMessage` | 안전한 사용자 안내 `message`, 선택적 `onRetry/retryLabel`. 원본 서버 오류나 민감값을 message에 넣지 않습니다. 명시적으로 누를 때만 재시도 콜백을 호출합니다. |
 
-Dialog의 ref는 포커스를 **요청**하는 인터페이스입니다. 현재 Android 기기에서 TextInput의
-초기·복귀 포커스와 모달 내 Tab 이동은 확인했지만, 일반 Button/View로 닫힘 후 자동 복귀는
-동작하지 않았습니다. 버튼으로 복귀하는 화면에 적용하기 전 이 미해결 항목을 보완해야 합니다.
+Dialog의 ref는 포커스를 **요청**하는 인터페이스입니다. 입력에는 `TextInput` ref를,
+공통 버튼에는 `useRef<ButtonHandle>(null)`을 사용합니다. Button ref는 임의의 View API를 제공하지 않습니다.
+Android의 일반 버튼은 로컬 `modules/keyboard-focus`와 실제 창 focus 이벤트를 사용합니다.
+새 모듈을 포함한 development build로 다시 설치해야 하며 Metro 갱신만으로는 적용되지 않습니다.
+Android에서 초기 닫기 버튼·호출 버튼 복귀·키보드 활성화를 확인했습니다.
+iOS의 일반 버튼 복귀·Full Keyboard Access와 실제 VoiceOver 검증은 아직 완료하지 않았습니다.
 
 위와 같은 Metro8082와 개발 클라이언트에서
 `http://127.0.0.1:8082/scripts/common-ui/preview.bundle?platform=ios&dev=true&minify=false&modulesOnly=false&runModule=true`

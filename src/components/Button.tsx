@@ -1,7 +1,11 @@
-import { forwardRef, useState } from 'react';
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { colors, fonts } from '../theme/tokens';
+import type { ButtonHandle } from './keyboardFocus';
+import { useKeyboardFocus } from './useKeyboardFocus';
+
+export type { ButtonHandle } from './keyboardFocus';
 
 export type ButtonProps = {
   label: string;
@@ -11,15 +15,18 @@ export type ButtonProps = {
   loading?: boolean;
 };
 
-export const Button = forwardRef<View, ButtonProps>(function Button(
+export const Button = forwardRef<ButtonHandle, ButtonProps>(function Button(
   { label, onPress, variant = 'primary', disabled = false, loading = false }, ref,
 ) {
   const [focused, setFocused] = useState(false);
   const blocked = disabled || loading;
+  const hostRef = useRef<View>(null);
+  const focusHandle = useKeyboardFocus(hostRef, blocked);
+  useImperativeHandle(ref, () => focusHandle, [focusHandle]);
 
   return (
     <Pressable
-      ref={ref}
+      ref={hostRef}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled: blocked, busy: loading }}

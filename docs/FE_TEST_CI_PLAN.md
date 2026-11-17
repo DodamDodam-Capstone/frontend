@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 로컬 리뷰 후 승인된 포커스 보완·검증·재리뷰다. 일반 버튼의 포커스 복귀 결함은 미해결이며 최소 native 후보를 검증 중이다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 로컬 리뷰 후 승인된 포커스 보완·검증·재리뷰다. Android 일반 버튼 포커스 경로를 보완했으며 최종 기기 회귀를 진행 중이다. iOS 일반 버튼·Full Keyboard Access·VoiceOver는 미완료다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -64,8 +64,22 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 후보 통과 조건: 현재 입력으로 만든 앱에서 호출자 복귀·기본 닫기 진입·Tab/Shift+Tab·Enter/Space 활성화1회·보이는 포커스·접근성 대상 중복 없음을 함께 확인한다. 실패/관찰 불가인 플랫폼은 새 host나 실험 flag를 무조건 추가하지 않고 원인·차단을 기록한다. TextInput 공개 focus 경로는 유지한다.
 - 늦은 요청은 실행 전 차단하고 늦은 결과는 폐기한다. 이미 실행한 OS 포커스 이동의 취소를 보장하지 않는다. 창 준비 listener를 추가한다면 재열림/대상 변경/제거/비활성화/unmount/background 때 정리해 다음 앱 복귀까지 남지 않게 한다.
 - 필수 기기 조합: 양 OS 기본 글씨의 버튼/입력 호출자와 닫기 경로, 확대 글씨의 긴 오류·모달 끝·입력/확인 접근, 변경한 비동기 경로의 재열림/제거/비활성화, Full Keyboard Access·VoiceOver·TalkBack 개별 검사. 터치 열기와 키보드 열기를 따로 기록한다.
-- iOS26.5 시뮬레이터의 설정에는 VoiceOver가 없다. [Apple 검사 지침](https://developer.apple.com/documentation/accessibility/performing-accessibility-testing-for-your-app)에 따라 실제 VoiceOver 검증에는 실제 기기가 필요하다. macOS Accessibility Inspector 트리·미리듣기를 iOS VoiceOver 성공으로 대신하지 않는다. 사용자 소유 iPad 연결을 준비 중이다.
+- 실행 부하 제한(사용자 지시): 검증 기기1대와 필요한 Metro1개만 실행한다. 해당 기기 검증·설정 원복·종료를 확인한 뒤 다음 OS를 시작한다. 기기 검증 중 다른 네이티브 빌드나 전체 테스트를 함께 실행하지 않는다.
+- 초기 iOS26.5 설정 화면만 보고 VoiceOver에 실기기가 필수라고 판단했던 안내를 정정한다. 사용자 지적 후 Xcode27.2 Device Hub의 VoiceOver 토글과 커서 이동을 직접 확인했다. [Xcode27 릴리스 노트](https://developer.apple.com/documentation/xcode-release-notes/xcode-27-release-notes)는 해당 토글 문제의 수정을 기록한다. 11/17 14:49 KST 재조회에서는 기존26.5 외에 iPadOS27.2 런타임도 이미 설치·사용 가능했다. 새 다운로드 없이27.2 시뮬레이터에서 VoiceOver·키보드 접근을 검증한다. 토글·트리·커서 이동만으로 발화·활성화·전체 순회를 통과 처리하지 않는다.
 - 증빙은 위 무시된 build 경로에 코드/native 입력·앱 해시·환경·조작·기대/실제를 보관한다. 최종 수정 후 전체 Jest/lint/typecheck/export 및 변경 native 빌드를 실행하고, 마지막 커밋을 Astra로 재리뷰한다. 아직 전체 보완 완료가 아니다.
+
+### SCRUM-163 Android 포커스 보완 구현·검증 — 2026-11-17 KST
+
+- 후보 앱에서 기존 Pressable host를 유지한 채 공개 `requestFocusFromTouch/requestFocus`로 초기 닫기·호출 버튼 복귀, 실제 `focused=true`와 포커스 테두리, Tab/Shift+Tab, Enter/Space, 열린 횟수1→2를 확인했다. 별도의 접근성 button 중복은 없었다. 실험 flag·TV prop·숨은 TextInput·node_modules 수정·추가 외부 의존성은 도입하지 않았다.
+- 본 모듈 `KeyboardFocus.requestFocus(tag)`는 main queue에서 연결/활성/표시/크기/창 상태를 확인하고 `focused`, `window-unfocused`, `unavailable`을 구분한다. native에는 pending listener나 반복 작업이 없다. 요청한 View 자체의 `isFocused`도 확인한다.
+- Button은 명시적 `ButtonHandle`을 제공하며 내부 host ref를 소유한다. Dialog 닫기와 같은 helper를 재사용한다. TextInput 공개 `.focus()`는 유지한다. Android 복귀 대기는 Activity `focus`를 먼저 구독한 뒤 한 번 요청하고, 창 대기 결과와 관찰한 focus 이벤트가 둘 다 있을 때만 다시 요청한다. 응답 전 이벤트도 잃지 않으며 성공/거절/취소/background에서 구독을 정리한다.
+- 재열림·현재 ref 변경·unmount·disabled/loading 이후에는 이전 대기가 재요청하지 않는다. 이미 native queue로 보낸 단일 요청을 취소했다고 주장하지 않는다. 모달 내부 초기 요청에는 Activity focus를 창 준비 신호로 사용하지 않는다.
+- 추가 회귀에서 이전 iOS dismiss가 다시 열린 모달의 초기 대기를 취소하는 경로를 RED로 재현하고 visible guard로 보완했다. iOS 실제 키보드 복귀 성공을 뜻하지 않는다.
+- 자동 검사: 새 helper/수명/Dialog 사례를 실패부터 확인한 뒤 통과시켰다. 전체 Jest **34 suites/751 tests**, lint/typecheck 통과. 양 OS 일반 앱 export 통과이며 공통 UI 예제 bundle/runtime과 구분한다. CI의 `npm run test`가 새 인접 테스트를 포함한다. CI 설정은 변경하지 않았고 원격 CI는 실행하지 않았다.
+- 최종 Android native 빌드: 분리된 소스 복사본, JDK17·SDK36, `:app:assembleDebug --no-daemon --console=plain --offline`, 47초·336 tasks(304실행/32 up-to-date) 성공. APK SHA-256 `f7ed8b623e3c4e8f4b1c4a47bf8c7d89914d8ef2b288cfc90c2009f7f447f7c1`. generated 등록 목록/DEX에 KeyboardFocus가 있고 실험 DialogFocusProbe는 없다. 모듈6개 파일과 native 입력 해시를 원본과 대조했다.
+- 위 최종 APK를 설치하고 잘못된/없는 tag, disabled, display:none 대상은 `unavailable`, 활성 대상은 실제 focus와 `focused`, 모달 뒤 호출자는 `window-unfocused`를 확인했다. 실제 공통 UI에서도 새 경로의 초기 닫기와 복귀를 확인했으며 최종 확대·화면 읽기 검증은 진행 중이다.
+- Apple autolinking에는 KeyboardFocus가 없다. iOS native 소스/의존성/설정은 변경하지 않았고 새 iOS 빌드를 실행하지 않았다. 기존 앱 재사용은 동일 native 입력의 JS 회귀에만 해당한다. 실기기에서는 서명·설치가 별도로 필요하다.
+- 환경 변경 이력: 초기에는 코드 서명 identity 0개와 Xcode26.6 GUI 호환성 오류를 확인했다. 이후 사용자 환경이 Xcode27.2(27B52)로 바뀌었고 GUI·`-checkFirstLaunchStatus`가 정상임을 확인했다. 위 Android 빌드는 이 업데이트 전 기록이다. 실제 iPad 연결은 이번 검증에서 제외하며, 서명 인증서 부재를 시뮬레이터 검증의 차단 사유로 사용하지 않는다. 이미 설치된27.2 시뮬레이터에 기존 iOS 앱을 설치해 가로 예제 실행까지 확인했지만, 과부하 중단 시점에는 VoiceOver·FKA 전체 검증 전이었다.
 
 ### SCRUM-163 1단계 실행 기록
 

@@ -101,3 +101,45 @@ test('iOS 닫힘 완료 때 복귀 대상이 사라졌으면 포커스를 요청
 
   expect(focus).not.toHaveBeenCalled();
 });
+
+test('Android 버튼 복귀는 취소 가능한 경로를 쓰고 재열림 때 대기를 정리한다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  const cancel = jest.fn();
+  const requestKeyboardFocus = jest.fn(() => cancel);
+  const focus = jest.fn();
+  const returnFocusRef = { current: { focus, requestKeyboardFocus } };
+  const frames: FrameRequestCallback[] = [];
+  jest.spyOn(global, 'requestAnimationFrame').mockImplementation((callback) => { frames.push(callback); return frames.length; });
+  jest.spyOn(global, 'cancelAnimationFrame').mockImplementation(() => {});
+  await render(<Dialog visible title="안내" returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  await screen.rerender(<Dialog visible={false} title="안내" returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  await act(() => { frames.forEach((callback) => callback(0)); });
+  expect(requestKeyboardFocus).toHaveBeenCalledTimes(1);
+  expect(focus).not.toHaveBeenCalled();
+  await screen.rerender(<Dialog visible title="안내" returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  expect(cancel).toHaveBeenCalledTimes(1);
+});
+
+test('초기 버튼의 대기는 모달 닫힘과 unmount에서 정리한다', async () => {
+  const cancel = jest.fn();
+  const initialFocusRef = { current: { focus: jest.fn(), requestKeyboardFocus: jest.fn(() => cancel) } };
+  await render(<Dialog visible title="안내" initialFocusRef={initialFocusRef} onRequestClose={() => {}} />);
+  await fireEvent(screen.root!, 'show');
+  await screen.rerender(<Dialog visible={false} title="안내" initialFocusRef={initialFocusRef} onRequestClose={() => {}} />);
+  expect(cancel).toHaveBeenCalledTimes(1);
+  await screen.unmount();
+  expect(cancel).toHaveBeenCalledTimes(1);
+});
+
+test('이전 iOS dismiss는 다시 열린 모달의 초기 버튼 대기를 취소하지 않는다', async () => {
+  const cancel = jest.fn();
+  const initialFocusRef = { current: { focus: jest.fn(), requestKeyboardFocus: jest.fn(() => cancel) } };
+  const returnFocusRef = { current: { focus: jest.fn() } };
+  await render(<Dialog visible title="안내" initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  const oldDismiss = screen.root!.props.onDismiss;
+  await screen.rerender(<Dialog visible={false} title="안내" initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  await screen.rerender(<Dialog visible title="안내" initialFocusRef={initialFocusRef} returnFocusRef={returnFocusRef} onRequestClose={() => {}} />);
+  await fireEvent(screen.root!, 'show');
+  await act(() => oldDismiss());
+  expect(cancel).not.toHaveBeenCalled();
+});
