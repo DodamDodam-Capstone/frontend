@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TextInput, View } from 'react-native';
 
 import { AppText } from '../components/AppText';
-import { Button, type ButtonHandle } from '../components/Button';
+import { Button } from '../components/Button';
 import { Dialog } from '../components/Dialog';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { LoadingIndicator } from '../components/LoadingIndicator';
@@ -17,9 +17,8 @@ export function CommonUiPreview() {
   const passwordRef = useRef<TextInput>(null);
   const [password, setPassword] = useState('');
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [dialogKind, setDialogKind] = useState<'input' | 'button'>('input');
-  const [buttonDialogOpens, setButtonDialogOpens] = useState(0);
-  const returnButtonRef = useRef<ButtonHandle>(null);
+  const [dialogKind, setDialogKind] = useState<'input' | 'notice'>('input');
+  const [noticeDialogOpens, setNoticeDialogOpens] = useState(0);
   const [dialogValue, setDialogValue] = useState('');
   const dialogInputRef = useRef<TextInput>(null);
   const returnInputRef = useRef<TextInput>(null);
@@ -49,10 +48,10 @@ export function CommonUiPreview() {
             <Button label="처리 중 버튼" loading onPress={() => setPresses((count) => count + 1)} />
             <AppText style={styles.body}>실행 횟수: {presses}</AppText>
             <Button label="모달 열기" variant="secondary" onPress={() => { setDialogKind('input'); setDialogVisible(true); }} />
-            <Button ref={returnButtonRef} label="버튼 복귀 모달 열기" variant="secondary" onPress={() => {
-              setDialogKind('button'); setButtonDialogOpens((count) => count + 1); setDialogVisible(true);
+            <Button label="안내 모달 열기" variant="secondary" onPress={() => {
+              setDialogKind('notice'); setNoticeDialogOpens((count) => count + 1); setDialogVisible(true);
             }} />
-            <AppText style={styles.note}>버튼 모달 열린 횟수: {buttonDialogOpens}</AppText>
+            <AppText style={styles.note}>안내 모달 열린 횟수: {noticeDialogOpens}</AppText>
           </View>
         </View>
         <View style={styles.example}>
@@ -70,14 +69,14 @@ export function CommonUiPreview() {
           {exampleState !== 'idle' && <Button label="예제 초기화" variant="secondary" onPress={() => setExampleState('idle')} />}
         </View>
       </ScrollView>
-      <Dialog visible={dialogVisible} title={dialogKind === 'input' ? '공통 모달 확인' : '버튼 포커스 확인'} onRequestClose={() => setDialogVisible(false)}
+      <Dialog visible={dialogVisible} title={dialogKind === 'input' ? '공통 모달 확인' : '안내 모달 확인'} onRequestClose={() => setDialogVisible(false)}
         initialFocusRef={dialogKind === 'input' ? dialogInputRef : undefined}
-        returnFocusRef={dialogKind === 'input' ? returnInputRef : returnButtonRef}
+        returnFocusRef={dialogKind === 'input' ? returnInputRef : undefined}
         actions={<Button label="확인하고 닫기" onPress={() => setDialogVisible(false)} />}>
         {dialogKind === 'input' ? <>
           <AppText style={styles.body}>입력과 닫기 동작을 확인하세요. 닫으면 바깥의 시험 입력으로 돌아갑니다.</AppText>
           <TextField ref={dialogInputRef} label="모달 시험 입력" value={dialogValue} onChangeText={setDialogValue} />
-        </> : <AppText style={styles.body}>닫은 뒤 모달을 열었던 버튼에서 키보드로 다시 실행할 수 있는지 확인하세요.</AppText>}
+        </> : <AppText style={styles.body}>안내를 읽고 닫기 또는 확인 버튼을 눌러 화면으로 돌아가세요.</AppText>}
       </Dialog>
     </KeyboardAvoidingView>
   );

@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재는 SCRUM-163의 승인된 로컬 보완·검증·재리뷰다. Android 일반 버튼 포커스와 iOS 실행 중 글자 확대 후 잘림을 보완했다. 확대 모달 VoiceOver 읽기·닫기는 사용자 확인을 받았으며, Full Keyboard Access·양 OS 전체 화면 읽기 등 아래 잔여 검증은 미완료다.** 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. SCRUM-163은 사용자 요청으로 AC2를 아동용 가로 태블릿의 터치·화면 키보드 중심으로 변경했다. 외장 키보드와 Full Keyboard Access는 지원·완료·차단 조건에서 제외한다. 현재는 해당 범위에 맞춘 코드 정리와 양 OS 화면 읽기 등 남은 로컬 검증·Astra 재리뷰를 진행 중이다.** 이전 Subtask 기록과 아래 20:58 KST 이전의 키보드 검증 계획은 당시 실행 이력이며 최신 완료 기준이나 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -30,6 +30,8 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 ### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
 
+> 아래 원래 계획의 외장 키보드·일반 버튼 복귀 항목은 2026-11-17 20:58 KST 사용자 확정 범위로 대체됐다. 최신 실행 순서는 다음 절을 따른다. 나머지 기존 실행 결과는 역사적 증거로 보존한다.
+
 - 11/16 확인 당시 부모122는 진행 중, 163 담당자는 고영준이며 Jira 상태는 해야 할 일이었다. 11/17 재조회에서는163이 진행 중(updated 18:07 KST)으로 바뀌어 있었다. 이번 로컬 작업에서 Jira를 변경하지 않았다. 121·123·162의 완료를 확인했다. 164의 전체 초기 화면 조합 검증, 125의 인증 동작, 129의 실제 서버 검증을 포함하지 않는다.
 - 원래 checkout의 clean 상태와 `d73c3be`/원격 development `980dee5`의 동일 tree를 확인했다. 기존 clean development worktree를 `pull --ff-only` 후 원래 폴더에 `feature/SCRUM-163-common-ui`를 분기했다. 7개 타 worktree HEAD/index/diff/미커밋 내용 및159의 10개 보존 파일은 대조 결과 동일하다.
 - 디자인은 [P0](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-1761)의 실제 노드 기준이다. 원본과 엔지니어링 보완 상태를 구분한다. 새 UI 라이브러리·색상 체계·API 정책은 만들지 않는다.
@@ -54,6 +56,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 인터페이스 대조: 1의 Button(ref/disabled/loading)·TextField(ref/controlled)를 2의 Dialog actions/focus 및 3의 예제가 재사용한다. 업무 API와 연결하지 않으므로 인증 문맥·DTO 변경은 없다.
 - 실행 조정: 첫 단계부터 native 기본 동작을 확인하려고 3단계의 분리 예제를 최소 상태로 먼저 만들고 2~3단계에서 확장한다. 일반 App/index에서는 import하지 않는다. 별도 임시 화면을 만들고 버리는 중복을 피한다.
 - 기존 CI의 `npm test`는 인접 `*.test.tsx`를 실행한다. 예제 테스트는 registerRootComponent 진입점이 아닌 컴포넌트를 렌더한다. 일반앱 export만으로 예제 번들 통과를 주장하지 않는다.
+
+### SCRUM-163 터치 태블릿 범위 변경·후속 실행 — 2026-11-17 20:58 KST
+
+- 사용자 결정: 아동이 터치로 쓰는 가로형 태블릿 앱이며 외장 키보드가 필요하지 않다. 요청에 따라 Jira163 AC2를 수정하고 저장 결과를 재조회했다. Tab/Shift+Tab/Enter/Space 및 iPad Full Keyboard Access는 이번 지원·완료·차단 조건에서 제외한다. 이는 FKA 결함의 수정·검증 통과를 뜻하지 않는다. 부모122·후속164의 본문은 이번 요청에서 수정하지 않았다.
+- 유지하는 기준: 버튼·입력·모달의 터치 조작, 입력 라벨과 입력 중 표시, 화면 키보드 위의 입력/본문/확인 접근, 필요한 입력 포커스, 확대 글씨와 화면 읽기. 일반 버튼의 외장 키보드 복귀와 관련 native pending 검사는 수행 대상에서 제외한다.
+- 재개 기준선은 `061f11f`이며9개 checkout의 HEAD·index 항목·diff·미커밋 파일 해시가 직전 보존 기록과 동일하다. 사용자 지시대로 기존 작업 브랜치에서 진행하며 다른 Subtask·push·PR·병합·추가 Jira 변경으로 확대하지 않는다.
+- 실행 순서: (1) 외장 키보드 전용 Android helper·JS 대기·ButtonHandle과 해당 예제를 최소 정리하고 입력/SR 경로를 보존한다. (2) 변경 회귀·lint·typecheck·전체 Jest 및 양 OS export를 실행하고 Android native 모듈 제거를 새 빌드에서 확인한다. iOS native 입력은 변화 여부를 대조한 뒤 재사용/재빌드를 결정한다. (3) Android와 iPad를 한 대씩 실행해 터치·화면 키보드·모달·화면 읽기를 확인하고 설정을 원복한다. (4) 실제 증거/미검증을 기록하고 단계 커밋·최종 Astra 로컬 리뷰를 진행한다.
+- 기기 한 대와 Metro 한 개만 사용하며 기기 실행 중 native 빌드나 전체 테스트를 함께 실행하지 않는다. Android host GPU, iOS Metal 경로를 유지한다. CPU·스왑은 관찰하고 심각하거나 알 수 없는 메모리 압박·열 상태에서는 해당 실행을 중단한다. 과거 중단 정책을 현재 정책으로 되살리지 않는다.
+- 중단된 iOS FKA 후보는 무시된 진단 JS와 임시 소스 복사본 준비까지만 존재하며 제품 native 코드·의존성·빌드에 적용하지 않았다. 화면 읽기 검증은 접근성 트리 노출, 실제 발화/이동, 사용자 확인을 구분한다.
+- 코드 정리: 외장 키보드 전용 Android 모듈6개 파일과 JS helper/수명 관리·ButtonHandle을 제거했다. Button과 모달 닫기는 기존 Pressable의 터치·이름·상태를 유지한다. 입력 없는 모달은 버튼 입력 포커스를 강제로 옮기지 않고, TextInput 초기/복귀 포커스와 화면 읽기 제목 요청·배경 분리는 유지한다. 안내 모달 예제는 터치 열기·두 닫기 경로·열린 횟수를 재현한다.
+- 검증: 새 모달 회귀는 이전 구현의 불필요한 버튼 focus 호출로 실패한 뒤 통과했다. 관련4 suites/24 tests, 전체 **33 suites/743 tests**, lint/typecheck와 양 OS 일반 앱 export가 통과했다. 삭제된 외장 키보드 전용 테스트2 suites는 새 AC 대상에서 제외한 코드와 함께 제거했으며 입력·터치·확대·기본 접근성 검사는 유지한다. 과거 ignored Android 진단 probe는 동일 SHA의 `.tsx.txt`로 보존해 TypeScript 입력에서 제외했다. 기존 CI의 전체 Jest가 변경 테스트를 실행한다.
+- Android native 재빌드: 새 소스 복사본·기존 고정 의존성·JDK17·SDK36에서 prebuild 후 `:app:assembleDebug --no-daemon --console=plain --offline --max-workers=2 -Dorg.gradle.parallel=false` 성공(1분53초,316 tasks). APK SHA-256 `bf897915c78632b5c71f9c64ec55145aa49f2c5e8644cde3a7a203057ec51226`, DEX에 제거한 KeyboardFocus 없음, 복사 입력 파일 변경 없음. iOS native 입력10개와 Apple autolinking18개 모듈이 기존 입력과 같아 이전 앱을 재사용한다. 이번 새 iOS native 빌드는 없다. 기기 실행·최종 리뷰는 다음 단계이며 원격 CI와 구분한다.
 
 ### SCRUM-163 리뷰 후 보완 — 2026-11-17 KST
 

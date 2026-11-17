@@ -1,5 +1,5 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 import { Dimensions, Platform } from 'react-native';
 
 import { CommonUiPreview } from './CommonUiPreview';
@@ -47,19 +47,20 @@ test('모달이 열리면 배경 동작은 접근성 탐색에서 제외되고 �
   expect(screen.queryByLabelText('모달 시험 입력')).toBeNull();
 });
 
-test('일반 버튼 호출자는 입력 없는 모달을 열고 닫은 뒤 다시 실행할 수 있다', async () => {
+test('안내 모달은 터치 한 번에 한 번 열리고 확인 또는 닫기로 돌아온다', async () => {
+  const user = userEvent.setup();
   await render(<CommonUiPreview />);
-  await fireEvent.press(screen.getByRole('button', { name: '버튼 복귀 모달 열기' }));
+  await user.press(screen.getByRole('button', { name: '안내 모달 열기' }));
 
-  expect(screen.getByRole('header', { name: '버튼 포커스 확인' })).toBeVisible();
+  expect(screen.getByRole('header', { name: '안내 모달 확인' })).toBeVisible();
   expect(screen.queryByLabelText('모달 시험 입력')).toBeNull();
-  expect(screen.queryByRole('button', { name: '버튼 복귀 모달 열기' })).toBeNull();
-  await fireEvent.press(screen.getByRole('button', { name: '확인하고 닫기' }));
-  expect(screen.getByText('버튼 모달 열린 횟수: 1')).toBeVisible();
+  expect(screen.queryByRole('button', { name: '안내 모달 열기' })).toBeNull();
+  await user.press(screen.getByRole('button', { name: '확인하고 닫기' }));
+  expect(screen.getByText('안내 모달 열린 횟수: 1')).toBeVisible();
 
-  await fireEvent.press(screen.getByRole('button', { name: '버튼 복귀 모달 열기' }));
-  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
-  expect(screen.getByText('버튼 모달 열린 횟수: 2')).toBeVisible();
+  await user.press(screen.getByRole('button', { name: '안내 모달 열기' }));
+  await user.press(screen.getByRole('button', { name: '닫기' }));
+  expect(screen.getByText('안내 모달 열린 횟수: 2')).toBeVisible();
 });
 
 test('iOS 확대 뒤 예제를 시작해도 입력 host·값과 버튼 host·실행 횟수를 보존한다', async () => {

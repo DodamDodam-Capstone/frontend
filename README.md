@@ -82,19 +82,18 @@ Button의 기본 초록 배경에는 가독성 개선을 승인받은 진한 글
 | 컴포넌트 | 호출자 경계 |
 | --- | --- |
 | `AppText` | RN Text props/ref를 전달합니다. iOS 실행 중 글자 배율 변경 시 텍스트만 다시 생성해 RN0.86.3의 잘못된 높이 재사용을 피합니다. |
-| `Button` | `label/onPress`, primary·secondary, disabled/loading, `ButtonHandle` ref. 로딩 중에도 이름을 유지하고 누르기를 막습니다. 부모 상태 갱신 전의 API 중복 제출 방지는 호출자가 담당합니다. |
+| `Button` | `label/onPress`, primary·secondary, disabled/loading. 로딩 중에도 이름을 유지하고 누르기를 막습니다. 부모 상태 갱신 전의 API 중복 제출 방지는 호출자가 담당합니다. |
 | `TextField` | 보이는 `label`, controlled `value/onChangeText`, helperText/error, disabled/secureTextEntry, 필요한 키보드 props와 TextInput ref. 검증·값 가공·저장은 하지 않습니다. |
 | `Dialog` | controlled `visible`, title/children/actions/onRequestClose, 선택적 initialFocusRef/returnFocusRef. X와 Android Back이 닫기 콜백을 호출합니다. 호출자는 모달이 열린 동안 배경에 `accessibilityElementsHidden`과 `importantForAccessibility="no-hide-descendants"`를 적용합니다. |
 | `LoadingIndicator` | 호출자가 제공한 label과 진행 표시. 요청·타이머를 실행하지 않습니다. |
 | `ErrorMessage` | 안전한 사용자 안내 `message`, 선택적 `onRetry/retryLabel`. 원본 서버 오류나 민감값을 message에 넣지 않습니다. 명시적으로 누를 때만 재시도 콜백을 호출합니다. |
 
-Dialog의 ref는 포커스를 **요청**하는 인터페이스입니다. 입력에는 `TextInput` ref를,
-공통 버튼에는 `useRef<ButtonHandle>(null)`을 사용합니다. Button ref는 임의의 View API를 제공하지 않습니다.
-Android의 일반 버튼은 로컬 `modules/keyboard-focus`와 실제 창 focus 이벤트를 사용합니다.
-새 모듈을 포함한 development build로 다시 설치해야 하며 Metro 갱신만으로는 적용되지 않습니다.
-Android에서 초기 닫기 버튼·호출 버튼 복귀·키보드 활성화를 확인했습니다.
-iOS 확대 모달의 VoiceOver 읽기 이동·닫기는 사용자 직접 조작으로 확인했습니다.
-일반 버튼의 Full Keyboard Access 복귀와 양 OS 전체 화면 읽기 검증은 아직 완료하지 않았습니다.
+Dialog의 입력 ref는 포커스를 **요청**하는 인터페이스이며 `TextInput` ref를 사용합니다.
+입력 없는 안내 모달에는 입력 ref를 넘기지 않습니다. 화면 읽기의 제목 안내와 입력 포커스는
+별도 경로이며 실제 OS의 읽기·입력·닫기 동작은 기기에서 확인합니다.
+SCRUM-163의 2026-11-17 사용자 확정 범위는 아동용 가로 태블릿의 터치와 화면 키보드입니다.
+외장 키보드 및 iPad Full Keyboard Access는 이번 지원·완료 조건에서 제외합니다.
+입력 라벨·확대 글씨·VoiceOver/TalkBack 등 기본 접근성은 유지합니다.
 
 공통 UI의 표시 글씨는 `AppText`를 사용합니다. Dialog의 호출자 본문도 `AppText`로 작성합니다.
 글자 배율은 제한하지 않으며 입력창·버튼·모달 전체를 다시 생성하지 않습니다.
@@ -109,8 +108,8 @@ Android는 `platform=android`와 `adb reverse tcp:8082 tcp:8082`를 사용합니
 [`scripts/common-ui/preview.tsx`](scripts/common-ui/preview.tsx)는 일반 앱에서 import하지 않는 별도 진입점입니다.
 
 가로 화면에서 상태별 버튼·입력, 모달 열기→입력→닫기, 예제 시작→오류 상태 보기→다시 시도를 확인합니다.
-`버튼 복귀 모달 열기`는 초기 입력 ref 없이 열고 일반 버튼으로 돌아오는 별도 재현 경로입니다.
-열린 횟수로 중복 활성화를 확인하되, OS 포커스 여부는 실제 키보드 이동·재실행으로 별도 확인합니다.
+`안내 모달 열기`는 입력 없이 터치로 열고 닫는 예제입니다.
+열린 횟수로 중복 활성화를 확인하며 입력 모달에서는 화면 키보드 위의 확인 버튼 접근과 입력값 보존을 확인합니다.
 예제는 실제 요청·자동 타이머 없이 상태를 바꾸며 가상 입력은 메모리에만 둡니다.
 Jest는 예제 컴포넌트를 직접 렌더하고 기존 CI의 `npm run test`가 같은 테스트를 실행합니다.
 실제 OS 포커스·화면 읽기·큰 글씨 검증의 완료/미완료와 앱 재사용 근거는
