@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 공통 UI의 승인된 1~3단계와 Android 추가 검증이다. 일반 버튼의 포커스 복귀 결함은 미해결이다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. 현재 작업은 SCRUM-163 로컬 리뷰 후 승인된 포커스 보완·검증·재리뷰다. 일반 버튼의 포커스 복귀 결함은 미해결이며 최소 native 후보를 검증 중이다.** 아래 이전 Subtask 기록은 당시 실행 이력이며 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-163](https://dodamdodam.atlassian.net/browse/SCRUM-163)의 버튼·입력·모달·로딩·오류다.** 사용자는 1~3단계 구현·필요 검증·단계별 로컬 커밋을 승인했다. 4단계 최종 전체 검증·Astra 리뷰, push·PR·병합·Jira 변경과 다음 Subtask는 이번 실행에 포함하지 않는다.
+**현재 작업 대상은 [SCRUM-163](https://dodamdodam.atlassian.net/browse/SCRUM-163)의 버튼·입력·모달·로딩·오류다.** 사용자는 로컬 리뷰 후 수립·검토한 6단계 보완 계획(환경·재현 → OS별 최소 후보 검증 → 통과한 수정 적용 → 자동 검사·빌드 → 가로 기기 회귀 → 문서·커밋·Astra 재리뷰)의 실행을 승인했다. push·PR·병합·Jira 변경과 다음 Subtask는 포함하지 않는다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -54,6 +54,18 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 인터페이스 대조: 1의 Button(ref/disabled/loading)·TextField(ref/controlled)를 2의 Dialog actions/focus 및 3의 예제가 재사용한다. 업무 API와 연결하지 않으므로 인증 문맥·DTO 변경은 없다.
 - 실행 조정: 첫 단계부터 native 기본 동작을 확인하려고 3단계의 분리 예제를 최소 상태로 먼저 만들고 2~3단계에서 확장한다. 일반 App/index에서는 import하지 않는다. 별도 임시 화면을 만들고 버리는 중복을 피한다.
 - 기존 CI의 `npm test`는 인접 `*.test.tsx`를 실행한다. 예제 테스트는 registerRootComponent 진입점이 아닌 컴포넌트를 렌더한다. 일반앱 export만으로 예제 번들 통과를 주장하지 않는다.
+
+### SCRUM-163 리뷰 후 보완 — 2026-11-17 KST
+
+- `62c63c9`에서 시작했다. 별도 git worktree를 만들지 않고 기존 작업 브랜치를 사용한다. 시작 시 전체9개 checkout의 HEAD/index/diff와 미커밋 파일 해시를 무시된 `build/scrum-163-focus-20261117/preservation-before.json`에 보관했다.
+- 1단계 재현: 공통 예제에 일반 버튼 호출자·입력 없는 모달·열린 횟수를 추가했다. 기존 입력 호출자와 분리해 X/확인 닫기 후 재실행을 RNTL로 검사했다(RED 1실패 → GREEN 예제3개, typecheck 통과). 이 검사는 OS 포커스 성공을 보장하지 않는다.
+- 현재 tracked native 입력으로 분리된 소스 복사본에서 Android prebuild 및 JDK17 `:app:assembleDebug --no-daemon --console=plain`이 성공했다. 기존 원본 android/ios는 보존했다. 설치한 APK SHA-256은 `90e87d0c1bb572e28d0c3e479363d13d8fe096b9e33902b44942cd549c83ec4c`이며, Metro 예제는 위 JS 변경을 포함한다. 이전 AVD snapshot의 APK는 이번 증거에서 제외했다.
+- Pixel Tablet API36 가로·font_scale1.0·화면읽기 꺼짐: 터치로 입력 없는 모달을 열면 닫기 버튼은 `focusable=true`, `focused=false`였다. Tab 후 닫기 `focused=true`, Enter로 닫은 뒤 일반 호출자 `focused=false`와 시험 입력 `focused=true`를 기록했다. `android-button-open/tab/closed.xml`은 각각 다른 조작 시점의 증거다.
+- 후보 통과 조건: 현재 입력으로 만든 앱에서 호출자 복귀·기본 닫기 진입·Tab/Shift+Tab·Enter/Space 활성화1회·보이는 포커스·접근성 대상 중복 없음을 함께 확인한다. 실패/관찰 불가인 플랫폼은 새 host나 실험 flag를 무조건 추가하지 않고 원인·차단을 기록한다. TextInput 공개 focus 경로는 유지한다.
+- 늦은 요청은 실행 전 차단하고 늦은 결과는 폐기한다. 이미 실행한 OS 포커스 이동의 취소를 보장하지 않는다. 창 준비 listener를 추가한다면 재열림/대상 변경/제거/비활성화/unmount/background 때 정리해 다음 앱 복귀까지 남지 않게 한다.
+- 필수 기기 조합: 양 OS 기본 글씨의 버튼/입력 호출자와 닫기 경로, 확대 글씨의 긴 오류·모달 끝·입력/확인 접근, 변경한 비동기 경로의 재열림/제거/비활성화, Full Keyboard Access·VoiceOver·TalkBack 개별 검사. 터치 열기와 키보드 열기를 따로 기록한다.
+- iOS26.5 시뮬레이터의 설정에는 VoiceOver가 없다. [Apple 검사 지침](https://developer.apple.com/documentation/accessibility/performing-accessibility-testing-for-your-app)에 따라 실제 VoiceOver 검증에는 실제 기기가 필요하다. macOS Accessibility Inspector 트리·미리듣기를 iOS VoiceOver 성공으로 대신하지 않는다. 사용자 소유 iPad 연결을 준비 중이다.
+- 증빙은 위 무시된 build 경로에 코드/native 입력·앱 해시·환경·조작·기대/실제를 보관한다. 최종 수정 후 전체 Jest/lint/typecheck/export 및 변경 native 빌드를 실행하고, 마지막 커밋을 Astra로 재리뷰한다. 아직 전체 보완 완료가 아니다.
 
 ### SCRUM-163 1단계 실행 기록
 
@@ -92,7 +104,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - **알려진 미해결:** 초기 ref 없는 분리 시험에서 키보드(Tab/Enter)로 열면 닫기 버튼에 포커스가 있고 모달 내부 Tab 이동이 가능했다(`55`~`57`). 터치로 열 때 닫기 버튼의 자동 입력 포커스는 없었고(`52`), 닫은 뒤 일반 Button/View 호출자로 자동 복귀하지 않았다(`54`, `58`). TextInput 복귀 성공을 일반 버튼 성공으로 확대하지 않는다. 설치 RN0.86.3의 일반 View focus 명령은 기본 false인 `enableImperativeFocus`에 의존한다. 실험 flag·TV 전용 prop·새 native 모듈을 추가하지 않았으며 버튼 복귀는 SCRUM-163 완료 전에 보완할 항목이다. 임시 분리 진입점은 증빙에 소스를 남기고 저장소에서 제거했다.
 - 시험 후 글자 크기1.0, `show_ime_with_hard_keyboard=0`, `stylus_handwriting_enabled` 미설정 상태를 복원하고 재조회했다(`restored-settings.json`, `64`). Android launcher로 벗어난 `15`~`16`, 첫 Gboard 안내로 입력이 중단된 사례는 앱 기능 통과 증거에서 제외한다.
 - 키보드 수정 후 Dialog/예제 **2 suites/9 tests**, `npm run lint`, `npm run typecheck`, `npm test` 전체 **32 suites/734 tests** 통과. 원격 검사는 실행하지 않았다. 단계별 커밋 이후 이번 수정은 별도 로컬 커밋으로 저장한다.
-- **남은 범위:** 일반 버튼 포커스 복귀 보완, iOS 확대 상태 전체 스크롤·긴 오류/모달 끝·기본 닫기/버튼 순회, 양 OS VoiceOver/TalkBack 실제 발화·전체 순회. 4단계와 다음 Subtask는 사용자 승인 전 진행하지 않으며 SCRUM-163 전체 완료로 표시하지 않는다.
+- **남은 범위:** 일반 버튼 포커스 복귀 보완, iOS 확대 상태 전체 스크롤·긴 오류/모달 끝·기본 닫기/버튼 순회, 양 OS VoiceOver/TalkBack 실제 발화·전체 순회. 당시 4단계와 다음 Subtask는 미승인이었다. 이후 같은 날 승인된 보완 범위는 위 리뷰 후 기록을 따른다. SCRUM-163 전체 완료로 표시하지 않는다.
 
 ### SCRUM-162 실행 계획·1단계 — 2026-11-16 KST
 

@@ -16,6 +16,9 @@ export function CommonUiPreview() {
   const passwordRef = useRef<TextInput>(null);
   const [password, setPassword] = useState('');
   const [dialogVisible, setDialogVisible] = useState(false);
+  const [dialogKind, setDialogKind] = useState<'input' | 'button'>('input');
+  const [buttonDialogOpens, setButtonDialogOpens] = useState(0);
+  const returnButtonRef = useRef<View>(null);
   const [dialogValue, setDialogValue] = useState('');
   const dialogInputRef = useRef<TextInput>(null);
   const returnInputRef = useRef<TextInput>(null);
@@ -44,7 +47,11 @@ export function CommonUiPreview() {
             <Button label="비활성 버튼" disabled onPress={() => setPresses((count) => count + 1)} />
             <Button label="처리 중 버튼" loading onPress={() => setPresses((count) => count + 1)} />
             <Text style={styles.body}>실행 횟수: {presses}</Text>
-            <Button label="모달 열기" variant="secondary" onPress={() => setDialogVisible(true)} />
+            <Button label="모달 열기" variant="secondary" onPress={() => { setDialogKind('input'); setDialogVisible(true); }} />
+            <Button ref={returnButtonRef} label="버튼 복귀 모달 열기" variant="secondary" onPress={() => {
+              setDialogKind('button'); setButtonDialogOpens((count) => count + 1); setDialogVisible(true);
+            }} />
+            <Text style={styles.note}>버튼 모달 열린 횟수: {buttonDialogOpens}</Text>
           </View>
         </View>
         <View style={styles.example}>
@@ -62,11 +69,14 @@ export function CommonUiPreview() {
           {exampleState !== 'idle' && <Button label="예제 초기화" variant="secondary" onPress={() => setExampleState('idle')} />}
         </View>
       </ScrollView>
-      <Dialog visible={dialogVisible} title="공통 모달 확인" onRequestClose={() => setDialogVisible(false)}
-        initialFocusRef={dialogInputRef} returnFocusRef={returnInputRef}
+      <Dialog visible={dialogVisible} title={dialogKind === 'input' ? '공통 모달 확인' : '버튼 포커스 확인'} onRequestClose={() => setDialogVisible(false)}
+        initialFocusRef={dialogKind === 'input' ? dialogInputRef : undefined}
+        returnFocusRef={dialogKind === 'input' ? returnInputRef : returnButtonRef}
         actions={<Button label="확인하고 닫기" onPress={() => setDialogVisible(false)} />}>
-        <Text style={styles.body}>입력과 닫기 동작을 확인하세요. 닫으면 바깥의 시험 입력으로 돌아갑니다.</Text>
-        <TextField ref={dialogInputRef} label="모달 시험 입력" value={dialogValue} onChangeText={setDialogValue} />
+        {dialogKind === 'input' ? <>
+          <Text style={styles.body}>입력과 닫기 동작을 확인하세요. 닫으면 바깥의 시험 입력으로 돌아갑니다.</Text>
+          <TextField ref={dialogInputRef} label="모달 시험 입력" value={dialogValue} onChangeText={setDialogValue} />
+        </> : <Text style={styles.body}>닫은 뒤 모달을 열었던 버튼에서 키보드로 다시 실행할 수 있는지 확인하세요.</Text>}
       </Dialog>
     </KeyboardAvoidingView>
   );
