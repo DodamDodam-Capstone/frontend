@@ -1,7 +1,7 @@
 # FE 기능별 테스트·CI 도입 계획
 
 작성 기준: 2026-10-14 KST · 계획 재검토: 2026-10-16 KST · SCRUM-166 검증·병합: 2026-11-04 KST · SCRUM-167 착수: 2026-11-04 KST · 1단계 최종 정리·2~3단계 구현: 2026-11-05 KST · 4~6단계 구현·검증: 2026-11-12 KST · 7단계 최종 정리: 2026-11-13 KST · SCRUM-168 착수: 2026-11-14 KST · 대상: Expo/React Native/TypeScript Android·iOS 앱
-상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. SCRUM-163은 사용자 요청으로 AC2를 아동용 가로 태블릿의 터치·화면 키보드 중심으로 변경했다. 외장 키보드와 Full Keyboard Access는 지원·완료·차단 조건에서 제외한다. 현재는 해당 범위에 맞춘 코드 정리와 양 OS 화면 읽기 등 남은 로컬 검증·Astra 재리뷰를 진행 중이다.** 이전 Subtask 기록과 아래 20:58 KST 이전의 키보드 검증 계획은 당시 실행 이력이며 최신 완료 기준이나 새 기능의 통과 증거로 재사용하지 않는다.
+상태: **2026-11-17 KST: SCRUM-162는 PR #38 squash `980dee53d519462fced13f76b95f65e37c810233` 및 Jira 완료를 확인했다. SCRUM-163은 사용자 요청으로 AC2를 아동용 가로 태블릿의 터치·화면 키보드 중심으로 변경했다. 외장 키보드와 Full Keyboard Access는 지원·완료·차단 조건에서 제외한다. 해당 범위의 코드 정리·자동 검증·양 OS 입력 포커스 확인과 사용자 직접 모달 화면 읽기 확인을 마쳤다. 제품 HEAD767acba의 Astra 로컬 리뷰는 지적0건이며 최종 결과를 아래에 기록했다. PR·원격 CI·development 병합은 미진행, Jira는 진행 중이다.** 이전 Subtask 기록과 아래 20:58 KST 이전의 키보드 검증 계획은 당시 실행 이력이며 최신 완료 기준이나 새 기능의 통과 증거로 재사용하지 않는다.
 
 ## 목표와 현재 상태
 
@@ -67,7 +67,16 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 중단된 iOS FKA 후보는 무시된 진단 JS와 임시 소스 복사본 준비까지만 존재하며 제품 native 코드·의존성·빌드에 적용하지 않았다. 화면 읽기 검증은 접근성 트리 노출, 실제 발화/이동, 사용자 확인을 구분한다.
 - 코드 정리: 외장 키보드 전용 Android 모듈6개 파일과 JS helper/수명 관리·ButtonHandle을 제거했다. Button과 모달 닫기는 기존 Pressable의 터치·이름·상태를 유지한다. 입력 없는 모달은 버튼 입력 포커스를 강제로 옮기지 않고, TextInput 초기/복귀 포커스와 화면 읽기 제목 요청·배경 분리는 유지한다. 안내 모달 예제는 터치 열기·두 닫기 경로·열린 횟수를 재현한다.
 - 검증: 새 모달 회귀는 이전 구현의 불필요한 버튼 focus 호출로 실패한 뒤 통과했다. 관련4 suites/24 tests, 전체 **33 suites/743 tests**, lint/typecheck와 양 OS 일반 앱 export가 통과했다. 삭제된 외장 키보드 전용 테스트2 suites는 새 AC 대상에서 제외한 코드와 함께 제거했으며 입력·터치·확대·기본 접근성 검사는 유지한다. 과거 ignored Android 진단 probe는 동일 SHA의 `.tsx.txt`로 보존해 TypeScript 입력에서 제외했다. 기존 CI의 전체 Jest가 변경 테스트를 실행한다.
-- Android native 재빌드: 새 소스 복사본·기존 고정 의존성·JDK17·SDK36에서 prebuild 후 `:app:assembleDebug --no-daemon --console=plain --offline --max-workers=2 -Dorg.gradle.parallel=false` 성공(1분53초,316 tasks). APK SHA-256 `bf897915c78632b5c71f9c64ec55145aa49f2c5e8644cde3a7a203057ec51226`, DEX에 제거한 KeyboardFocus 없음, 복사 입력 파일 변경 없음. iOS native 입력10개와 Apple autolinking18개 모듈이 기존 입력과 같아 이전 앱을 재사용한다. 이번 새 iOS native 빌드는 없다. 기기 실행·최종 리뷰는 다음 단계이며 원격 CI와 구분한다.
+- Android native 재빌드: 새 소스 복사본·기존 고정 의존성·JDK17·SDK36에서 prebuild 후 `:app:assembleDebug --no-daemon --console=plain --offline --max-workers=2 -Dorg.gradle.parallel=false` 성공(1분53초,316 tasks). APK SHA-256 `bf897915c78632b5c71f9c64ec55145aa49f2c5e8644cde3a7a203057ec51226`, DEX에 제거한 KeyboardFocus 없음, 복사 입력 파일 변경 없음. iOS native 입력10개와 Apple autolinking18개 모듈이 기존 입력과 같아 이전 앱을 재사용한다. 이번 새 iOS native 빌드는 없다. 이 빌드 시점에는 기기 실행·최종 리뷰가 다음 단계였으며, 후속 결과는 다음 절에 기록한다. 원격 CI와 구분한다.
+
+### SCRUM-163 터치 범위 최종 기기 확인 — 2026-11-17 KST
+
+- 제품 HEAD `767acba5e8007c412020c57b8980c36350523734`의 변경 영향인 입력 초기/복귀 포커스와 모달 화면 읽기에 한정해 재확인했다. 기존 일반 터치·확대·화면 키보드 검사를 모두 반복하지 않았다. 별도 `scripts/common-ui/preview.tsx` 예제의 결과이며 실제 인증 화면·실서버 연결 결과가 아니다.
+- Android: 새 APK를 설치한 Pixel Tablet API36 가로·글자1.0에서 모달이 열리면 내부 TextInput이 `Focus163`을 받고 `focused=true`, 확인 터치로 닫힌 뒤 외부 시험 입력이 `Return163`을 받고 `focused=true`임을 확인했다. ADB 문자 주입은 입력 포커스의 증거이며 화면 키보드의 개별 글쇠 터치 증거로 확대하지 않는다. TalkBack16.0 서비스·자막을 켠 뒤 자동 ADB 입력이 읽기 제스처를 우회하는 한계를 확인했고, 사용자가 현재 안내 모달의 제목·닫기·본문·확인 읽기, 두 번 탭 닫기, 배경 앱 버튼으로 포커스가 빠지지 않음을 직접 확인했다.
+- Android 종료: TalkBack·자막 OFF, 글자1.0·화면 키보드/회전 설정을 이전 값으로 원복했다. `touch-android-resume/result.json`과 `summary.json`은 설정 값 및 에뮬레이터·Metro 종료0·정리 오류0을 기록한다. host GPU로 실행했으며 관찰 표본의 메모리 압박1·열 nominal을 확인했다. GPU 사용률이나 전체 시스템 메모리 상한을 입증한 측정은 아니다.
+- iPad: native 입력10개·Apple autolinking18개 모듈 동등성과 설치 실행파일 SHA-256 `87395a84c4023292812b173d071446b15feb376444497511a9fcca9fdd506b50`를 대조해 기존 앱을 재사용했다. iPadOS27.2 시뮬레이터·가로·글자3에서 모달 커서 표시 후 입력칸을 다시 선택하지 않은 현재 포커스 문자 입력으로 내부 `iPad163`을 확인했다. 확인으로 닫힌 뒤 native dismiss가 완료되고 외부 입력을 선택하지 않은 문자 입력으로 `Return163`을 확인했다. 닫기와 같은 호출에서 너무 일찍 삽입한 문자는 성공 증거에서 제외했다. 이 역시 화면 키보드의 개별 글쇠 시험과 구분한다. 사용자가 현재 안내 모달의 VoiceOver 제목·닫기·본문·확인 읽기, 화면 읽기 활성화로 닫기, 배경 앱 버튼으로 포커스가 빠지지 않음을 직접 확인했다. 자동 발화 검증이나 양 OS 전체 화면 읽기 회귀로 확대하지 않는다.
+- iPad 종료: VoiceOver OFF·Capture Keyboard OFF·글자3·음량0.6을 관찰해 기록했다. 이번 실행에서는 자막 패널을 켜지 않았다. 감시기는 지정 iPad shutdown0·Metro 종료0·정리 오류0을 기록한다. iPad 실행 중 메모리 압박은 정상/경고(1/2), 열은 nominal이었고 스왑이 증가했다. 사용자 승인대로 경고와 스왑은 관찰했으며 기기 동시 실행·native 빌드는 하지 않았다. 감시기의 소유 RSS는 Metro 프로세스만 포함하므로 iOS 시뮬레이터 전체 메모리로 설명하지 않는다.
+- 보존: 재개 전9개 checkout을 대조했고 root는 예상 HEAD767acba·clean, 나머지8개 HEAD·index·diff·미커밋 파일 내용과 기존 한국어 주석7개 파일이 동일하다. `preservation-resume.json`은 비교 범위와 제외한 ignored 파일을 명시한다.
 
 ### SCRUM-163 리뷰 후 보완 — 2026-11-17 KST
 
