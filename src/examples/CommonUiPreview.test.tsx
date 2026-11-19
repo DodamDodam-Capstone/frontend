@@ -1,6 +1,6 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
-import { Dimensions, Platform } from 'react-native';
+import { Dimensions, Platform, TextInput } from 'react-native';
 
 import { CommonUiPreview } from './CommonUiPreview';
 
@@ -45,6 +45,31 @@ test('모달이 열리면 배경 동작은 접근성 탐색에서 제외되고 �
 
   expect(screen.getByRole('button', { name: '기본 버튼' })).toBeVisible();
   expect(screen.queryByLabelText('모달 시험 입력')).toBeNull();
+});
+
+test('입력 모달을 닫을 때 로딩 중에는 복귀를 건너뛰고 오류 상태에서는 시험 입력에 복귀를 요청한다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'ios');
+  const focus = jest.spyOn(TextInput.prototype, 'focus').mockImplementation(() => {});
+  await render(<CommonUiPreview />);
+  await fireEvent.changeText(screen.getByLabelText('시험 입력'), '가상 이름');
+  await fireEvent.press(screen.getByRole('button', { name: '예제 시작' }));
+
+  const closeInputDialog = async () => {
+    await fireEvent.press(screen.getByRole('button', { name: '모달 열기' }));
+    const [modal] = screen.container.queryAll((element) => element.type === 'Modal');
+    const onDismiss = modal.props.onDismiss;
+    await fireEvent.press(screen.getByRole('button', { name: '확인하고 닫기' }));
+    await act(() => onDismiss());
+  };
+
+  await closeInputDialog();
+  expect(focus).not.toHaveBeenCalled();
+
+  await fireEvent.press(screen.getByRole('button', { name: '오류 상태 보기' }));
+  await closeInputDialog();
+  expect(focus).toHaveBeenCalledTimes(1);
+  expect(focus.mock.contexts[0]).toMatchObject({ props: { accessibilityLabel: '시험 입력' } });
+  expect(screen.getByLabelText('시험 입력')).toHaveDisplayValue('가상 이름');
 });
 
 test('안내 모달은 터치 한 번에 한 번 열리고 확인 또는 닫기로 돌아온다', async () => {
