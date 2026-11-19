@@ -18,7 +18,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 이 문서는 2026-10-14에 작성하고 2026-10-15의 진행 상태와 2026-10-16의 CI 재검토를 반영했다. 후속 작업자는 먼저 현재 브랜치·변경 파일·해당 Jira의 최신 AC·실제 `package.json` 스크립트와 CI를 확인하고, 이미 완료된 단계를 반복하지 않는다. 변경된 사실은 최신 Jira와 실행 결과를 우선하며 이 계획의 해당 항목을 갱신한다.
 
-**현재 작업 대상은 [SCRUM-163](https://dodamdodam.atlassian.net/browse/SCRUM-163)의 버튼·입력·모달·로딩·오류다.** 사용자는 로컬 리뷰 후 수립·검토한 6단계 보완 계획(환경·재현 → OS별 최소 후보 검증 → 통과한 수정 적용 → 자동 검사·빌드 → 가로 기기 회귀 → 문서·커밋·Astra 재리뷰)의 실행을 승인했다. push·PR·병합·Jira 변경과 다음 Subtask는 포함하지 않는다.
+**현재 작업 대상은 [SCRUM-164](https://dodamdodam.atlassian.net/browse/SCRUM-164)의 초기 화면 조합 검증이다.** SCRUM-163은 [PR #39](https://github.com/DodamDodam-Capstone/frontend/pull/39)로 development에 병합됐고 Jira 완료를 확인했다. 아래 163의 단계별 결과는 당시 이력이다.
 
 - [x] 3단계에서 `expo-dev-client`를 설치하고 `npx expo run:android`로 Pixel Tablet(Android API 36), `npx expo run:ios --device 979FC60C-8633-430F-AB66-D324B8D31355`로 iPad Pro 11형(iOS 26.5)의 development build를 컴파일·설치·실행했다. 두 태블릿에서 가로 첫 화면과 재실행을 확인했다. 이 기기 ID는 해당 Mac의 시뮬레이터 식별자다. 이는 로컬 빌드 증거이며 CI 빌드나 실기기·실서버 검증 증거는 아니다. 최종 공유용 재현 명령·결과는 5단계 README·PR 검증란에 남긴다.
 - [x] 4단계에서 `git status --short --branch`와 159·부모 121의 최신 AC를 대조했다. SDK 57용 Jest 29 계열·RNTL·renderer의 peer 관계와 실제 최소 테스트를 확인하고, `package.json`·lockfile에 `lint`·`typecheck`·`test` 스크립트를 구성했다. ESLint가 루트 앱·진입점·테스트 파일을 검사하는지도 확인했다. 별도 Jest setup 파일은 필요하지 않았다.
@@ -27,6 +27,21 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - [x] 6단계에서 SCRUM-159 파일만 커밋·PR에 올렸고, 커밋 `8b38209`의 JS·Android·iOS job, 최종 `frontend-quality`, 제목·Jira 키 검사를 확인했다. 첫 온라인 Expo 실패는 패치 갱신으로 해결했고 요구 검사를 낮추지 않았다.
 - [x] 159의 최신 필수 CI·GPT 리뷰·화면 증빙·대화 해결 후 PR #29를 squash 병합했고 Jira MERGED·완료를 확인했다.
 - [x] 160의 환경/경로 구현과 PR #30 병합을 확인했다. 161에서 모드 구현·해당 테스트를 작성했고 설치·양 플랫폼 번들·네이티브 빌드·태블릿 실행을 로컬에서 재현했다. 이후 부모 선행에 따라 아래 기능별 표를 한 Subtask씩 따른다.
+
+### SCRUM-164 초기 화면 조합 검증 기준 — 2026-11-19 KST
+
+- 선행 121·162·163의 Jira 완료와 원격 development `c0bf707c5beb258edc5ae8d47044fe1c973e02ba`를 확인했다. 이 커밋에서 로컬 `feature/SCRUM-164-ui-composition`을 분기했다. [164 AC2](https://dodamdodam.atlassian.net/browse/SCRUM-164)와 [부모 122 AC3](https://dodamdodam.atlassian.net/browse/SCRUM-122)에 아동용 가로 태블릿의 터치·화면 키보드·입력 라벨/포커스·확대 글씨·화면 읽기를 명시했다. 외장 키보드와 Full Keyboard Access는 완료 범위에서 제외했다.
+- [P0 로그인 835:2005](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005) 1280×800 프레임에서 중앙 입력·버튼 그룹 폭은 596, 입력 높이는 각각 60, 버튼 높이는 약 60이다. 입력끼리와 버튼끼리의 간격은 약 16이며 두 번째 입력 끝에서 첫 버튼까지 약 81이다. 일반 앱 시작 표시, 서체·색상·로고 예제, 공통 UI 조합은 각각 실행해 대조한다. 공통 UI 예제에서 기존 입력과 버튼을 같은 폭으로 정렬하고 초기 그룹의 순서·간격을 비교한다. 도움말·상태 검사용 조작은 그룹 아래에 둔다. 로그인 기능·전체 화면·캐릭터·스플래시 재생은 후속 범위다.
+- [P0 이메일 모달 835:2943](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2943) 기준 최대 폭 516, 모서리 40, 닫기 44를 대조한다. 모달 높이는 화면 키보드와 확대 글씨에서 본문·확인에 스크롤로 접근할 수 있도록 유동적으로 유지한다. 기본 버튼 글씨는 163에서 승인한 대비 개선 색상 `#1F1103`을 적용한다.
+
+| 흐름 | 기대 결과 |
+| --- | --- |
+| 일반 | 보이는 라벨과 접근성 이름이 연결된다. 화면 키보드의 ‘다음’은 시험 비밀번호로 이동한다. 입력 모달이 열리면 내부 입력으로 이동하고 닫으면 편집 가능한 시험 입력으로 복귀한다. |
+| 로딩 | 길이가 가변인 상태 메시지가 보인다. 시험 입력은 비활성이며 모달이 닫혀도 해당 입력에 포커스를 주거나 화면 키보드를 열지 않는다. |
+| 오류 | 긴 메시지와 재시도에 접근할 수 있다. 시험 입력은 다시 편집 가능하며 값과 모달 닫기 후 복귀가 유지된다. 재시도는 누른 횟수만큼 실행된다. |
+| 확대·화면 읽기 | 가로 기본·확대 조건에서 입력과 버튼이 잘리지 않고 필요 시 스크롤로 조작한다. TalkBack·VoiceOver에서 라벨과 순서를 확인하고 모달 배경으로 읽기 포커스가 빠지지 않는지 확인한다. |
+
+- 기존 컴포넌트 테스트와 CI를 재사용한다. 예제의 상태별 입력 복귀 분기를 RNTL에서 확인하고 lint·typecheck·전체 Jest·양 OS export를 실행한다. Android host GPU부터 한 대씩 실행하고 종료·설정 원복 후 iPad를 실행한다. 설치 앱과 현재 native 입력의 동등성이 확인되면 기존 개발 앱으로 새 JS를 실행하며 새 native 빌드와 구분한다. 최종 단계에서는 실제 실행 근거를 기록하고 커밋된 diff를 Astra로 검토한다.
 
 ### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
 
