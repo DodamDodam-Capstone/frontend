@@ -68,7 +68,8 @@ export function Dialog({ visible, title, children, actions, onRequestClose, init
                 <Image source={require('../../assets/images/ui/close.png')} style={styles.closeIcon} accessible={false} />
               </Pressable>
             </View>
-            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent} keyboardShouldPersistTaps="handled">
+            <ScrollView style={styles.body} contentContainerStyle={styles.bodyContent}
+              keyboardShouldPersistTaps={Platform.OS === 'ios' ? 'always' : 'handled'}>
               {children}
               {actions && <View style={styles.actions}>{actions}</View>}
             </ScrollView>
