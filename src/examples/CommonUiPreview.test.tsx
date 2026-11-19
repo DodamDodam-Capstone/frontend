@@ -16,6 +16,9 @@ afterEach(async () => {
 
 test('예제는 입력→로딩→오류→명시적 재시도 흐름에서 입력을 보존한다', async () => {
   await render(<CommonUiPreview />);
+  const disabledInputHint = '사용할 수 있는 입력은 화면 위쪽에 있어요.';
+  expect(screen.getByText(disabledInputHint)).toBeVisible();
+  expect(screen.getByHintText(disabledInputHint)).toBeDisabled();
   await fireEvent.changeText(screen.getByLabelText('시험 입력'), '가상 이름');
   await fireEvent.press(screen.getByRole('button', { name: '예제 시작' }));
 

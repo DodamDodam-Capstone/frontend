@@ -57,7 +57,8 @@ export function CommonUiPreview() {
         <View style={styles.columns}>
           <View style={[styles.column, styles.group]}>
             <TextField label="오류 입력" value="" onChangeText={() => {}} error="입력 내용을 확인해 주세요" />
-            <TextField label="비활성 입력" value="변경할 수 없는 예제" onChangeText={() => {}} disabled />
+            <TextField label="비활성 입력" value="변경할 수 없는 예제" onChangeText={() => {}} disabled
+              helperText="사용할 수 있는 입력은 화면 위쪽에 있어요." />
           </View>
           <View style={[styles.column, styles.group]}>
             <Button label="비활성 버튼" disabled onPress={() => setPresses((count) => count + 1)} />

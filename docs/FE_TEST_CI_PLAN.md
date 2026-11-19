@@ -45,7 +45,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 
 #### SCRUM-164 로컬 실행 결과
 
-검증한 JS 변경 커밋은 `49b600f1e131fdaf9230047df21955617f25d420`이다. 가로 기기에서 일반 앱의 로고와 설명, 디자인 예제의 140·280·332dp 로고, 나눔스퀘어라운드 세 굵기 등록과 색상판을 확인했다. 공통 UI 예제는 Android 1280×800dp에서 입력과 버튼이 각각 폭 596·높이 60, 입력·버튼 내부 간격 16, 두 번째 입력과 기본 버튼 사이 81dp로 표시됐다. iPad 1210×834pt에서도 중앙 정렬과 같은 그룹 순서를 확인했다. 위·아래 위치는 개발 예제의 제목·상태 표시와 기기 여백에 따라 달라진다.
+기기에서 검증한 JS 변경 커밋은 `49b600f1e131fdaf9230047df21955617f25d420`이다. 가로 기기에서 일반 앱의 로고와 설명, 디자인 예제의 140·280·332dp 로고, 나눔스퀘어라운드 세 굵기 등록과 색상판을 확인했다. 공통 UI 예제는 Android 1280×800dp에서 입력과 버튼이 각각 폭 596·높이 60, 입력·버튼 내부 간격 16, 두 번째 입력과 기본 버튼 사이 81dp로 표시됐다. iPad 1210×834pt에서도 중앙 정렬과 같은 그룹 순서를 확인했다. 위·아래 위치는 개발 예제의 제목·상태 표시와 기기 여백에 따라 달라진다.
 
 | 검증 항목 | Android API 36 · Pixel Tablet | iPadOS 27.2 · iPad Pro 11형 M5 |
 | --- | --- | --- |
@@ -58,6 +58,7 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 변경 전 새 회귀 테스트가 로딩 중 `focus()` 호출 1회를 검출했다. 수정 후 관련 3 suites/20 tests, 전체 33 suites/744 tests, `npm run lint`, `npm run typecheck`, `npm run test:env` 14개, Android·iOS `expo export`가 통과했다. `.github/workflows/ci.yml`의 `js-quality`는 `npm run test`로 예제 테스트도 실행한다. 이번 원격 실행·PR은 대기다.
 - 전 단계의 native 입력 10개 및 설치 앱 SHA를 대조했다. Android APK `bf897915…1226`, iOS 앱 실행파일 `87395a84…6b50`로 현재 JS를 실행했다. 새 네이티브 빌드, 실기기와 실제 BE 연동은 미실행이다. Android는 host GLES/Vulkan, iPad는 Simulator를 사용했다. 두 기기와 Metro를 순차 실행했고, 메모리 경고 구간에도 열 상태는 정상 범위였다. 글자 크기와 화면 읽기 설정을 원복했으며 두 기기의 종료와 검증 포트 반환을 확인했다.
 - 로컬 증거는 `build/scrum-164-20261119/`에 저장했다. `android/03-composition.png`, `android/08-ime-next.xml`, `android/19-loading-close.ime.txt`, `android/30-large-keyboard.png`, `android/39-talkback-closed.png`, `ios/06-landscape-composition.png`, `ios/07-large-modal-scroll.png`, `ios/08-modal-with-screen-keyboard.png`, `ios/09-voiceover-confirm.png`, `ios/10-retry.png`를 검증 항목과 대조할 수 있다.
+- 첫 Astra 리뷰에서 기기 예제의 일반 도움말이 빠진 점을 지적했다. 상단 그룹 간격을 유지하며 하단 비활성 입력에 도움말을 연결했다. 화면의 문구와 접근성 힌트를 자동 검사한 뒤 전체 JS 검사와 양 플랫폼 export를 다시 실행했다. 위 기기 캡처는 도움말 복원 전 실행이다.
 
 ### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
 
