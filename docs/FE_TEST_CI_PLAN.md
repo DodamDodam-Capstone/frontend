@@ -60,6 +60,13 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 로컬 증거는 `build/scrum-164-20261119/`에 저장했다. `android/03-composition.png`, `android/08-ime-next.xml`, `android/19-loading-close.ime.txt`, `android/30-large-keyboard.png`, `android/39-talkback-closed.png`, `ios/06-landscape-composition.png`, `ios/07-large-modal-scroll.png`, `ios/08-modal-with-screen-keyboard.png`, `ios/09-voiceover-confirm.png`, `ios/10-retry.png`를 검증 항목과 대조할 수 있다.
 - 첫 Astra 리뷰에서 기기 예제의 일반 도움말이 빠진 점을 지적했다. 상단 그룹 간격을 유지하며 하단 비활성 입력에 도움말을 연결했다. 화면의 문구와 접근성 힌트를 자동 검사한 뒤 전체 JS 검사와 양 플랫폼 export를 다시 실행했다. 위 기기 캡처는 도움말 복원 전 실행이다.
 
+#### SCRUM-164 iPad 후속 검증
+
+- 글자 크기 단계 9에서 모달 본문을 밀었을 때 콘텐츠 위치가 그대로였고 키보드가 내려왔다. RN `ScrollView`의 `handled` 경로에서는 스크롤이 관찰되지 않은 터치의 종료가 입력 포커스를 해제할 수 있다. iOS 모달 본문에서 `keyboardShouldPersistTaps`를 `always`로 지정했다.
+- 같은 iPadOS 27.2 가로 시뮬레이터와 기존 개발 앱에서 변경 전후를 순차 비교했다. 변경 후 단계 9와 11에서 모두 화면 키보드를 띄운 채 스크롤해 확인 버튼을 누르고 모달을 한 번에 닫았다. 최대 단계에서는 버튼 위쪽 모서리가 본문 영역에 일부 가려졌고 라벨 전체와 누를 수 있는 영역은 보였다. 새 JS 번들의 모달 설정도 대조했다.
+- VoiceOver가 켜진 상태에서 확인 버튼의 초점 테두리와 접근성 요소 실행에 따른 닫힘을 확인했다. 사용자는 Control+Option+Space로 한 번에 닫혔다고 답했다. 직후 자동 화면 관찰에는 모달이 보여 동일 단축키 결과를 독립적으로 확인하지 못했다. 음성 녹음과 실기기 검증은 미실행이다.
+- 변경 전 회귀 테스트는 `handled`를 감지해 실패했다. 변경 후 관련 17개, 전체 Jest 33 suites/745 tests, lint, typecheck, 양 플랫폼 Expo JS export가 통과했다. 글자 크기 3, VoiceOver 꺼짐, 키보드 캡처 꺼짐, 음량 0.6으로 복원한 뒤 기기와 Metro를 종료했다. 증거는 `build/scrum-164-20261119/ipad-follow-up-iunr_w1f/`의 `candidate/02-scale9-scroll-with-keyboard.png`, `candidate/03-scale11-scroll-with-keyboard.png`와 실행 로그에 있다.
+
 ### SCRUM-163 실행 계획·상태표 — 2026-11-16 KST
 
 > 아래 원래 계획의 외장 키보드·일반 버튼 복귀 항목은 2026-11-17 20:58 KST 사용자 확정 범위로 대체됐다. 최신 실행 순서는 다음 절을 따른다. 나머지 기존 실행 결과는 역사적 증거로 보존한다.

@@ -46,6 +46,17 @@ test('모달 본문의 입력·액션은 호출자가 소유하고 닫으면 내
   expect(screen.queryByLabelText('시험 값')).toBeNull();
 });
 
+test('iOS 모달 본문은 스크롤로 처리되지 않은 터치에도 입력 키보드를 유지하도록 설정한다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'ios');
+  await render(<Dialog visible title="내용 입력" onRequestClose={() => {}}>
+    <TextField label="시험 값" value="" onChangeText={() => {}} />
+  </Dialog>);
+
+  const body = screen.container.queryAll((element) => element.props.keyboardShouldPersistTaps != null);
+  expect(body).toHaveLength(1);
+  expect(body[0]).toHaveProp('keyboardShouldPersistTaps', 'always');
+});
+
 test('onShow에서 현재 입력 ref의 포커스를 요청하고 제거된 ref는 건너뛴다', async () => {
   // OS 포커스 이동 자체는 native에서 확인하며 여기서는 요청 대상/수명만 검사한다.
   const focus = jest.fn();
