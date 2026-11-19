@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { createExampleTransport } from './src/api/exampleTransport';
 import { readEnvironment } from './src/config/env';
 import { Logo } from './src/components/Logo';
+import { Button } from './src/components/Button';
+import { OnboardingFlow } from './src/onboarding/OnboardingFlow';
 import { colors, typography } from './src/theme/tokens';
 
 function DevApiStatus() {
@@ -33,19 +35,31 @@ function DevApiStatus() {
 }
 
 export default function App() {
+  const [previewOpen, setPreviewOpen] = useState(false);
+  if (__DEV__ && previewOpen) {
+    return <OnboardingFlow onComplete={() => setPreviewOpen(false)} />;
+  }
+
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <Logo accessibilityRole="header" />
       <Text style={styles.tagline}>도담도담 나눈 대화 속에서 자라나는 아이의 마음</Text>
-      {__DEV__ && <DevApiStatus />}
+      {__DEV__ && <>
+        <DevApiStatus />
+        <View style={styles.previewButton}>
+          <Button label="온보딩 확인" variant="secondary" onPress={() => setPreviewOpen(true)} />
+        </View>
+      </>}
       <StatusBar style="dark" />
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.surface },
+  previewButton: { marginTop: 16 },
   container: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',

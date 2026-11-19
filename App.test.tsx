@@ -1,5 +1,5 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
-import { render, screen } from '@testing-library/react-native';
+import { fireEvent, render, screen } from '@testing-library/react-native';
 
 import App from './App';
 
@@ -17,6 +17,15 @@ test('시작 화면에 도담도담 제목을 접근 가능한 헤더로 표시�
   await render(<App />);
 
   expect(screen.getByRole('header', { name: '도담도담' })).toBeVisible();
+});
+
+test('개발 앱에서 실제 온보딩을 열고 안내를 건너뛰면 시작 화면으로 돌아온다', async () => {
+  await render(<App />);
+  await fireEvent.press(screen.getByRole('button', { name: '온보딩 확인' }));
+  expect(await screen.findByRole('header', { name: '아이의 하루를 들어주는 마음 친구, 도담이' })).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
+  await fireEvent.press(screen.getByRole('button', { name: '다음에 할래요' }));
+  expect(screen.getByRole('button', { name: '온보딩 확인' })).toBeVisible();
 });
 
 test('개발 화면에서 mock 계정 상태 응답을 실제 수신자 경로로 확인한다', async () => {
