@@ -1,12 +1,15 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
 
+import { AccessibilityInfo } from 'react-native';
+
 import App from './App';
 
 const keys = ['EXPO_PUBLIC_APP_ENV', 'EXPO_PUBLIC_API_MODE', 'EXPO_PUBLIC_API_BASE_URL'] as const;
 const saved = keys.map((key) => process.env[key]);
 
 afterEach(() => {
+  jest.restoreAllMocks();
   keys.forEach((key, index) => {
     if (saved[index] === undefined) delete process.env[key];
     else process.env[key] = saved[index];
@@ -20,6 +23,7 @@ test('시작 화면에 도담도담 제목을 접근 가능한 헤더로 표시�
 });
 
 test('개발 앱에서 실제 온보딩을 열고 안내를 건너뛰면 시작 화면으로 돌아온다', async () => {
+  jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
   await render(<App />);
   await fireEvent.press(screen.getByRole('button', { name: '온보딩 확인' }));
   expect(await screen.findByRole('header', { name: '아이의 하루를 들어주는 마음 친구, 도담이' })).toBeVisible();
