@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, within } from '@testing-library/react-native';
-import { AccessibilityInfo, Animated, Dimensions } from 'react-native';
+import { AccessibilityInfo, Animated, Dimensions, Platform } from 'react-native';
 
 import { OnboardingFlow } from './OnboardingFlow';
 
@@ -120,4 +120,65 @@ test('3장 전환 직후 다시 1장을 누르면 마지막 요청으로 돌아�
   expect(screen.queryByRole('button', { name: '시작하기' })).toBeNull();
   await scrollBody(0);
   expect(screen.getByRole('button', { name: '온보딩 1장, 전체 3장', selected: true })).toBeVisible();
+});
+
+function expectSingleReadingPage(page: number) {
+  expect(screen.container.queryAll(node => node.props.horizontal === true)).toHaveLength(0);
+  expect(screen.getAllByRole('header', { includeHiddenElements: true })).toHaveLength(1);
+  const readingBody = screen.container.queryAll(node =>
+    node.type === 'RCTScrollView' && within(node).queryByRole('header', { name: titles[page - 1] }) !== null);
+  expect(readingBody).toHaveLength(1);
+  expect(screen.getByRole('header', { name: titles[page - 1] })).toBeVisible();
+  expect(screen.getByRole('button', { name: `온보딩 ${page}장, 전체 3장`, selected: true })).toBeVisible();
+}
+
+test('Android TalkBack에서는 현재 장만 렌더하고 점·다음·시작하기로 목적지를 선택한다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(true);
+  jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(false);
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+
+  expectSingleReadingPage(1);
+  await fireEvent.press(screen.getByRole('button', { name: '온보딩 3장, 전체 3장' }));
+  expectSingleReadingPage(3);
+  await fireEvent.press(screen.getByRole('button', { name: '온보딩 2장, 전체 3장' }));
+  expectSingleReadingPage(2);
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expectSingleReadingPage(3);
+  await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
+  expect(screen.getByText('캐릭터와 음성으로 대화할 때 사용해요')).toBeVisible();
+});
+
+test('Android에서 TalkBack을 켰다가 끄면 읽던 장에서 가로 스와이프를 다시 쓸 수 있다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'android');
+  jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(false);
+  const listeners = new Set<(enabled: boolean) => void>();
+  const changeEvents: {
+    addEventListener(name: 'screenReaderChanged' | 'reduceMotionChanged', listener: (enabled: boolean) => void): { remove(): void };
+  } = AccessibilityInfo;
+  jest.spyOn(changeEvents, 'addEventListener').mockImplementation((name, listener) => {
+    if (name === 'screenReaderChanged') listeners.add(listener);
+    return { remove: () => { listeners.delete(listener); } };
+  });
+  const notify = (enabled: boolean) => act(() => {
+    for (const listener of listeners) listener(enabled);
+  });
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+  await scrollBody(1);
+
+  await notify(true);
+  expectSingleReadingPage(2);
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  await notify(false);
+  expect(screen.getByRole('button', { name: '온보딩 3장, 전체 3장', selected: true })).toBeVisible();
+  await scrollBody(1);
+  expect(screen.getByRole('header', { name: titles[1] })).toBeVisible();
+});
+
+test('iPad에서 VoiceOver가 켜져도 기존 가로 페이지를 유지한다', async () => {
+  jest.replaceProperty(Platform, 'OS', 'ios');
+  jest.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockResolvedValue(true);
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+  await scrollBody(1);
+  expect(screen.getByRole('button', { name: '온보딩 2장, 전체 3장', selected: true })).toBeVisible();
 });

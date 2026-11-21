@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, Animated, Image, ScrollView, StyleSheet, View, useAnimatedValue, useWindowDimensions,
+  AccessibilityInfo, Animated, Image, Platform, ScrollView, StyleSheet, View, useAnimatedValue, useWindowDimensions,
   type NativeScrollEvent, type NativeSyntheticEvent,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
@@ -74,6 +74,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const target = useRef<Page | null>(null);
   const queued = useRef<Page | null>(null);
   const [reduceMotion, setReduceMotion] = useState(true);
+  const [androidScreenReader, setAndroidScreenReader] = useState(false);
   const scrollX = useAnimatedValue(0);
   const progress = useMemo(() => Animated.divide<number>(scrollX, Math.max(1, panelWidth)), [scrollX, panelWidth]);
 
@@ -85,6 +86,19 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     });
     AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
       if (acceptInitial) setReduceMotion(enabled);
+    }).catch(() => {});
+    return () => { acceptInitial = false; subscription.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    let acceptInitial = true;
+    const subscription = AccessibilityInfo.addEventListener('screenReaderChanged', enabled => {
+      acceptInitial = false;
+      setAndroidScreenReader(enabled);
+    });
+    AccessibilityInfo.isScreenReaderEnabled().then(enabled => {
+      if (acceptInitial) setAndroidScreenReader(enabled);
     }).catch(() => {});
     return () => { acceptInitial = false; subscription.remove(); };
   }, []);
@@ -107,25 +121,25 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     const x = next * panelWidth;
     target.current = next;
     pager.current?.scrollTo({ x, animated: !reduceMotion });
-    if (reduceMotion || Math.abs(offset.current - x) < 1) {
+    if (androidScreenReader || reduceMotion || Math.abs(offset.current - x) < 1) {
       offset.current = x;
       scrollX.setValue(x);
       settle(next);
     }
-  }, [panelWidth, reduceMotion, scrollX, settle]);
+  }, [androidScreenReader, panelWidth, reduceMotion, scrollX, settle]);
 
-  // 화면 크기가 바뀌면 이전 폭의 픽셀 오프셋 대신 선택한 장을 복원한다.
+  // 화면 크기가 바뀌거나 가로 페이저를 다시 열어도 선택한 장을 복원한다.
   useLayoutEffect(() => {
     const next = queued.current ?? target.current ?? settled.current;
     queued.current = null;
     offset.current = next * panelWidth;
-    pager.current?.scrollTo({ x: offset.current, animated: false });
+    if (!androidScreenReader) pager.current?.scrollTo({ x: offset.current, animated: false });
     scrollX.setValue(offset.current);
     settle(next);
-  }, [panelWidth, scrollX, settle]);
+  }, [androidScreenReader, panelWidth, scrollX, settle]);
 
   const observeOffset = useCallback((x: number) => {
-    if (panelWidth <= 0) return;
+    if (androidScreenReader || panelWidth <= 0) return;
     offset.current = x;
     const next = pages[Math.round(x / panelWidth)];
     // 1→3장 이동이 2장을 지날 때나 드래그를 되돌릴 때 중간 장을 확정하지 않는다.
@@ -139,14 +153,15 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     } else {
       settle(next);
     }
-  }, [panelWidth, selectPage, settle]);
+  }, [androidScreenReader, panelWidth, selectPage, settle]);
 
   const onScroll = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }],
     { useNativeDriver: true }), [scrollX]);
   useEffect(() => {
+    if (androidScreenReader) return;
     const subscription = scrollX.addListener(({ value }) => observeOffset(value));
     return () => scrollX.removeListener(subscription);
-  }, [scrollX, observeOffset]);
+  }, [androidScreenReader, scrollX, observeOffset]);
 
   function finishScroll({ nativeEvent }: NativeSyntheticEvent<NativeScrollEvent>) {
     if (Math.abs(nativeEvent.layoutMeasurement.width - panelWidth) <= 1) observeOffset(nativeEvent.contentOffset.x);
@@ -173,13 +188,25 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     }
   }
 
+  function renderSlide(index: Page) {
+    return (
+      <ScrollView key={index} nestedScrollEnabled directionalLockEnabled contentInsetAdjustmentBehavior="never"
+        contentContainerStyle={{ paddingHorizontal: padding, paddingTop: 56 * scale }}>
+        <IntroText copy={slides[index]} scale={scale} />
+        <View style={{ paddingTop: 29 * scale }}>
+          <OnboardingIllustration page={index} width={panelWidth - padding * 2} />
+        </View>
+      </ScrollView>
+    );
+  }
+
   return (
     <View style={styles.screen} onLayout={({ nativeEvent }) => {
       const { width: w, height: h } = nativeEvent.layout;
       if (w > 0 && h > 0 && (w !== width || h !== height || !layout)) setLayout({ width: w, height: h });
     }}>
       <StatusBar hidden />
-      <View style={StyleSheet.absoluteFill} {...(permission ? {} : sceneSwipe)}>
+      <View style={StyleSheet.absoluteFill} {...(permission || androidScreenReader ? {} : sceneSwipe)}>
         <OnboardingScene width={width} height={height} permission={permission} reduceMotion={reduceMotion} />
       </View>
       <View style={[styles.panel, {
@@ -187,24 +214,21 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
         borderRadius: 80 * scale,
       }]}>
         {permission ? <PermissionGuide scale={scale} onComplete={complete} /> : <>
-          <Animated.ScrollView key={panelWidth} ref={pager} horizontal pagingEnabled testID="onboarding-pages"
-            style={styles.pager} showsHorizontalScrollIndicator={false} bounces={false} directionalLockEnabled
-            contentInsetAdjustmentBehavior="never" scrollEventThrottle={16}
-            onScrollBeginDrag={() => { target.current = null; queued.current = null; }}
-            onScroll={onScroll} onMomentumScrollEnd={finishScroll}>
-            {pages.map(index => (
-              <View key={index} style={{ width: panelWidth }} aria-hidden={index !== page}
-                importantForAccessibility={index === page ? 'auto' : 'no-hide-descendants'}>
-                <ScrollView nestedScrollEnabled directionalLockEnabled contentInsetAdjustmentBehavior="never"
-                  contentContainerStyle={{ paddingHorizontal: padding, paddingTop: 56 * scale }}>
-                  <IntroText copy={slides[index]} scale={scale} />
-                  <View style={{ paddingTop: 29 * scale }}>
-                    <OnboardingIllustration page={index} width={panelWidth - padding * 2} />
-                  </View>
-                </ScrollView>
-              </View>
-            ))}
-          </Animated.ScrollView>
+          {/* TalkBack의 읽기 탐색이 가로 스크롤을 실행하지 않도록 현재 장만 표시한다. */}
+          {androidScreenReader ? renderSlide(page) : (
+            <Animated.ScrollView key={panelWidth} ref={pager} horizontal pagingEnabled testID="onboarding-pages"
+              style={styles.pager} showsHorizontalScrollIndicator={false} bounces={false} directionalLockEnabled
+              contentInsetAdjustmentBehavior="never" scrollEventThrottle={16}
+              onScrollBeginDrag={() => { target.current = null; queued.current = null; }}
+              onScroll={onScroll} onMomentumScrollEnd={finishScroll}>
+              {pages.map(index => (
+                <View key={index} style={{ width: panelWidth }} aria-hidden={index !== page}
+                  importantForAccessibility={index === page ? 'auto' : 'no-hide-descendants'}>
+                  {renderSlide(index)}
+                </View>
+              ))}
+            </Animated.ScrollView>
+          )}
           <View style={{ paddingHorizontal: padding, paddingBottom: 44 * scale }}>
             <OnboardingPageIndicator progress={progress} page={page} onSelect={selectPage}
               largeControls={window.fontScale > 1.3} />
