@@ -6,7 +6,7 @@ import { colors, fonts } from '../theme/tokens';
 export type ButtonProps = {
   label: string;
   onPress: () => void;
-  variant?: 'primary' | 'secondary';
+  variant?: 'primary' | 'secondary' | 'onboarding';
   disabled?: boolean;
   loading?: boolean;
 };
@@ -22,13 +22,15 @@ export function Button({ label, onPress, variant = 'primary', disabled = false, 
       disabled={blocked}
       onPress={() => { if (!blocked) onPress(); }}
       style={({ pressed }) => [
-        styles.button, variant === 'primary' ? styles.primary : styles.secondary,
+        styles.button, variant === 'secondary' ? styles.secondary : styles.primary,
+        variant === 'onboarding' && styles.onboarding,
         blocked && styles.disabled,
         pressed && !blocked && styles.pressed,
       ]}
     >
       {loading && <ActivityIndicator color={colors.textPrimary} accessible={false} />}
-      <AppText style={[styles.label, variant === 'secondary' && styles.secondaryLabel]}>{label}</AppText>
+      <AppText style={[styles.label, variant === 'secondary' && styles.secondaryLabel,
+        variant === 'onboarding' && styles.onboardingLabel]}>{label}</AppText>
     </Pressable>
   );
 }
@@ -43,7 +45,8 @@ const styles = StyleSheet.create({
   secondary: { backgroundColor: colors.surfaceWhite },
   disabled: { backgroundColor: colors.border },
   pressed: { opacity: 0.8 },
-  // P0의 밝은 글씨 대신 사용자가 승인한 기존 진한 글씨 토큰을 적용한다.
   label: { fontFamily: fonts.extraBold, fontSize: 20, lineHeight: 28, color: colors.textPrimary, textAlign: 'center', flexShrink: 1 },
+  onboarding: { boxShadow: '0px 2px 5px rgba(0, 0, 0, 0.05)' },
+  onboardingLabel: { color: colors.surfaceWarm },
   secondaryLabel: { color: colors.textSignUp },
 });
