@@ -8,6 +8,7 @@ import { colors, typography } from '../theme/tokens';
 import { MicrophonePermissionActions } from './MicrophonePermissionActions';
 import { OnboardingIllustration } from './OnboardingIllustration';
 import { OnboardingScene } from './OnboardingScene';
+import { getOnboardingLayout } from './onboardingLayout';
 
 const slides = [
   { title: '아이의 하루를 들어주는\n마음 친구, 도담이', body: '아이는 캐릭터와 이야기하며 하루를 표현하고,\n자신의 감정과 생각을 자연스럽게 알아가요.' },
@@ -29,15 +30,17 @@ type PanelProps = {
 };
 
 function Panel({ width, height, page, permission, onSelect, onContinue }: PanelProps) {
-  const scale = Math.min(width / 1280, height / 800);
-  const panelWidth = width * 590 / 1280;
-  const padding = Math.min(40 * scale, panelWidth / 10);
+  const { fontScale } = useWindowDimensions();
+  const largeControls = fontScale > 1.3;
+  const { scale, left, top } = getOnboardingLayout(width, height);
+  const panelWidth = 590 * scale;
+  const padding = 40 * scale;
   const textScale = Math.max(0.8, Math.min(1, scale));
   const { title, body } = permission ? guide : slides[page];
 
   return (
     <View style={[styles.panel, {
-      width: panelWidth, right: width * 32 / 1280, top: height * 24 / 800, bottom: height * 24 / 800,
+      width: panelWidth, height: 752 * scale, left: left + 658 * scale, top: top + 24 * scale,
       borderRadius: 80 * scale,
     }]}>
       <ScrollView nestedScrollEnabled contentInsetAdjustmentBehavior="never"
@@ -59,7 +62,7 @@ function Panel({ width, height, page, permission, onSelect, onContinue }: PanelP
             </View>
           </View>
         ) : (
-          <View style={[styles.illustration, { paddingTop: 20 * scale }]}>
+          <View style={[styles.illustration, { paddingTop: 29 * scale }]}>
             <OnboardingIllustration page={page} width={panelWidth - padding * 2} />
           </View>
         )}
@@ -68,17 +71,20 @@ function Panel({ width, height, page, permission, onSelect, onContinue }: PanelP
             <MicrophonePermissionActions onComplete={onContinue} />
           </View>
         ) : <>
-          <View style={styles.pageControls}>
+          <View style={[styles.pageControls, !largeControls && styles.compactControls]}>
             {pages.map(index => (
               <Pressable key={index} accessibilityRole="button"
                 accessibilityLabel={`온보딩 ${index + 1}장, 전체 3장`}
                 accessibilityState={{ selected: index === page }}
-                style={styles.dotTarget} onPress={() => onSelect(index)}>
+                style={[styles.dotTarget, largeControls ? styles.largeDotTarget :
+                  [index === 0 && styles.firstDotTarget, index === 2 && styles.lastDotTarget]]}
+                onPress={() => onSelect(index)}>
                 <View style={[styles.dot, index === page && styles.selectedDot]} />
               </Pressable>
             ))}
           </View>
-          <Button label="시작하기" onPress={onContinue} />
+          <Button variant="onboarding" label={page === 2 ? '시작하기' : '다음'}
+            onPress={page === 2 ? onContinue : () => onSelect(page === 0 ? 1 : 2)} />
         </>}
       </ScrollView>
     </View>
@@ -151,10 +157,15 @@ const styles = StyleSheet.create({
   panelContent: { flexGrow: 1 },
   heading: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
   body: { ...typography.body, color: colors.textSecondary, textAlign: 'center' },
-  illustration: { flexGrow: 1, justifyContent: 'center' },
+  illustration: { flexGrow: 1 },
   pageControls: { flexDirection: 'row', alignSelf: 'center' },
-  dotTarget: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: colors.textSecondary, backgroundColor: '#CDBBA7' },
+  compactControls: { marginTop: -3 },
+  // 가운데 표시가 양옆의 여백 8dp를 받고, 양 끝은 바깥 방향으로 터치 영역을 넓힌다.
+  dotTarget: { minHeight: 48, paddingBottom: 8, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' },
+  largeDotTarget: { minWidth: 44 },
+  firstDotTarget: { paddingLeft: 36, paddingRight: 0 },
+  lastDotTarget: { paddingLeft: 0, paddingRight: 36 },
+  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#CDBBA7' },
   selectedDot: { width: 28, backgroundColor: colors.primary },
   micCard: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 16, borderRadius: 24,
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceWhite },

@@ -1,44 +1,72 @@
 import { expect, jest, test } from '@jest/globals';
-import { fireEvent, render, screen } from '@testing-library/react-native';
-import { StyleSheet } from 'react-native';
+import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Dimensions, StyleSheet } from 'react-native';
 
-import { colors } from '../theme/tokens';
 import { OnboardingFlow } from './OnboardingFlow';
 
 const titles = ['아이의 하루를 들어주는 마음 친구, 도담이', '다양한 놀이를 즐기고 새로운 것을 배우며 성장해요', '오늘 하루 아이가 어땠는지, 아이의 마음을 알려드려요'];
 
-function luminance(hex: string) {
-  const [r, g, b] = [1, 3, 5].map(offset => {
-    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
-    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-test.each([1, 2])('%i장 페이지 표시의 윤곽은 패널과 3:1 이상 대비된다', async page => {
-  await render(<OnboardingFlow onComplete={jest.fn()} />);
-  const button = screen.getByRole('button', { name: `온보딩 ${page}장, 전체 3장`, selected: page === 1 });
-  const mark = button.children[0];
-  if (!mark || typeof mark === 'string') throw new Error('페이지 표시가 없습니다.');
-  const style = StyleSheet.flatten(mark.props.style);
-  const edge = luminance(style.borderWidth > 0 ? style.borderColor : style.backgroundColor);
-  const panel = luminance(colors.surface);
-  expect((Math.max(panel, edge) + 0.05) / (Math.min(panel, edge) + 0.05)).toBeGreaterThanOrEqual(3);
-});
-
-test.each([1, 2, 3])('%i장에서 마이크 용도를 확인하고 건너뛸 수 있다', async page => {
+test('다음을 누를 때마다 한 장씩 이동하고 마지막 시작하기에서 마이크 안내를 연다', async () => {
   const onComplete = jest.fn();
   await render(<OnboardingFlow onComplete={onComplete} />);
-  const pageLabel = `온보딩 ${page}장, 전체 3장`;
-  await fireEvent.press(screen.getByRole('button', { name: pageLabel }));
-  expect(screen.getByRole('header', { name: titles[page - 1] })).toBeVisible();
-  expect(screen.getByRole('button', { name: pageLabel, selected: true })).toBeVisible();
+  for (const page of [0, 1, 2]) {
+    expect(screen.getByRole('header', { name: titles[page] })).toBeVisible();
+    expect(screen.getByRole('button', { name: `온보딩 ${page + 1}장, 전체 3장`, selected: true })).toBeVisible();
+    expect(screen.queryByText('캐릭터와 음성으로 대화할 때 사용해요')).toBeNull();
+    if (page < 2) {
+      expect(screen.queryByRole('button', { name: '시작하기' })).toBeNull();
+      await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+    }
+  }
+  expect(screen.queryByRole('button', { name: '다음' })).toBeNull();
   await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
   expect(screen.getByText('캐릭터와 음성으로 대화할 때 사용해요')).toBeVisible();
   expect(onComplete).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: '다음에 할래요' }));
   expect(onComplete).toHaveBeenCalledTimes(1);
-  expect(screen.queryByRole('button', { name: '다음에 할래요' })).toBeNull();
+});
+
+test('점을 눌러 장을 바꾸면 선택 표시와 다음 버튼이 그 장을 따른다', async () => {
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+  for (const page of [3, 1, 2]) {
+    const name = `온보딩 ${page}장, 전체 3장`;
+    await fireEvent.press(screen.getByRole('button', { name }));
+    expect(screen.getByRole('button', { name, selected: true })).toBeVisible();
+    expect(screen.getByRole('header', { name: titles[page - 1] })).toBeVisible();
+  }
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByRole('header', { name: titles[2] })).toBeVisible();
+  expect(screen.getByRole('button', { name: '시작하기' })).toBeVisible();
+});
+
+test('페이지 표시는 P0의 채움과 길이로 선택을 구분하고 버튼 문구는 밝은 색이다', async () => {
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+  for (const page of [1, 2, 3]) {
+    const button = screen.getByRole('button', { name: `온보딩 ${page}장, 전체 3장` });
+    expect(button).toHaveStyle({ minHeight: 48 });
+    const mark = button.children[0];
+    if (!mark || typeof mark === 'string') throw new Error('페이지 표시가 없습니다.');
+    const style = StyleSheet.flatten(mark.props.style);
+    expect(style.borderWidth ?? 0).toBe(0);
+    expect(style.backgroundColor).toBe(page === 1 ? '#75CC3F' : '#CDBBA7');
+    expect(style.width).toBe(page === 1 ? 28 : 8);
+    expect(style.height).toBe(8);
+  }
+  expect(screen.getByText('다음')).toHaveStyle({ color: '#FFFDFA' });
+});
+
+test('확대 글씨에서는 각 점의 터치 영역을 44×48 이상 확보한다', async () => {
+  const window = Dimensions.get('window');
+  try {
+    await act(() => Dimensions.set({ window: { ...window, fontScale: 2 } }));
+    await render(<OnboardingFlow onComplete={jest.fn()} />);
+    for (const page of [1, 2, 3]) {
+      expect(screen.getByRole('button', { name: `온보딩 ${page}장, 전체 3장` }))
+        .toHaveStyle({ minWidth: 44, minHeight: 48 });
+    }
+  } finally {
+    await act(() => Dimensions.set({ window }));
+  }
 });
 
 test('가로 스크롤이 끝난 위치에 따라 현재 장과 탐색 표시가 바뀐다', async () => {
@@ -60,4 +88,6 @@ test('가로 스크롤이 끝난 위치에 따라 현재 장과 탐색 표시가
     nativeEvent: { ...dimensions, contentOffset: { x: width, y: 0 } },
   });
   expect(screen.getByRole('button', { name: '온보딩 2장, 전체 3장', selected: true })).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  expect(screen.getByRole('header', { name: titles[2] })).toBeVisible();
 });

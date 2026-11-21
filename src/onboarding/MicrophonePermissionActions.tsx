@@ -118,7 +118,7 @@ export function MicrophonePermissionActions({ onComplete }: { onComplete: () => 
         </Pressable>
       )}
       {(phase === 'guide' || phase === 'denied' || phase === 'error') && (
-        <Button label={feedback ? '다시 시도' : '권한 설정 시작하기'} onPress={() => { void resolvePermission('check'); }} />
+        <Button variant="onboarding" label={feedback ? '다시 시도' : '권한 설정 시작하기'} onPress={() => { void resolvePermission('check'); }} />
       )}
     </View>
     <Modal visible={phase === 'rationale'} animationType="none" transparent={false}

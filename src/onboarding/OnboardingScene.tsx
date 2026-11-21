@@ -2,6 +2,7 @@ import { Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-
 
 import { AppText } from '../components/AppText';
 import { colors, fonts } from '../theme/tokens';
+import { getOnboardingLayout } from './onboardingLayout';
 
 type SceneProps = { width: number; height: number; permission: boolean };
 
@@ -24,10 +25,7 @@ export function OnboardingScene({ width, height, permission }: SceneProps) {
   if (width <= 0 || height <= 0) return null;
 
   const pose = permission ? microphoneGuide : greeting;
-  // 방과 인물은 같은 1280×800 좌표계로 확대·크롭해 화면 비율이 바뀌어도 발과 러그 위치가 맞는다.
-  const scale = Math.max(width / 1280, height / 800);
-  const sceneLeft = (width - 1280 * scale) / 2;
-  const sceneTop = (height - 800 * scale) / 2;
+  const { scale, sceneLeft, sceneTop, roomScale, roomLeft, roomTop } = getOnboardingLayout(width, height);
   const characterWidth = 395.09 * scale;
   const characterHeight = 393.921 * scale;
   const characterTop = sceneTop + 260 * scale;
@@ -45,8 +43,8 @@ export function OnboardingScene({ width, height, permission }: SceneProps) {
         style={StyleSheet.absoluteFill}>
         <Image accessible={false} fadeDuration={0} resizeMode="stretch"
           source={require('../../assets/images/onboarding/room.png')}
-          style={{ position: 'absolute', left: sceneLeft - 258.56 * scale,
-            top: sceneTop + 0.24 * scale, width: 1545.216 * scale, height: 799.44 * scale }} />
+          style={{ position: 'absolute', left: roomLeft - 258.56 * roomScale,
+            top: roomTop, width: 1545.216 * roomScale, height: 800 * roomScale }} />
         <Image accessible={false} fadeDuration={0} source={pose.girl} resizeMode="stretch"
           style={{ position: 'absolute', left: sceneLeft + 43 * scale, top: characterTop,
             width: characterWidth, height: characterHeight }} />

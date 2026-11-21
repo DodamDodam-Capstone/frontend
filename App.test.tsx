@@ -23,6 +23,8 @@ test('개발 앱에서 실제 온보딩을 열고 안내를 건너뛰면 시작 
   await render(<App />);
   await fireEvent.press(screen.getByRole('button', { name: '온보딩 확인' }));
   expect(await screen.findByRole('header', { name: '아이의 하루를 들어주는 마음 친구, 도담이' })).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
+  await fireEvent.press(screen.getByRole('button', { name: '다음' }));
   await fireEvent.press(screen.getByRole('button', { name: '시작하기' }));
   await fireEvent.press(screen.getByRole('button', { name: '다음에 할래요' }));
   expect(screen.getByRole('button', { name: '온보딩 확인' })).toBeVisible();
