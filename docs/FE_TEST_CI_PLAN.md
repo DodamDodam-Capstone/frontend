@@ -128,6 +128,12 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - 2026-11-22 가로 iPad Pro 11형 시뮬레이터(iPadOS 27.2)에서 다음 버튼, 오른쪽 카드의 양방향 스와이프, 1장과 3장 사이의 점 선택, 왼쪽 장면에서의 스와이프를 확인했다. 캡처 여섯 장에서 왼쪽 장면의 픽셀이 일치했고, 세 장의 하단 버튼 위치와 크기도 같았다. 녹화 중간 프레임에서 초록 표시가 늘어났다가 도착하면서 줄어드는 모습을 확인했다.
 - 같은 소스로 lint, typecheck, Jest 40개 스위트·793개 테스트, 공개 환경 설정 주입 14개, iOS·Android export가 통과했다. 두 export에 각 번들과 에셋 52개가 포함됐다. 이번 전환의 Android 기기 동작은 미확인이다. iPad 영상과 XCTest 결과는 로컬 `build/scrum-169-motion/ios/`에 있다.
 
+#### 권한 안내로 들어갈 때의 캐릭터 자세
+
+- 3장의 **시작하기**를 누르면 안내 문구와 버튼을 바로 표시한다. 두 캐릭터의 다음 자세를 미리 읽어 두고, 두 이미지가 모두 준비되면 220ms 동안 인사 자세에서 두 팔을 든 자세로 바꾼다. 캐릭터가 가장 높이 올라가는 순간에 두 포즈를 짧게 겹친다. 동작 줄이기가 켜져 있거나 전환 도중 켜지면 준비된 최종 자세를 바로 표시한다.
+- 가로 iPad Pro 11형 시뮬레이터(iPadOS 27.2)에서 3장 → 권한 안내 → 건너뛰기 → 온보딩 첫 장 복귀를 확인했다. 녹화에서 시작·끝 자세 사이의 중간 프레임 11개를 확인했다. 영상은 로컬 `build/scrum-169-pose/ios/character-pose-preview.mp4`에 있다.
+- 이미지 준비와 동작 줄이기 회귀 테스트 3개를 포함해 Jest 41개 스위트·796개 테스트, lint, typecheck, iOS·Android export가 통과했다. 이번 자세 전환의 기기 검증 범위는 iPad 시뮬레이터다.
+
 ### SCRUM-164 초기 화면 조합 검증 기준 — 2026-11-19 KST
 
 - 선행 121·162·163의 Jira 완료와 원격 development `c0bf707c5beb258edc5ae8d47044fe1c973e02ba`를 확인했다. 이 커밋에서 로컬 `feature/SCRUM-164-ui-composition`을 분기했다. [164 AC2](https://dodamdodam.atlassian.net/browse/SCRUM-164)와 [부모 122 AC3](https://dodamdodam.atlassian.net/browse/SCRUM-122)에 아동용 가로 태블릿의 터치·화면 키보드·입력 라벨/포커스·확대 글씨·화면 읽기를 명시했다. 외장 키보드와 Full Keyboard Access는 완료 범위에서 제외했다.

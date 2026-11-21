@@ -73,7 +73,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
   const settled = useRef<Page>(0);
   const target = useRef<Page | null>(null);
   const queued = useRef<Page | null>(null);
-  const reduceMotion = useRef(true);
+  const [reduceMotion, setReduceMotion] = useState(true);
   const scrollX = useAnimatedValue(0);
   const progress = useMemo(() => Animated.divide<number>(scrollX, Math.max(1, panelWidth)), [scrollX, panelWidth]);
 
@@ -81,10 +81,10 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     let acceptInitial = true;
     const subscription = AccessibilityInfo.addEventListener('reduceMotionChanged', enabled => {
       acceptInitial = false;
-      reduceMotion.current = enabled;
+      setReduceMotion(enabled);
     });
     AccessibilityInfo.isReduceMotionEnabled().then(enabled => {
-      if (acceptInitial) reduceMotion.current = enabled;
+      if (acceptInitial) setReduceMotion(enabled);
     }).catch(() => {});
     return () => { acceptInitial = false; subscription.remove(); };
   }, []);
@@ -106,13 +106,13 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     }
     const x = next * panelWidth;
     target.current = next;
-    pager.current?.scrollTo({ x, animated: !reduceMotion.current });
-    if (reduceMotion.current || Math.abs(offset.current - x) < 1) {
+    pager.current?.scrollTo({ x, animated: !reduceMotion });
+    if (reduceMotion || Math.abs(offset.current - x) < 1) {
       offset.current = x;
       scrollX.setValue(x);
       settle(next);
     }
-  }, [panelWidth, scrollX, settle]);
+  }, [panelWidth, reduceMotion, scrollX, settle]);
 
   // 화면 크기가 바뀌면 이전 폭의 픽셀 오프셋 대신 선택한 장을 복원한다.
   useLayoutEffect(() => {
@@ -180,7 +180,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
     }}>
       <StatusBar hidden />
       <View style={StyleSheet.absoluteFill} {...(permission ? {} : sceneSwipe)}>
-        <OnboardingScene width={width} height={height} permission={permission} />
+        <OnboardingScene width={width} height={height} permission={permission} reduceMotion={reduceMotion} />
       </View>
       <View style={[styles.panel, {
         width: panelWidth, height: 752 * scale, left: left + 658 * scale, top: top + 24 * scale,
