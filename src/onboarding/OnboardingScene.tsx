@@ -21,8 +21,8 @@ const microphoneGuide = {
   speech: '함께 이야기할\n준비를 해볼까요?',
 };
 
-function PoseLayer({ pose, scale, opacity, onGirlLoad, onBoyLoad }: {
-  pose: typeof greeting; scale: number; opacity: Animated.AnimatedInterpolation<number>;
+function PoseLayer({ pose, scale, sceneLeft, opacity, onGirlLoad, onBoyLoad }: {
+  pose: typeof greeting; scale: number; sceneLeft: number; opacity: Animated.AnimatedInterpolation<number>;
   onGirlLoad?: () => void; onBoyLoad?: () => void;
 }) {
   const width = 395.09 * scale;
@@ -30,8 +30,9 @@ function PoseLayer({ pose, scale, opacity, onGirlLoad, onBoyLoad }: {
   return (
     <Animated.View style={[StyleSheet.absoluteFill, { opacity }]}>
       <Image accessible={false} fadeDuration={0} source={pose.girl} resizeMode="stretch"
-        testID={onGirlLoad && 'onboarding-jump-girl'} onLoad={onGirlLoad} style={{ width, height }} />
-      <View style={{ position: 'absolute', overflow: 'hidden', left: 213.91 * scale, top: 0, width, height }}>
+        testID={onGirlLoad && 'onboarding-jump-girl'} onLoad={onGirlLoad}
+        style={{ position: 'absolute', left: sceneLeft + 43 * scale, top: 0, width, height }} />
+      <View style={{ position: 'absolute', overflow: 'hidden', left: sceneLeft + 256.91 * scale, top: 0, width, height }}>
         <Image accessible={false} fadeDuration={0} source={pose.boy} resizeMode="stretch"
           testID={onBoyLoad && 'onboarding-jump-boy'} onLoad={onBoyLoad}
           style={{ position: 'absolute', left: width * pose.boyLeft, top: height * pose.boyTop,
@@ -41,8 +42,8 @@ function PoseLayer({ pose, scale, opacity, onGirlLoad, onBoyLoad }: {
   );
 }
 
-function Characters({ scale, left, top, permission, reduceMotion }: {
-  scale: number; left: number; top: number; permission: boolean; reduceMotion: boolean;
+function Characters({ scale, sceneLeft, top, permission, reduceMotion }: {
+  scale: number; sceneLeft: number; top: number; permission: boolean; reduceMotion: boolean;
 }) {
   const progress = useAnimatedValue(0);
   const [girlReady, setGirlReady] = useState(false);
@@ -77,10 +78,10 @@ function Characters({ scale, left, top, permission, reduceMotion }: {
     }),
   }), [progress, scale]);
   return (
-    <Animated.View style={{ position: 'absolute', left, top, width: 609 * scale, height: 393.921 * scale,
+    <Animated.View style={{ position: 'absolute', left: 0, right: 0, top, height: 393.921 * scale,
       transform: [{ translateY: motion.lift }] }}>
-      <PoseLayer pose={greeting} scale={scale} opacity={motion.greeting} />
-      <PoseLayer pose={microphoneGuide} scale={scale} opacity={motion.jump}
+      <PoseLayer pose={greeting} scale={scale} sceneLeft={sceneLeft} opacity={motion.greeting} />
+      <PoseLayer pose={microphoneGuide} scale={scale} sceneLeft={sceneLeft} opacity={motion.jump}
         onGirlLoad={() => setGirlReady(true)} onBoyLoad={() => setBoyReady(true)} />
     </Animated.View>
   );
@@ -108,7 +109,7 @@ export function OnboardingScene({ width, height, permission, reduceMotion }: Sce
           source={require('../../assets/images/onboarding/room.png')}
           style={{ position: 'absolute', left: roomLeft - 258.56 * roomScale,
             top: roomTop, width: 1545.216 * roomScale, height: 800 * roomScale }} />
-        <Characters scale={scale} left={sceneLeft + 43 * scale} top={sceneTop + 260 * scale}
+        <Characters scale={scale} sceneLeft={sceneLeft} top={sceneTop + 260 * scale}
           permission={permission} reduceMotion={reduceMotion} />
       </View>
 
