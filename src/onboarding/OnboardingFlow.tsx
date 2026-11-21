@@ -5,6 +5,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
 import { colors, typography } from '../theme/tokens';
+import { MicrophonePermissionActions } from './MicrophonePermissionActions';
 import { OnboardingIllustration } from './OnboardingIllustration';
 import { OnboardingScene } from './OnboardingScene';
 
@@ -64,10 +65,7 @@ function Panel({ width, height, page, permission, onSelect, onContinue }: PanelP
         )}
         {permission ? (
           <View style={styles.guideAction}>
-            <Pressable accessibilityRole="button" accessibilityLabel="다음에 할래요"
-              onPress={onContinue} style={styles.skipTarget}>
-              <AppText style={styles.skipLabel}>다음에 할래요</AppText>
-            </Pressable>
+            <MicrophonePermissionActions onComplete={onContinue} />
           </View>
         ) : <>
           <View style={styles.pageControls}>
@@ -166,6 +164,4 @@ const styles = StyleSheet.create({
   micTitle: { ...typography.label, fontSize: 20, lineHeight: 28, color: colors.textPrimary },
   micBody: { ...typography.input, color: colors.textSecondary },
   guideAction: { flexGrow: 1, justifyContent: 'flex-end', paddingTop: 24 },
-  skipTarget: { minHeight: 48, alignItems: 'center', justifyContent: 'center' },
-  skipLabel: { ...typography.label, color: colors.textSecondary, textDecorationLine: 'underline' },
 });

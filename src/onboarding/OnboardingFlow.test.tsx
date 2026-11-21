@@ -16,8 +16,8 @@ test.each([1, 2, 3])('%i장에서 마이크 용도를 확인하고 건너뛸 수
   expect(screen.getByText('캐릭터와 음성으로 대화할 때 사용해요')).toBeVisible();
   expect(onComplete).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: '다음에 할래요' }));
-  await fireEvent.press(screen.getByRole('button', { name: '다음에 할래요' }));
   expect(onComplete).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole('button', { name: '다음에 할래요' })).toBeNull();
 });
 
 test('가로 스크롤이 끝난 위치에 따라 현재 장과 탐색 표시가 바뀐다', async () => {

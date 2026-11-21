@@ -20,6 +20,10 @@
     },
     "android": {
       "package": "dev.dodamdodamcapstone.dodamdodam",
+      "blockedPermissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.WAKE_LOCK"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -30,6 +34,15 @@
     },
     "plugins": [
       "./plugins/withSingleUsePost",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "캐릭터에게 말을 걸 때 마이크를 사용해요.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
+      ],
       [
         "expo-font",
         {
