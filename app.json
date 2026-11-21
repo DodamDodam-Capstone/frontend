@@ -35,6 +35,14 @@
     "plugins": [
       "./plugins/withSingleUsePost",
       [
+        "expo-build-properties",
+        {
+          "ios": {
+            "enableSceneSupport": true
+          }
+        }
+      ],
+      [
         "expo-audio",
         {
           "microphonePermission": "캐릭터에게 말을 걸 때 마이크를 사용해요.",

@@ -31,7 +31,10 @@ Metro만 열어 볼 때는 `npm start`를 실행합니다. 아래 `npm run andro
 Android Studio의 Android 태블릿 에뮬레이터 또는 Xcode의 iPad 시뮬레이터를 준비한 뒤,
 각 플랫폼을 별도로 실행합니다. 첫 실행에는 네이티브 프로젝트 생성·컴파일이 포함됩니다.
 Android는 JDK 17, SDK Platform 36, Build Tools `36.0.0`, NDK `27.1.12297006`이
-필요하고 iOS는 Xcode 26.6과 CocoaPods가 필요합니다.
+필요합니다. iOS CI는 Xcode 26.6과 CocoaPods를 사용합니다. Xcode 27 SDK로
+iPadOS 27용 앱을 빌드할 때는 `app.json`의 `expo-build-properties` 설정
+(`ios.enableSceneSupport`)이 적용된 네이티브 프로젝트가 필요합니다. 이전 개발 앱을
+사용 중이라면 아래 네이티브 빌드 절차에 따라 깨끗한 checkout에서 재생성해 설치합니다.
 
 ```bash
 npm run android

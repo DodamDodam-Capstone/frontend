@@ -83,7 +83,15 @@ Jira 원문과 최종 OpenAPI·ERD·확정된 후속 결정을 테스트의 기�
 - Node 24.20.0과 npm 11.19.0에서 현재 작업 파일을 별도 경로에 복사해 `npm ci --offline`으로 설치했다. Expo 온라인 버전 호환성 검사, lint, typecheck, 전체 Jest(36 suites/769 tests), 환경 주입 14개, 워크플로 테스트 7개, Android·iOS 프로덕션 JS export가 통과했다. 두 개의 신규 권한 테스트 파일은 기존 CI의 `npm run test`가 실행하는 전체 목록에 포함된다.
 - Xcode 27.2에서 `ExpoAudio`를 포함한 arm64 개발 앱을 새로 빌드했다. 앱의 Info.plist에서 한국어 마이크 사용 목적과 iPad 가로 양방향을 확인했다. 카메라 사용 목적과 배경 오디오 모드는 없었다.
 - iPadOS 26.5 가로 iPad Pro 시뮬레이터에서 XCTest 2개가 통과했다. 최초 건너뛰기, 앱 설명의 **계속** 후 실제 시스템 창에서 **허용 안 함** 선택, 기기 설정 안내와 건너뛰기 복귀를 확인했다. 마이크 권한을 초기화한 다음 시스템 창에서 **허용**을 눌러 완료했고, 재진입 시 추가 설명창·시스템 창 없이 시작 화면으로 돌아왔다.
-- **iPadOS 27.2 실행 제약**: 동일한 개발 앱은 27.2에서 JS를 불러오기 전에 종료됐다. 단독 실행에서도 UIKit이 `UIScene` 생명주기 설정을 요구했다. Expo 57.0.33의 기본 앱 템플릿은 기존 AppDelegate 방식이며 저장소 CI가 지정한 Xcode는 26.6이다. 이 단계에서 27.2의 권한 동작과 원격 CI는 미검증이다. 이번 로컬 빌드 로그·시스템 창 캡처는 `build/scrum-169-stage3/`에 보관했다.
+- **수정 전 iPadOS 27.2 시작 실패.** 커밋 `728c556`의 동일한 개발 앱은 27.2에서 JS를 불러오기 전에 종료됐다. 단독 실행을 포함한 세 번 모두 UIKit이 `UIScene` 생명주기 설정을 요구했다. 최종 앱에 `UIApplicationSceneManifest`가 없었고 시작 코드는 Expo 57.0.33의 기본 AppDelegate와 일치했다. 이 빌드로 27.2의 마이크 권한을 시험할 수 없었다. 당시 로그와 캡처는 `build/scrum-169-stage3/`에 보관했다.
+
+#### iPadOS 27.2 시작 호환성
+
+- Expo 57.0.33에서 공식 `expo-build-properties` 57.0.23의 `ios.enableSceneSupport`를 켰다. 깨끗한 iOS prebuild에서 Expo의 scene delegate가 등록되고 AppDelegate의 기존 React Native 직접 시작 코드가 제거되는 것을 확인했다. CI는 Xcode 26.6의 시뮬레이터용 앱 컴파일까지 수행한다. [Expo SDK 57 설정](https://docs.expo.dev/versions/v57.0.0/sdk/build-properties/#pluginconfigtypeios)
+- Xcode 27.2에서 arm64 Debug 앱을 빌드했다. 27.2와 26.5에 설치한 앱의 `app.debug.dylib` SHA-256(`ef60e251de2a2c4328f5dff07726f1a36c359eedb86ce022ec123ee1f9a91113`)과 최종 scene 설정이 일치했다. 최종 앱에는 한국어 마이크 사용 목적과 iPad 가로 양방향이 있고, 카메라 사용 목적과 배경 오디오 모드는 없었다.
+- 가로 iPad Pro 11형(M5)에서 27.2를 먼저 시험하고 종료한 뒤 26.5에서 같은 시험을 수행했다. **iPadOS 27.2와 26.5 각각 XCTest 3개, 합계 6개 통과.** 개발 앱 최초 실행 시 Expo 런처에서 Metro 프로젝트를 연결했다. 이후 앱을 종료하고 URL 없이 실행해 도담도담 첫 화면을 확인했고, 홈에서 돌아와 **온보딩 확인**을 눌렀다. 실제 권한창에서 거부한 뒤 설정 안내와 건너뛰기, 허용한 뒤 재진입 시 시스템 창 없이 완료하는 흐름도 통과했다. 첫 복귀 시험에서는 Expo 개발 메뉴가 버튼을 가렸다. 해당 안내를 닫고 버튼을 실제로 눌러 최종 결과를 확인했다.
+- 두 시뮬레이터를 순서대로 종료하고 기존 기기 24개의 실행 상태가 작업 전과 일치하는지 확인했다. 27.2는 전체 화면 고정과 지원 방향에 관한 향후 호환성 경고를 남겼다. 이번 결과는 현재 가로 시뮬레이터용 개발 빌드에서 확인한 동작이다.
+- Android는 수정 전후 같은 Expo 템플릿으로 prebuild한 파일 57개가 모두 동일했다. 이번 수정의 로컬 검사는 lint, typecheck, Jest 36 suites/769 tests, 환경 주입 14개, 워크플로 7개가 통과했다. 실행 로그·XCTest 결과·캡처는 `build/scrum-169-scene/`에 보관했다.
 
 ### SCRUM-164 초기 화면 조합 검증 기준 — 2026-11-19 KST
 
