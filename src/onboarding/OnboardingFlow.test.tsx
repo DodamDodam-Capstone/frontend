@@ -1,9 +1,30 @@
 import { expect, jest, test } from '@jest/globals';
 import { fireEvent, render, screen } from '@testing-library/react-native';
+import { StyleSheet } from 'react-native';
 
+import { colors } from '../theme/tokens';
 import { OnboardingFlow } from './OnboardingFlow';
 
 const titles = ['아이의 하루를 들어주는 마음 친구, 도담이', '다양한 놀이를 즐기고 새로운 것을 배우며 성장해요', '오늘 하루 아이가 어땠는지, 아이의 마음을 알려드려요'];
+
+function luminance(hex: string) {
+  const [r, g, b] = [1, 3, 5].map(offset => {
+    const channel = parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+test.each([1, 2])('%i장 페이지 표시의 윤곽은 패널과 3:1 이상 대비된다', async page => {
+  await render(<OnboardingFlow onComplete={jest.fn()} />);
+  const button = screen.getByRole('button', { name: `온보딩 ${page}장, 전체 3장`, selected: page === 1 });
+  const mark = button.children[0];
+  if (!mark || typeof mark === 'string') throw new Error('페이지 표시가 없습니다.');
+  const style = StyleSheet.flatten(mark.props.style);
+  const edge = luminance(style.borderWidth > 0 ? style.borderColor : style.backgroundColor);
+  const panel = luminance(colors.surface);
+  expect((Math.max(panel, edge) + 0.05) / (Math.min(panel, edge) + 0.05)).toBeGreaterThanOrEqual(3);
+});
 
 test.each([1, 2, 3])('%i장에서 마이크 용도를 확인하고 건너뛸 수 있다', async page => {
   const onComplete = jest.fn();

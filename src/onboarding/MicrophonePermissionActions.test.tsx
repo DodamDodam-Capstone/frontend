@@ -1,6 +1,6 @@
 import { afterEach, expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { Platform } from 'react-native';
+import { AppState, type AppStateStatus, Platform } from 'react-native';
 
 import { MicrophonePermissionActions } from './MicrophonePermissionActions';
 import { getMicrophonePermission, requestMicrophonePermission } from './microphonePermission';
@@ -15,6 +15,19 @@ const request = jest.mocked(requestMicrophonePermission);
 const setupLabel = '권한 설정 시작하기';
 const skipLabel = '다음에 할래요';
 const press = (name: string) => fireEvent.press(screen.getByRole('button', { name }));
+
+function mockAppState() {
+  const listeners = new Set<(state: AppStateStatus) => void>();
+  jest.spyOn(AppState, 'addEventListener').mockImplementation((_type, listener) => {
+    listeners.add(listener);
+    return { remove: () => { listeners.delete(listener); } };
+  });
+  return (...states: AppStateStatus[]) => act(() => {
+    for (const state of states) {
+      for (const listener of listeners) listener(state);
+    }
+  });
+}
 
 afterEach(() => {
   jest.restoreAllMocks();
@@ -124,6 +137,62 @@ test.each(['조회', '요청'])('%s 오류는 성공으로 표시하지 않고 �
   expect(complete).not.toHaveBeenCalled();
   await press(skipLabel);
   expect(complete).toHaveBeenCalledTimes(1);
+});
+
+test('기기 설정에서 돌아와도 차단 상태면 안내를 유지하고, 허용했으면 한 번 완료한다', async () => {
+  const changeState = mockAppState();
+  const complete = jest.fn();
+  check.mockResolvedValueOnce('blocked').mockResolvedValueOnce('blocked').mockResolvedValue('granted');
+  await render(<MicrophonePermissionActions onComplete={complete} />);
+  await changeState('background', 'active');
+  expect(check).not.toHaveBeenCalled();
+  await press(setupLabel);
+  await changeState('inactive', 'active');
+  expect(check).toHaveBeenCalledTimes(1);
+  await changeState('background', 'inactive', 'active', 'active');
+  expect(check).toHaveBeenCalledTimes(2);
+  expect(screen.getByText(/기기의 앱 설정에서 켤 수 있어요/)).toBeVisible();
+  expect(complete).not.toHaveBeenCalled();
+  await changeState('background', 'active', 'active');
+  expect(complete).toHaveBeenCalledTimes(1);
+  expect(check).toHaveBeenCalledTimes(3);
+  expect(request).not.toHaveBeenCalled();
+});
+
+test('복귀 조회 도중 다시 설정으로 이동하거나 건너뛰면 늦은 허용 응답을 반영하지 않는다', async () => {
+  const changeState = mockAppState();
+  const complete = jest.fn();
+  let firstGrant!: (value: 'granted') => void;
+  let nextGrant!: (value: 'granted') => void;
+  check.mockResolvedValueOnce('blocked')
+    .mockImplementationOnce(() => new Promise(resolve => { firstGrant = resolve; }))
+    .mockImplementationOnce(() => new Promise(resolve => { nextGrant = resolve; }));
+  await render(<MicrophonePermissionActions onComplete={complete} />);
+  await press(setupLabel);
+  await changeState('background', 'active', 'background', 'active');
+  expect(check).toHaveBeenCalledTimes(3);
+  await act(() => firstGrant('granted'));
+  expect(complete).not.toHaveBeenCalled();
+  await press(skipLabel);
+  await act(() => nextGrant('granted'));
+  expect(complete).toHaveBeenCalledTimes(1);
+  expect(request).not.toHaveBeenCalled();
+});
+
+test.each(['requestable', 'error'] as const)('복귀 조회 결과가 %s이면 사용자가 다시 시도할 수 있다', async result => {
+  const changeState = mockAppState();
+  const complete = jest.fn();
+  check.mockResolvedValueOnce('blocked');
+  if (result === 'error') check.mockRejectedValueOnce(new Error());
+  else check.mockResolvedValueOnce(result);
+  await render(<MicrophonePermissionActions onComplete={complete} />);
+  await press(setupLabel);
+  await changeState('background', 'active');
+  const message = result === 'error' ? /마이크 권한을 확인할 수 없어요/ : /마이크를 허용하지 않았어요/;
+  expect(screen.getByText(message)).toBeVisible();
+  expect(screen.getByRole('button', { name: '다시 시도' })).toBeVisible();
+  expect(complete).not.toHaveBeenCalled();
+  expect(request).not.toHaveBeenCalled();
 });
 
 test.each(['조회', '요청'])('%s 중에 화면을 벗어나면 늦은 허용 응답으로 온보딩을 완료하지 않는다', async step => {

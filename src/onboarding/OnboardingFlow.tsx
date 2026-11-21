@@ -154,7 +154,7 @@ const styles = StyleSheet.create({
   illustration: { flexGrow: 1, justifyContent: 'center' },
   pageControls: { flexDirection: 'row', alignSelf: 'center' },
   dotTarget: { width: 44, height: 48, alignItems: 'center', justifyContent: 'center' },
-  dot: { width: 8, height: 8, borderRadius: 4, backgroundColor: '#CDBBA7' },
+  dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5, borderColor: colors.textSecondary, backgroundColor: '#CDBBA7' },
   selectedDot: { width: 28, backgroundColor: colors.primary },
   micCard: { flexDirection: 'row', alignItems: 'center', padding: 12, gap: 16, borderRadius: 24,
     borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surfaceWhite },

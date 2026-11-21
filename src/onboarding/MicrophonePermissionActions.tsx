@@ -1,5 +1,5 @@
-import { useLayoutEffect, useRef, useState } from 'react';
-import { AccessibilityInfo, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, type Text, View } from 'react-native';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { AccessibilityInfo, AppState, Image, Modal, Platform, Pressable, ScrollView, StyleSheet, type Text, View } from 'react-native';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
@@ -35,10 +35,37 @@ export function MicrophonePermissionActions({ onComplete }: { onComplete: () => 
     setPhase(next);
   }
 
-  function finish() {
+  const finish = useCallback(() => {
     move('done');
     complete.current();
-  }
+  }, []);
+
+  useEffect(() => {
+    if (phase !== 'blocked' && phase !== 'denied') return;
+
+    let wasInBackground = AppState.currentState === 'background';
+    let backgroundVisit = 0;
+    const subscription = AppState.addEventListener('change', async state => {
+      if (state === 'background') {
+        wasInBackground = true;
+        backgroundVisit++;
+        return;
+      }
+      if (state !== 'active' || !wasInBackground || current.current !== phase) return;
+      wasInBackground = false;
+
+      // 설정을 다시 열거나 안내를 떠났다면 이전 조회 결과를 버린다.
+      const visit = backgroundVisit;
+      const permission = await getMicrophonePermission().catch(() => 'error' as const);
+      if (visit !== backgroundVisit || !mounted.current || current.current !== phase) return;
+      if (permission === 'granted') finish();
+      else move(permission === 'requestable' ? 'denied' : permission);
+    });
+    return () => {
+      backgroundVisit++;
+      subscription.remove();
+    };
+  }, [phase, finish]);
 
   async function resolvePermission(action: 'check' | 'request') {
     if (!mounted.current) return;
