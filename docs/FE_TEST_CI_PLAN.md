@@ -1381,6 +1381,21 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 ### 5. 진입·온보딩·상태별 이동 — SCRUM-124
 
+#### SCRUM-170 앱 진입 규칙 · 2026-11-22
+
+착수 기준은 FE development `d1bfa14e`와 BE development `0b12738c`의 [인증 명세 §6.1·6.6](https://github.com/DodamDodam-Capstone/backend/blob/0b12738ce3b6d35e5ebe7758d1e989b1bb4acf65/docs/p0/api/02-auth.md#section-6-6), [AccountView 응답](https://github.com/DodamDodam-Capstone/backend/blob/0b12738ce3b6d35e5ebe7758d1e989b1bb4acf65/docs/p0/Integrated_OpenAPI.yaml#L535)이다. 앱 시작 시 CSRF를 준비하고 세션 쿠키로 현재 계정을 조회한다. 인증된 화면은 두 결과가 갖춰진 뒤 연다.
+
+| 현재 시도의 결과 | 앱 동작 |
+| --- | --- |
+| 조회 대기 또는 200 검증 후 CSRF 대기 | 확인 중 화면을 표시하고 이전 목적지를 제거한다. |
+| CSRF 준비와 유효한 200, 명시적인 `childId: null` | `ROUTES.childRegistration` |
+| CSRF 준비와 유효한 200, UUID인 `childId` | `ROUTES.home`. PIN 상태는 147에 인계한다. |
+| 현재 문맥의 401 `AUTHENTICATION_REQUIRED` | `ROUTES.login`. 사용 중 만료는 즉시 처리하며 최초 온보딩 중에는 안내 완료 뒤 표시한다. |
+| 네트워크·응답 형식·CSRF 오류 또는 503 | 보호 내용을 제거하고 오류 안내에서 사용자가 조회를 다시 시작할 수 있다. |
+| 429 `RATE_LIMITED` | 유효한 `Retry-After`(초)가 지나면 수동 재시도를 허용한다. 누락·오형식에는 임의 기한을 넣지 않는다. |
+
+일반 앱을 새로 시작하면 [Figma 로고 모션](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3764)을 한 번 재생한다. 동작 줄이기는 정적 로고를 사용한다. 기기의 완료 표시가 없으면 169 온보딩을 열고, 허용 또는 명시적인 건너뛰기 후 완료 여부 하나만 저장한다. 저장 실패 시 이번 실행은 계속한다. 세 목적지는 후속 화면이 연결되기까지 상태를 받는 최소 화면으로 검증한다. 공개 딥링크·재진입 통합은 171, 실제 서버 검증은 129, 대화 시작·복원은 137에 인계한다.
+
 | Subtask | 최소 테스트 사례 |
 | --- | --- |
 | [169](https://dodamdodam.atlassian.net/browse/SCRUM-169) 온보딩 | 마이크 사용 안내와 허용/거부 이후 사용자가 보는 상태를 확인한다. 이 단계에서 카메라·알림 권한을 요청하지 않는다. 실제 OS 권한 팝업의 문구·동작은 기기에서 확인한다. |
