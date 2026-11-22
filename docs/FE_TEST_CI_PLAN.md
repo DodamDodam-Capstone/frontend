@@ -1418,6 +1418,12 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 | [170](https://dodamdodam.atlassian.net/browse/SCRUM-170) 진입 분기 | CSRF 준비 상태와 `auth/me` 결과의 대기·인증·미인증·오류에 따라 **로그인·아이 등록·홈** 중 계약상 맞는 경로로 간다. 실패나 대기 중 보호 화면과 이전 사용자 정보를 잠시라도 보여주지 않는다. |
 | [171](https://dodamdodam.atlassian.net/browse/SCRUM-171) 재진입·만료 | 앱 완전 종료 후 재실행, 세션 만료, 외부 진입 경로에서 상태를 다시 확인한다. Jira의 웹 표현인 `새로고침·직접 URL`을 네이티브에서 앱 재실행·딥링크 등 무엇으로 검증할지는 해당 구현 착수 전에 Jira/확정 설계와 대조한다. |
 
+#### SCRUM-171 재진입·만료 검증 · 2026-11-22
+
+- 기준 커밋은 SCRUM-170이 반영된 원격 `development`의 `c0ec403d`다. 완전 종료 후 앱 아이콘으로 재실행하는 경로와 백그라운드에서 살아 있는 프로세스로 복귀하는 경로를 확인한다. 169의 마이크 안내와 170의 온보딩 생략·아이 등록 도착·스플래시 비교는 기존 증거를 사용한다.
+- 부모 AC2의 외부 직접 URL은 제품 지원 결정과 실제 등록 경로를 확인한 뒤 검증한다. 현재 `app.json`, 일반 `index.ts → App` 및 [최신 인증 명세](https://github.com/DodamDodam-Capstone/backend/blob/f15eca09f26a5efc5220a1ad943c9e7de18b88df/docs/p0/api/02-auth.md#section-6-6)에서 제품 화면 URL을 확인하지 못했다. 내부 `ROUTES`와 Expo 개발 클라이언트 진입 주소는 기존 용도로만 사용한다.
+- 첫 통합 재현에서는 홈에서 `background`를 전달한 직후 이전 홈이 렌더링 트리에 남았다. 이 시점의 테스트는 홈 제거 단언에서 실패했다. 이 사례를 기준으로 다음 복귀 시 `auth/me` 도착 전 상태, 만료 401 이후 로그인, 과거 보호 응답 지연을 확인한다.
+
 ### 6. 음성 환경 조사 — SCRUM-136
 
 | Subtask | 검사 방법과 완료 증거 |
