@@ -10,6 +10,7 @@ import { ErrorMessage } from './src/components/ErrorMessage';
 import { LoadingIndicator } from './src/components/LoadingIndicator';
 import { createEntryController, type EntrySnapshot } from './src/navigation/entryController';
 import { EntryDestination } from './src/navigation/EntryDestination';
+import { EntryPrivacySurface, readForegroundGeneration, subscribeToTaskReentry } from './src/navigation/entryPrivacy';
 import { EntrySessionContext } from './src/navigation/entrySession';
 import { OnboardingFlow } from './src/onboarding/OnboardingFlow';
 import { colors } from './src/theme/tokens';
@@ -55,7 +56,11 @@ function EntryError({ state, onRetry }: { state: EntryErrorState; onRetry: () =>
 
 function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
-  if (state.kind === 'route') return <EntryDestination route={state.route} key={state.route} />;
+  if (state.kind === 'route') {
+    return <EntryPrivacySurface key={state.visit} generation={state.generation} style={styles.screen}>
+      <EntryDestination route={state.route} />
+    </EntryPrivacySurface>;
+  }
 
   return (
     <EntryFrame>
@@ -70,7 +75,7 @@ export default function App() {
     const result = createApiClient();
     if (!result.ok) return null;
     const client = result.value;
-    const controller = createEntryController(client);
+    const controller = createEntryController(client, readForegroundGeneration);
     return {
       controller,
       session: { client, receiveProtectedAuthResult: controller.receiveProtectedAuthResult, refreshEntry: controller.refresh },
@@ -82,8 +87,19 @@ export default function App() {
 
   useEffect(() => {
     if (!startup) return;
-    void startup.controller.start();
-    return startup.controller.stop;
+    const { controller } = startup;
+    const subscription = AppState.addEventListener('change', status => {
+      if (status === 'background') controller.suspend();
+      if (status === 'active') void controller.resume();
+    });
+    const taskSubscription = subscribeToTaskReentry(controller.reenterTask);
+    void controller.start();
+    if (AppState.currentState === 'background') controller.suspend();
+    return () => {
+      subscription.remove();
+      taskSubscription?.remove();
+      controller.stop();
+    };
   }, [startup]);
 
   useEffect(() => {

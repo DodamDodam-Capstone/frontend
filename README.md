@@ -180,10 +180,8 @@ BE의 `/login/oauth2/code/google`은 공급자 콜백이며 앱의 복귀 주소
 
 ### 공통 경로 사용
 
-로그인 `/login`, 아이 등록 `/children/register`, 홈 `/home`은 중앙 `ROUTES`에 있습니다.
-Jira와 FE_Handoff v3.1의 화면 역할을 대조했지만 구체적인 FE 경로 문자열은 명시되지 않아
-이번에 FE 내부 개발용으로 정의했습니다. 공개 딥링크·BE API 계약으로 확정한 주소가 아닙니다.
-외부 계약 확정 시 이 중앙 정의와 실제 라우터 연결을 함께 검토합니다.
+도담도담의 제품 화면은 설치한 앱에서만 엽니다. 문자·웹의 공개 URL로 특정 제품 화면을 여는 기능은 지원 범위에서 제외합니다.
+로그인 `/login`, 아이 등록 `/children/register`, 홈 `/home`은 앱이 인증 결과에 따라 화면을 고를 때 사용하는 내부 `ROUTES`입니다.
 
 ```ts
 import { resolveApiConfig } from './src/config/env';
@@ -227,6 +225,10 @@ mock handler를 등록·실행하지 않으며, 수신자가 요청할 때에만
 인증되지 않은 세션은 로그인, 인증된 계정에서 `childId`가 null이면 아이 등록, UUID이면 홈으로 이동합니다. 현재 세 화면은 경로 선택 결과를 표시하는 수신처입니다. 실제 기능을 연결할 때 [EntryDestination](src/navigation/EntryDestination.tsx)의 해당 경로를 교체합니다. [useEntrySession](src/navigation/entrySession.ts)에서 공통 client와 경로 갱신 함수를 받습니다. 보호 요청의 결과는 본문을 소비하기 전에 같은 세션의 `receiveProtectedAuthResult`에 전달합니다. 현재 문맥의 계약상 만료만 로그인으로 이동합니다. 로그인·로그아웃 전환을 마친 후에는 `refreshEntry`로 새 계정 상태를 조회합니다.
 
 확인 중·확인 실패에는 보호 화면을 가립니다. 재시도는 사용자가 누를 때 조회만 다시 실행하며, 유효한 `Retry-After`가 있으면 해당 기한을 지킵니다. [상태 대응표](docs/FE_TEST_CI_PLAN.md#scrum-170-앱-진입-규칙--2026-11-22)
+
+앱을 완전히 종료하고 열거나 백그라운드에서 돌아오면 세션을 다시 확인합니다. Android에서 최근 앱 카드를 눌러 돌아올 때도 한 번 확인합니다. 알림창만 열었다 닫으면 같은 화면으로 돌아갑니다. 이미 표시된 오류는 사용자가 다시 시도할 때까지 유지합니다.
+
+Android 12L 이하에서는 로그인·아이 등록·홈 화면의 스크린샷과 녹화를 차단합니다. Android 13 이상과 iPad에서는 앱을 사용하는 동안 일반 캡처가 가능합니다. 전환기 미리보기와 복귀 동작을 시험하려면 네이티브 모듈이 포함된 개발 빌드를 설치합니다. [재진입·만료 검증](docs/FE_TEST_CI_PLAN.md#scrum-171-재진입만료-검증--2026-11-22)
 
 ### 검증과 후속 연결
 

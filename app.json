@@ -34,6 +34,7 @@
     },
     "plugins": [
       "./plugins/withSingleUsePost",
+      "./plugins/withAndroidEntryPrivacy",
       [
         "expo-build-properties",
         {
