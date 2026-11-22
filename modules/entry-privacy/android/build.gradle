@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'expo.modules.entryprivacy'
+version = '1.0.0'
+
+android {
+  namespace 'expo.modules.entryprivacy'
+  defaultConfig {
+    versionName '1.0.0'
+    versionCode 1
+  }
+}

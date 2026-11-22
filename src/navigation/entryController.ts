@@ -17,7 +17,7 @@ type EntryAttempt = {
   csrf?: { kind: 'ready' } | EntryError;
 };
 
-export type EntrySnapshot = { kind: 'loading' } | EntryRoute | EntryError;
+export type EntrySnapshot = { kind: 'loading' } | (EntryRoute & { visit: number; generation: number }) | EntryError;
 
 const loading = { kind: 'loading' } as const;
 const jsonResponse = { kind: 'json', statuses: [200] } as const;
@@ -104,18 +104,22 @@ function combineFailures(account: EntryError | undefined, csrf: EntryError | und
   return (csrf?.retryAt ?? 0) > (account.retryAt ?? 0) ? csrf : account;
 }
 
-export function createEntryController(client: ApiClient) {
+export function createEntryController(client: ApiClient, readForegroundGeneration: () => number) {
   let snapshot: EntrySnapshot = loading;
   const listeners = new Set<() => void>();
   let mounted = false;
   let suspended = false;
   let mountId = 0;
+  let visit = 0;
+  let generation = -1;
+  let lastTaskReentry = -1;
   let currentAttempt: EntryAttempt | undefined;
   let retryAt = 0;
 
-  function publish(next: EntrySnapshot) {
+  function publish(next: typeof loading | EntryRoute | EntryError) {
     if (snapshot === next) return;
-    snapshot = next;
+    // React가 확인 중 렌더를 합쳐도 같은 경로의 이전 화면 상태를 재사용하지 않는다.
+    snapshot = next.kind === 'route' ? { ...next, visit: ++visit, generation } : next;
     for (const listener of listeners) listener();
   }
 
@@ -131,11 +135,22 @@ export function createEntryController(client: ApiClient) {
     publish(loading);
   }
 
+  function isForegroundGeneration(): boolean {
+    return generation >= 0 && generation === readForegroundGeneration();
+  }
+
   function isCurrentAttempt(attempt: EntryAttempt): boolean {
     if (currentAttempt !== attempt) return false;
-    if (client.isCurrentContext(attempt.context)) return true;
-    discardAttempt();
-    return false;
+    if (!client.isCurrentContext(attempt.context)) {
+      discardAttempt();
+      return false;
+    }
+    // OS가 먼저 전환되면 늦은 429의 대기 기한과 503도 다음 복귀에 넘기지 않는다.
+    if (!isForegroundGeneration()) {
+      cancelAttempt();
+      return false;
+    }
+    return true;
   }
 
   function receiveExpiry(context: AuthContext): boolean {
@@ -201,6 +216,8 @@ export function createEntryController(client: ApiClient) {
     discardAttempt();
     const context = client.captureCurrentContext();
     if (!context) return;
+    // 요청과 목적지에 같은 네이티브 세대를 적용한다.
+    generation = readForegroundGeneration();
     let finishCancelled!: () => void;
     const cancelled = new Promise<void>((resolve) => { finishCancelled = resolve; });
     const attempt: EntryAttempt = { aborter: new AbortController(), finishCancelled, context };
@@ -240,6 +257,15 @@ export function createEntryController(client: ApiClient) {
     if (snapshot.kind !== 'error') await refresh();
   }
 
+  function reenterTask(returnedGeneration: number) {
+    // Android의 최근 앱에서는 Activity가 pause되지 않고 다시 맨 앞으로 올 수 있다.
+    if (!mounted || suspended || returnedGeneration <= lastTaskReentry || returnedGeneration !== readForegroundGeneration()) return;
+    lastTaskReentry = returnedGeneration;
+    if (returnedGeneration === generation) return; // AppState 복귀가 같은 세대를 이미 조회했다.
+    suspend();
+    void resume();
+  }
+
   async function retry(): Promise<void> {
     if (snapshot.kind === 'error') await refresh();
   }
@@ -252,7 +278,8 @@ export function createEntryController(client: ApiClient) {
   }
 
   async function receiveProtectedAuthResult(result: ApiResult): Promise<boolean> {
-    if (!mounted || suspended || result.kind !== 'response' || result.response.status !== 401 || !client.isCurrentContext(result.context)) return false;
+    if (!mounted || suspended || result.kind !== 'response' || result.response.status !== 401
+      || !client.isCurrentContext(result.context) || !isForegroundGeneration()) return false;
     const receivedOnMount = mountId;
     let response: Response;
     try {
@@ -262,7 +289,8 @@ export function createEntryController(client: ApiClient) {
       return false;
     }
     const parsed = await parseApiResponse(response, jsonResponse);
-    return mounted && !suspended && mountId === receivedOnMount && classifyRecovery(parsed, 'general').kind === 'authentication_required'
+    return mounted && !suspended && mountId === receivedOnMount && isForegroundGeneration()
+      && classifyRecovery(parsed, 'general').kind === 'authentication_required'
       && receiveExpiry(result.context);
   }
 
@@ -272,6 +300,6 @@ export function createEntryController(client: ApiClient) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    start, suspend, resume, refresh, retry, stop, receiveProtectedAuthResult,
+    start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult,
   };
 }

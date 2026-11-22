@@ -4,6 +4,14 @@ import { act, fireEvent, render, screen } from '@testing-library/react-native';
 import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
 
 import App from './App';
+import * as entry from './src/navigation/entryController';
+import { readForegroundGeneration, subscribeToTaskReentry } from './src/navigation/entryPrivacy';
+
+jest.mock('./src/navigation/entryPrivacy', () => ({
+  EntryPrivacySurface: jest.requireActual<typeof import('react-native')>('react-native').View,
+  readForegroundGeneration: jest.fn(() => 0),
+  subscribeToTaskReentry: jest.fn(),
+}));
 
 jest.mock('@react-native-async-storage/async-storage', () => ({
   __esModule: true,
@@ -59,6 +67,8 @@ const account = {
 };
 
 beforeEach(() => {
+  jest.mocked(readForegroundGeneration).mockReset().mockReturnValue(0);
+  jest.mocked(subscribeToTaskReentry).mockReset();
   process.env.EXPO_PUBLIC_APP_ENV = 'development';
   process.env.EXPO_PUBLIC_API_MODE = 'real';
   process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.invalid/api/v1';
@@ -153,6 +163,26 @@ test('홈에서 백그라운드에 다녀오면 새 조회 중 홈을 숨기고 
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
 });
 
+test('최근 앱 카드를 탭해 Android가 pause 없이 복귀해도 한 번 재조회하고 만료 전까지 이전 홈을 숨긴다', async () => {
+  const held = pendingResponse();
+  markers.set(marker, 'true');
+  const fetchCall = realFetch(response(200, { data: account }), held.promise);
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+
+  const onReturn = jest.mocked(subscribeToTaskReentry).mock.calls[0][0];
+  jest.mocked(readForegroundGeneration).mockReturnValue(2);
+  await act(() => { onReturn(1); });
+  expect(screen.getByRole('header', { name: '홈' })).toBeVisible();
+  await act(() => { onReturn(2); onReturn(2); });
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  expect(screen.getByLabelText('로그인 상태 확인 중')).toBeVisible();
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+  await act(() => { held.resolve(authError(401, 'AUTHENTICATION_REQUIRED')); });
+  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+});
+
 test('복귀 전 보호 요청의 늦은 401은 같은 경로로 들어온 새 사용자를 만료시키지 않는다', async () => {
   const changeAppState = observeAppState();
   const previous = pendingResponse();
@@ -180,6 +210,39 @@ test('복귀 전 보호 요청의 늦은 401은 같은 경로로 들어온 새 �
   await act(() => { previous.resolve(authError(401, 'AUTHENTICATION_REQUIRED')); });
   expect(screen.getByText('시험 사용자 B')).toBeVisible();
   expect(screen.queryByRole('header', { name: '로그인' })).not.toBeOnTheScreen();
+});
+
+test('복귀 뒤 React가 최종 홈만 렌더해도 이전 사용자의 수신자를 새로 마운트한다', async () => {
+  const createController = entry.createEntryController;
+  let holdNotifications = false;
+  let notify: (() => void) | undefined;
+  jest.spyOn(entry, 'createEntryController').mockImplementation((client, readGeneration) => {
+    const controller = createController(client, readGeneration);
+    return {
+      ...controller,
+      subscribe: listener => controller.subscribe(() => {
+        if (holdNotifications) notify = listener;
+        else listener();
+      }),
+    };
+  });
+  const changeAppState = observeAppState();
+  markers.set(marker, 'true');
+  mockAccountLabel = '시험 사용자 A';
+  const nextAccount = { ...account, accountId: '44444444-4444-4444-8444-444444444444' };
+  realFetch(response(200, { data: account }), response(200, { data: nextAccount }));
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByText('시험 사용자 A')).toBeVisible();
+
+  holdNotifications = true;
+  await changeAppState('background');
+  mockAccountLabel = '시험 사용자 B';
+  await changeAppState('active');
+  await act(() => { notify?.(); });
+
+  expect(await screen.findByText('시험 사용자 B')).toBeVisible();
+  expect(screen.queryByText('시험 사용자 A')).not.toBeOnTheScreen();
 });
 
 test('첫 조회의 늦은 성공은 복귀 후 확인된 로그인 화면을 되돌리지 않는다', async () => {
