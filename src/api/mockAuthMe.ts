@@ -1,6 +1,6 @@
 import type { ExampleTransport } from './exampleTransport';
 
-export type ExampleScenario = 'signedIn' | 'signedOut';
+export type ExampleScenario = 'signedIn' | 'signedOut' | 'childRegistered';
 
 export function registerExampleHandlers(scenario: ExampleScenario): ExampleTransport {
   return async ({ method, path }) => {
@@ -12,12 +12,12 @@ export function registerExampleHandlers(scenario: ExampleScenario): ExampleTrans
     }
     if (method !== 'GET' || path !== '/auth/me') throw new Error('Unsupported example request');
 
-    const signedIn = scenario === 'signedIn';
+    const signedIn = scenario === 'signedIn' || scenario === 'childRegistered';
     const body = signedIn
       ? { data: {
         accountId: '11111111-1111-4111-8111-111111111111',
         email: 'guardian@example.com',
-        childId: null,
+        childId: scenario === 'childRegistered' ? '22222222-2222-4222-8222-222222222222' : null,
         hasPin: false,
         guardianUnlockedUntil: null,
       } }

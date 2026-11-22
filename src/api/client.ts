@@ -21,12 +21,13 @@ export type CsrfRecoveryResult =
   | { kind: 'refreshed' | 'already_recovered' }
   | { kind: 'skipped'; reason: 'stale_context' | 'ineligible_request' | 'superseded_token' }
   | { kind: 'failed'; failure: CsrfFailure };
-type ContextState = { generation: number; source: 'request' | 'transition' | 'expired'; sentVersion?: object };
+type ContextState = { generation: number; source: 'request' | 'transition' | 'expired' | 'snapshot'; sentVersion?: object };
 type RecoveryAttempt = { pending: Promise<CsrfResult>; restoredVersion?: object };
 
 export type ApiClient = {
   prepareCsrf(): Promise<CsrfResult>;
   recoverCsrf(context: AuthContext | undefined): Promise<CsrfRecoveryResult>;
+  captureCurrentContext(): AuthContext | undefined;
   isCurrentContext(context: AuthContext | undefined): boolean;
   commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean;
   expireIfCurrent(context: AuthContext | undefined, onExpired: (next: AuthContext) => undefined): boolean;
@@ -86,6 +87,11 @@ export function createApiClient(
     const context = Object.freeze({}) as AuthContext;
     contexts.set(context, { generation, source });
     return context;
+  }
+
+  // 별도 요청으로 받는 결과를 같은 인증 문맥의 화면에서 반영할 때만 사용한다.
+  function captureCurrentContext(): AuthContext | undefined {
+    return transitioning ? undefined : captureContext('snapshot');
   }
 
   // 전환 내부는 자신의 세대만 검사한다. 외부 반영에는 gate 해제도 필요하다.
@@ -280,5 +286,7 @@ export function createApiClient(
     }
   }
 
-  return { ok: true, value: { prepareCsrf, recoverCsrf, request, authTransition, isCurrentContext, commitIfCurrent, expireIfCurrent } };
+  return { ok: true, value: {
+    prepareCsrf, recoverCsrf, captureCurrentContext, request, authTransition, isCurrentContext, commitIfCurrent, expireIfCurrent,
+  } };
 }
