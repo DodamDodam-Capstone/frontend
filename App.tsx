@@ -1,79 +1,141 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { StatusBar } from 'expo-status-bar';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-import { createExampleTransport } from './src/api/exampleTransport';
-import { readEnvironment } from './src/config/env';
-import { Logo } from './src/components/Logo';
-import { Button } from './src/components/Button';
-import { OnboardingFlow } from './src/onboarding/OnboardingFlow';
-import { colors, typography } from './src/theme/tokens';
+import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
-function DevApiStatus() {
-  const [example] = useState(() => {
-    const environment = readEnvironment();
-    return { environment, transport: createExampleTransport(environment) };
-  });
-  const [mockStatus, setMockStatus] = useState('API 모드 확인 중');
+import { createApiClient } from './src/api/client';
+import { Button } from './src/components/Button';
+import { EntrySplash } from './src/components/EntrySplash';
+import { ErrorMessage } from './src/components/ErrorMessage';
+import { LoadingIndicator } from './src/components/LoadingIndicator';
+import { createEntryController, type EntrySnapshot } from './src/navigation/entryController';
+import { EntryDestination } from './src/navigation/EntryDestination';
+import { EntrySessionContext } from './src/navigation/entrySession';
+import { OnboardingFlow } from './src/onboarding/OnboardingFlow';
+import { colors } from './src/theme/tokens';
+
+const onboardingKey = '@dodamdodam/onboarding-complete-v1';
+const maxTimerDelay = 2_147_483_647;
+type Onboarding = 'checking' | 'needed' | 'saving' | 'complete';
+type EntryController = ReturnType<typeof createEntryController>;
+type EntryErrorState = Extract<EntrySnapshot, { kind: 'error' }>;
+
+function EntryFrame({ children }: { children: ReactNode }) {
+  return (
+    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+      <View style={styles.content}>{children}</View>
+    </ScrollView>
+  );
+}
+
+function EntryError({ state, onRetry }: { state: EntryErrorState; onRetry: () => void }) {
+  const { retryAt } = state;
+  const [waiting, setWaiting] = useState(() => retryAt !== undefined && retryAt > Date.now());
 
   useEffect(() => {
-    if (!example.transport.ok || example.environment.apiMode !== 'mock') return;
+    if (retryAt === undefined) return;
+    const deadline = retryAt;
+    let timer: ReturnType<typeof setTimeout>;
+    function syncDelay() {
+      clearTimeout(timer);
+      const remaining = deadline - Date.now();
+      setWaiting(remaining > 0);
+      if (remaining > 0) timer = setTimeout(syncDelay, Math.min(remaining, maxTimerDelay));
+    }
+    syncDelay();
+    const subscription = AppState.addEventListener('change', status => { if (status === 'active') syncDelay(); });
+    return () => { clearTimeout(timer); subscription.remove(); };
+  }, [retryAt]);
 
-    let active = true;
-    example.transport.value({ method: 'GET', path: '/auth/me' }).then(
-      (response) => { if (active) setMockStatus(`mock GET /auth/me: ${response.status}`); },
-      () => { if (active) setMockStatus('mock 응답 확인 실패'); },
-    );
-    return () => { active = false; };
-  }, [example]);
+  return <>
+    <ErrorMessage message={waiting ? '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.' : '로그인 상태를 확인할 수 없어요. 다시 시도해 주세요.'} />
+    <Button label="다시 시도" variant="secondary" disabled={waiting} onPress={onRetry} />
+  </>;
+}
 
-  const status = !example.transport.ok
-    ? `API 설정 필요: ${example.transport.errors.map((error) => error.variable).join(', ')}`
-    : example.environment.apiMode === 'real'
-      ? 'real API 모드 선택: 서버 요청 없음'
-      : mockStatus;
-  return <Text style={styles.devStatus}>{status}</Text>;
+function EntryContent({ controller }: { controller: EntryController }) {
+  const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  if (state.kind === 'route') return <EntryDestination route={state.route} key={state.route} />;
+
+  return (
+    <EntryFrame>
+      {state.kind === 'loading' && <LoadingIndicator label="로그인 상태 확인 중" />}
+      {state.kind === 'error' && <EntryError key={state.retryAt} state={state} onRetry={() => { void controller.retry(); }} />}
+    </EntryFrame>
+  );
 }
 
 export default function App() {
-  const [previewOpen, setPreviewOpen] = useState(false);
-  if (__DEV__ && previewOpen) {
-    return <OnboardingFlow onComplete={() => setPreviewOpen(false)} />;
+  const [startup] = useState(() => {
+    const result = createApiClient();
+    if (!result.ok) return null;
+    const client = result.value;
+    const controller = createEntryController(client);
+    return {
+      controller,
+      session: { client, receiveProtectedAuthResult: controller.receiveProtectedAuthResult, refreshEntry: controller.refresh },
+    };
+  });
+  const [splashVisible, setSplashVisible] = useState(true);
+  const [onboarding, setOnboarding] = useState<Onboarding>('checking');
+  const saving = useRef(false);
+
+  useEffect(() => {
+    if (!startup) return;
+    void startup.controller.start();
+    return startup.controller.stop;
+  }, [startup]);
+
+  useEffect(() => {
+    let active = true;
+    async function readCompletion() {
+      let complete = false;
+      try {
+        complete = await AsyncStorage.getItem(onboardingKey) === 'true';
+      } catch {
+        // 완료 여부를 읽을 수 없으면 이미 끝냈다고 가정하지 않는다.
+      }
+      if (active) setOnboarding(complete ? 'complete' : 'needed');
+    }
+    void readCompletion();
+    return () => { active = false; };
+  }, []);
+
+  async function completeOnboarding() {
+    if (saving.current) return;
+    saving.current = true;
+    setOnboarding('saving');
+    try {
+      await AsyncStorage.setItem(onboardingKey, 'true');
+    } catch {
+      // 쓰기 실패가 이번 실행의 진입을 막지 않는다.
+    }
+    setOnboarding('complete');
+  }
+
+  let screen: ReactNode;
+  if (splashVisible) {
+    screen = <EntrySplash onComplete={() => setSplashVisible(false)} />;
+  } else if (onboarding === 'checking' || onboarding === 'saving') {
+    screen = <EntryFrame><LoadingIndicator label="앱 시작 준비 중" /></EntryFrame>;
+  } else if (onboarding === 'needed') {
+    screen = <OnboardingFlow onComplete={() => { void completeOnboarding(); }} />;
+  } else if (startup) {
+    screen = <EntryContent controller={startup.controller} />;
+  } else {
+    screen = <EntryFrame><ErrorMessage message="앱 설정을 확인할 수 없어요." /></EntryFrame>;
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Logo accessibilityRole="header" />
-      <Text style={styles.tagline}>도담도담 나눈 대화 속에서 자라나는 아이의 마음</Text>
-      {__DEV__ && <>
-        <DevApiStatus />
-        <View style={styles.previewButton}>
-          <Button label="온보딩 확인" variant="secondary" onPress={() => setPreviewOpen(true)} />
-        </View>
-      </>}
-      <StatusBar style="dark" />
-    </ScrollView>
+    <EntrySessionContext.Provider value={startup?.session ?? null}>
+      {screen}
+      {!splashVisible && <StatusBar style="dark" />}
+    </EntrySessionContext.Provider>
   );
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
-  previewButton: { marginTop: 16 },
-  container: {
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 32,
-  },
-  tagline: {
-    ...typography.tagline,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    marginTop: 24,
-  },
-  devStatus: {
-    ...typography.input,
-    color: colors.textSecondary,
-    marginTop: 12,
-  },
+  container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
+  content: { width: '100%', maxWidth: 560, gap: 16 },
 });

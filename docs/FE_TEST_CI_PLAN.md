@@ -1381,6 +1381,37 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 ### 5. 진입·온보딩·상태별 이동 — SCRUM-124
 
+#### SCRUM-170 앱 진입 규칙 · 2026-11-22
+
+착수 기준은 FE development `d1bfa14e`와 BE development `0b12738c`의 [인증 명세 §6.1·6.6](https://github.com/DodamDodam-Capstone/backend/blob/0b12738ce3b6d35e5ebe7758d1e989b1bb4acf65/docs/p0/api/02-auth.md#section-6-6), [AccountView 응답](https://github.com/DodamDodam-Capstone/backend/blob/0b12738ce3b6d35e5ebe7758d1e989b1bb4acf65/docs/p0/Integrated_OpenAPI.yaml#L535)이다. 앱 시작 시 CSRF를 준비하고 세션 쿠키로 현재 계정을 조회한다. 인증된 화면은 두 결과가 갖춰진 뒤 연다.
+
+| 현재 시도의 결과 | 앱 동작 |
+| --- | --- |
+| 조회 대기 또는 200 검증 후 CSRF 대기 | 확인 중 화면을 표시하고 이전 목적지를 제거한다. |
+| CSRF 준비와 유효한 200, 명시적인 `childId: null` | `ROUTES.childRegistration` |
+| CSRF 준비와 유효한 200, UUID인 `childId` | `ROUTES.home`. PIN 상태는 147에 인계한다. |
+| 현재 문맥의 401 `AUTHENTICATION_REQUIRED` | `ROUTES.login`. 사용 중 만료는 즉시 처리하며 최초 온보딩 중에는 안내 완료 뒤 표시한다. |
+| 네트워크·응답 형식·CSRF 오류 또는 503 | 보호 내용을 제거하고 오류 안내에서 사용자가 조회를 다시 시작할 수 있다. |
+| 429 `RATE_LIMITED` | 유효한 `Retry-After`(초)가 지나면 수동 재시도를 허용한다. 누락·오형식에는 임의 기한을 넣지 않는다. |
+
+일반 앱을 새로 시작하면 [Figma 로고 모션](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3764)을 한 번 재생한다. 동작 줄이기는 정적 로고를 사용한다. 기기의 완료 표시가 없으면 169 온보딩을 열고, 허용 또는 명시적인 건너뛰기 후 완료 여부 하나만 저장한다. 저장 실패 시 이번 실행은 계속한다. 세 목적지는 후속 화면이 연결되기까지 상태를 받는 최소 화면으로 검증한다. 공개 딥링크·재진입 통합은 171, 실제 서버 검증은 129, 대화 시작·복원은 137에 인계한다.
+
+**2단계 저장 지점.** 일반 App에 스플래시·온보딩·인증 분기와 공통 만료 처리를 연결했다. 미구현 목적지는 로그인·아이 등록·홈 이름을 보여주는 수신처다. 구현 커밋 `1d0fb48`에서 전체 Jest 43 suites/844 tests, lint·typecheck·양 OS export가 통과했다. 이후 응답 이메일 형식의 경계 사례를 보완했다.
+
+가로 iPad 시뮬레이터와 Android 에뮬레이터에서 온보딩 완료 후 아이 등록 수신처, 앱 완전 종료 후 온보딩 생략을 각각 확인했다. 첫 iPad 영상에서 이미지 디코딩으로 글자 등장 모션이 누락되어, 다섯 조각을 로드한 뒤 재생하도록 수정했다. 다음은 3단계에서 수정 후 iPad 재촬영과 Android 녹화의 P0 프레임 대조, 최종 커밋의 전체 검사·Astra 리뷰를 마치는 것이다. 서버 검증은 129에 남아 있다.
+
+**3단계 검증 결과 · 2026-11-22.** 구현 커밋 `7441420`을 FE development `d1bfa14`와 대조했다. BE development [`f15eca09`까지의 변경](https://github.com/DodamDodam-Capstone/backend/compare/0b12738ce3b6d35e5ebe7758d1e989b1bb4acf65...f15eca09f26a5efc5220a1ad943c9e7de18b88df)은 회원가입 POST에 적용되며, 이 기능의 CSRF·현재 계정 조회 계약을 유지한다.
+
+| 확인 대상 | 실행 결과 |
+| --- | --- |
+| 인증 상태와 목적지 | 계약 응답으로 미인증 → 로그인, 아이가 없는 계정 → 아이 등록, 아이가 있는 계정 → 홈을 확인했다. CSRF 대기·조회 실패에는 보호 내용을 숨겼고, 현재 세션의 401은 로그인으로 이동했다. 이전 세션에서 늦게 도착한 응답은 새 목적지를 바꾸지 않았다. 429 대기 후 수동 재시도도 검증했다. |
+| 가로 iPad Pro 11형(M5) · iPadOS 26.5 | 사용자가 초기화된 시험 앱에서 첫 실행 흐름을 직접 확인했다. 이어 완료 기록이 있는 앱을 완전히 종료하고 일반 실행으로 녹화했다. 스플래시 뒤 아이 등록 수신처가 표시됐다. |
+| 가로 Pixel Tablet 에뮬레이터 · Android API 36 | iPad 종료 후 읽기 전용 AVD를 호스트 GPU로 실행했다. 첫 장 → 다음 → 다음 → 시작하기 → 마이크 안내 → 다음에 할래요 → 아이 등록을 확인했다. 프로세스 종료 후 새 프로세스에서 온보딩을 생략하고 아이 등록으로 돌아왔다. |
+| P0 스플래시 | 원본 영상과 두 기기의 새 녹화를 8개 시점에서 비교했다. 네 글자가 순서대로 나타나고 심볼은 세 영상 모두 약 1초에 최대 크기에 도달한 뒤 정착했다. 글자 모션을 기준으로 맞춘 다음 화면 전환은 iPad 2.004초, Android 2.000초였다. 이미지 준비를 포함해 배경이 실제로 보인 구간은 각각 2.113초, 2.017초였다. |
+| 로컬 검사와 CI 연결 | Node 24.20.0·npm 11.19.0에서 매니페스트, Expo 온라인 의존성 검사, lint, typecheck, 전체 Jest 43 suites/852 tests, 환경 주입 14개, 워크플로 테스트 7개, Swift 회귀 단언 55개가 통과했다. Android·iOS export 각각 Hermes 번들과 에셋 52개를 확인했다. 기존 CI의 `js-quality`가 같은 전체 Jest를 호출하며 이번 실행에서 앱 진입·스플래시·상태 분기 테스트를 수집했다. |
+
+두 기기는 앞서 빌드한 개발 앱에 현재 구현의 JS와 에셋을 연결해 mock 모드로 실행했다. 로컬 영상·8시점 비교표·측정값·실행 로그는 `build/scrum-170-stage3/`에 있다. 후속 화면은 같은 세션의 `receiveProtectedAuthResult`로 본문 소비 전에 보호 요청 결과를 전달하고, 로그인·로그아웃 전환 후 `refreshEntry`를 호출한다. 실제 목적지 UI는 해당 기능에서 연결한다. 재실행·외부 진입 통합 검증은 SCRUM-171, 실제 서버 왕복은 SCRUM-129에서 진행한다.
+
 | Subtask | 최소 테스트 사례 |
 | --- | --- |
 | [169](https://dodamdodam.atlassian.net/browse/SCRUM-169) 온보딩 | 마이크 사용 안내와 허용/거부 이후 사용자가 보는 상태를 확인한다. 이 단계에서 카메라·알림 권한을 요청하지 않는다. 실제 OS 권한 팝업의 문구·동작은 기기에서 확인한다. |
