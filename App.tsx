@@ -82,8 +82,17 @@ export default function App() {
 
   useEffect(() => {
     if (!startup) return;
-    void startup.controller.start();
-    return startup.controller.stop;
+    const { controller } = startup;
+    const subscription = AppState.addEventListener('change', status => {
+      if (status === 'background') controller.suspend();
+      if (status === 'active') void controller.resume();
+    });
+    void controller.start();
+    if (AppState.currentState === 'background') controller.suspend();
+    return () => {
+      subscription.remove();
+      controller.stop();
+    };
   }, [startup]);
 
   useEffect(() => {

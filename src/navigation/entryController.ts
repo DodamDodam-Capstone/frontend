@@ -108,6 +108,7 @@ export function createEntryController(client: ApiClient) {
   let snapshot: EntrySnapshot = loading;
   const listeners = new Set<() => void>();
   let mounted = false;
+  let suspended = false;
   let mountId = 0;
   let currentAttempt: EntryAttempt | undefined;
   let retryAt = 0;
@@ -190,7 +191,7 @@ export function createEntryController(client: ApiClient) {
   }
 
   async function refresh(): Promise<void> {
-    if (!mounted) return;
+    if (!mounted || suspended) return;
     if (retryAt > Date.now()) {
       if (snapshot.kind !== 'error' || snapshot.retryAt !== retryAt) {
         publish({ kind: 'error', reason: 'rate_limited', retryAt });
@@ -224,18 +225,34 @@ export function createEntryController(client: ApiClient) {
     return refresh();
   }
 
+  function suspend() {
+    if (!mounted || suspended) return;
+    suspended = true;
+    client.discardRequestContexts();
+    cancelAttempt();
+    // 복귀 전 보호 화면을 내린다. 이미 표시된 오류의 재시도는 사용자에게 맡긴다.
+    if (snapshot.kind !== 'error') publish(loading);
+  }
+
+  async function resume() {
+    if (!suspended) return;
+    suspended = false;
+    if (snapshot.kind !== 'error') await refresh();
+  }
+
   async function retry(): Promise<void> {
     if (snapshot.kind === 'error') await refresh();
   }
 
   function stop() {
     mounted = false;
+    suspended = false;
     mountId += 1;
     discardAttempt();
   }
 
   async function receiveProtectedAuthResult(result: ApiResult): Promise<boolean> {
-    if (!mounted || result.kind !== 'response' || result.response.status !== 401 || !client.isCurrentContext(result.context)) return false;
+    if (!mounted || suspended || result.kind !== 'response' || result.response.status !== 401 || !client.isCurrentContext(result.context)) return false;
     const receivedOnMount = mountId;
     let response: Response;
     try {
@@ -245,7 +262,7 @@ export function createEntryController(client: ApiClient) {
       return false;
     }
     const parsed = await parseApiResponse(response, jsonResponse);
-    return mounted && mountId === receivedOnMount && classifyRecovery(parsed, 'general').kind === 'authentication_required'
+    return mounted && !suspended && mountId === receivedOnMount && classifyRecovery(parsed, 'general').kind === 'authentication_required'
       && receiveExpiry(result.context);
   }
 
@@ -255,6 +272,6 @@ export function createEntryController(client: ApiClient) {
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    start, refresh, retry, stop, receiveProtectedAuthResult,
+    start, suspend, resume, refresh, retry, stop, receiveProtectedAuthResult,
   };
 }

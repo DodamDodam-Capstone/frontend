@@ -21,7 +21,12 @@ export type CsrfRecoveryResult =
   | { kind: 'refreshed' | 'already_recovered' }
   | { kind: 'skipped'; reason: 'stale_context' | 'ineligible_request' | 'superseded_token' }
   | { kind: 'failed'; failure: CsrfFailure };
-type ContextState = { generation: number; source: 'request' | 'transition' | 'expired' | 'snapshot'; sentVersion?: object };
+type ContextState = {
+  generation: number;
+  requestGeneration: number;
+  source: 'request' | 'transition' | 'expired' | 'snapshot';
+  sentVersion?: object;
+};
 type RecoveryAttempt = { pending: Promise<CsrfResult>; restoredVersion?: object };
 
 export type ApiClient = {
@@ -31,6 +36,7 @@ export type ApiClient = {
   isCurrentContext(context: AuthContext | undefined): boolean;
   commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean;
   expireIfCurrent(context: AuthContext | undefined, onExpired: (next: AuthContext) => undefined): boolean;
+  discardRequestContexts(): void;
   request(request: ApiRequest): Promise<ApiResult>;
   authTransition(request: ApiRequest, classify: (response: Response) => AuthOutcome | Promise<AuthOutcome>): Promise<AuthTransitionResult>;
 };
@@ -77,6 +83,7 @@ export function createApiClient(
   }), csrfUrl);
 
   let generation = 0;
+  let requestGeneration = 0;
   let transitioning = false;
   const inFlight = new Set<Promise<ApiResult>>();
   const contexts = new WeakMap<AuthContext, ContextState>();
@@ -85,7 +92,7 @@ export function createApiClient(
 
   function captureContext(source: ContextState['source'] = 'request'): AuthContext {
     const context = Object.freeze({}) as AuthContext;
-    contexts.set(context, { generation, source });
+    contexts.set(context, { generation, requestGeneration, source });
     return context;
   }
 
@@ -99,7 +106,8 @@ export function createApiClient(
     return context !== undefined && contexts.get(context)?.generation === generation;
   }
   function isCurrentContext(context: AuthContext | undefined): boolean {
-    return !transitioning && ownsContext(context);
+    const state = context && contexts.get(context);
+    return !transitioning && state?.generation === generation && state.requestGeneration === requestGeneration;
   }
   function commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean {
     if (!isCurrentContext(context)) return false;
@@ -114,6 +122,11 @@ export function createApiClient(
     csrf.invalidate();
     onExpired(captureContext('expired'));
     return true;
+  }
+
+  function discardRequestContexts() {
+    // 이전 화면의 응답 반영만 막는다. 진행 중인 인증 전환은 이미 이전 세대를 폐기했다.
+    if (!transitioning) requestGeneration += 1;
   }
 
   // 원래 요청 자체는 취소하지 않는다. 취소된 호출의 대기와 listener만 정리한다.
@@ -224,7 +237,8 @@ export function createApiClient(
       const drained = Promise.allSettled([...headersPending, csrf.settlePending()]);
       csrf.invalidate();
       const created: RecoveryAttempt = { pending: drained.then(async () => {
-        if (!isCurrentContext(context)) return { ok: false, reason: 'auth_transition' };
+        // 이미 시작한 복구는 같은 인증 세션의 다음 화면도 기다릴 수 있다.
+        if (transitioning || !ownsContext(context)) return { ok: false, reason: 'auth_transition' };
         const result = await csrf.prepare();
         if (result.ok) created.restoredVersion = csrf.version();
         return result;
@@ -288,5 +302,6 @@ export function createApiClient(
 
   return { ok: true, value: {
     prepareCsrf, recoverCsrf, captureCurrentContext, request, authTransition, isCurrentContext, commitIfCurrent, expireIfCurrent,
+    discardRequestContexts,
   } };
 }

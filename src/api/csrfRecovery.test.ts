@@ -128,6 +128,25 @@ describe('일반 POST의 CSRF 복구 자격과 실제 토큰', () => {
 });
 
 describe('공유 복구와 실패 결과 재사용', () => {
+  it('화면을 떠나도 시작한 CSRF 복구를 마치고 복귀 조회가 준비 상태를 공유한다', async () => {
+    const held = deferred<Response>();
+    const { send, issued } = server();
+    const fixture = jest.fn<ApiFetch>((url, init) => url.endsWith('/held') ? held.promise : send(url, init));
+    const api = client(fixture);
+    const old = await failedPost(api);
+    const previous = api.request({ method: 'GET', path: '/held' });
+    const recovery = api.recoverCsrf(old.context);
+    api.discardRequestContexts();
+    const resumed = api.prepareCsrf();
+    held.resolve(json({ data: null }));
+
+    expect(await previous).toEqual({ kind: 'stale_response' });
+    expect(await recovery).toEqual({ kind: 'skipped', reason: 'stale_context' });
+    expect(await resumed).toEqual({ ok: true });
+    expect(issued()).toBe(2);
+    expect(count(send, post.path)).toBe(1);
+  });
+
   it('같은 토큰의 동시 복구는 발급 하나를 공유한다', async () => {
     const held = deferred<Response>(); const started = deferred<void>();
     const { send, issued } = server((nth) => {
