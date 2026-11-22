@@ -134,7 +134,9 @@ describe('SCRUM-170 앱 진입', () => {
 
   it.each([
     { childId: undefined }, { childId: 'not-an-id' }, { accountId: 'not-an-id' },
-    { email: 'guardian' }, { hasPin: null }, { guardianUnlockedUntil: undefined },
+    { email: 'guardian' }, { email: 'a@@b' }, { email: '.a..b@example.com' }, { email: 'a@example..com' },
+    { email: '"guardian home"@example.com' }, { email: 'a@[IPv6:not-an-address]' },
+    { email: `${'a'.repeat(65)}@example.com` }, { hasPin: null }, { guardianUnlockedUntil: undefined },
     { guardianUnlockedUntil: '2026-02-30T15:00:00+09:00' }, { guardianUnlockedUntil: '2026-11-22T05:00:00Z' },
     { unexpected: true },
   ])('잘못된 AccountView 필드 %j를 정상 경로로 통과시키지 않는다', async (changes) => {
@@ -144,7 +146,10 @@ describe('SCRUM-170 앱 진입', () => {
     expect(entry.getSnapshot()).toEqual({ kind: 'error', reason: 'invalid_response' });
   });
 
-  it.each(['guardian+fixture@example.com', '"guardian@home"@[192.0.2.1]'])(
+  it.each([
+    'guardian+fixture@example.com', '"guardian@home"@[192.0.2.1]', 'guardian@[IPv6:2001:db8::1]',
+    'guardian."home@tablet"@example.com',
+  ])(
     '유효한 이메일 %s, KST 시각과 PIN이 포함돼도 아이 상태로 홈을 선택하고 DTO를 공개하지 않는다', async (email) => {
       const entry = createEntryController(client(async (url) => url.endsWith('/auth/me') ? json({ data: {
         ...account, email, childId, hasPin: true,
