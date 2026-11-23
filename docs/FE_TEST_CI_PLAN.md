@@ -1396,6 +1396,17 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 Node 24.20.0과 npm 11.19.0에서 lint, typecheck, 전체 Jest 46개 스위트·911개 테스트, 공개 환경값 주입 14개 조합이 통과했다. iOS·Android export에서 Hermes 번들과 에셋 각 53개를 확인했다. 로그는 로컬 `build/scrum-172/checks/`에 있다.
 
+#### SCRUM-173 로그아웃·계정 상태 정리
+
+착수 기준은 FE development `a3a20832`다. [로그아웃 API §6.7](https://github.com/DodamDodam-Capstone/backend/blob/6d38bd38ddb972841fd8abf4ec4b93c2359a5ae9/docs/p0/api/02-auth.md#section-6-7)을 사용한다.
+
+| 소유 위치 | 값과 정리 시점 |
+| --- | --- |
+| 앱 진입 컨트롤러 | 열린 인증 경로와 방문, 해당 진입의 진행 중 계정 확인, 로그아웃 대기·오류 상태. 204·현재 세션 만료에서 기존 진입을 끝내고 로그인 방문으로 바꾼다. 요청을 명확히 거절하면 같은 방문을 유지한다. |
+| 목적지 수신자 | 홈·아이 등록은 경로 표시용이며 저장하는 계정 데이터가 없다. 시험 수신자의 방문별 합성 값으로 대기 중 가림과 방문 종료 시 정리를 확인한다. |
+| 공통 API 클라이언트 | 인증 문맥과 CSRF 토큰. 전환·만료 때 이전 응답 반영을 무효화하고 204 뒤 공통 갱신으로 새 토큰을 받는다. |
+| 앱 온보딩 | 기기 완료 표시를 보존한다. 계정 조회 응답은 경로 판단에만 쓰며 별도 계정 캐시는 없다. |
+
 ### 5. 진입·온보딩·상태별 이동 — SCRUM-124
 
 #### SCRUM-170 앱 진입 규칙 · 2026-11-22
