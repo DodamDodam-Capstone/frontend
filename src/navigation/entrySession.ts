@@ -8,6 +8,8 @@ type EntrySession = {
   receiveProtectedAuthResult: (result: ApiResult) => Promise<boolean>;
   refreshEntry: () => Promise<void>;
   submitLogin: (email: string, password: string) => Promise<LoginFeedback | undefined>;
+  submitLogout: () => Promise<void>;
+  retryLogoutCsrf: () => Promise<void>;
 };
 
 export const EntrySessionContext = createContext<EntrySession | null>(null);

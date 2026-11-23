@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState, Image, Keyboard, Pressable, ScrollView, StyleSheet, type TextInput, View } from 'react-native';
+import { Image, Keyboard, Pressable, ScrollView, StyleSheet, type TextInput, View } from 'react-native';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { TextField } from '../components/TextField';
+import { useRetryWaiting } from '../components/useRetryWaiting';
 import { colors, fonts, typography } from '../theme/tokens';
 import type { LoginFeedback } from './emailLogin';
 
@@ -14,42 +15,27 @@ type LoginScreenProps = {
   submit: (email: string, password: string) => Promise<LoginFeedback | undefined>;
   retryAt: number | undefined;
   initialFeedback?: LoginFeedback;
+  blocked?: boolean;
+  retrySecurity?: () => Promise<void>;
 };
 
 const symbol = require('../../assets/images/login/symbol.png');
 const requestLimited = '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.';
-const maxTimerDelay = 2_147_483_647;
 
-export function LoginScreen({ submit, retryAt, initialFeedback }: LoginScreenProps) {
+export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false, retrySecurity }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState(initialFeedback);
   const [submitting, setSubmitting] = useState(false);
-  const [now, setNow] = useState(Date.now);
   const passwordInput = useRef<TextInput>(null);
   const inFlight = useRef(false);
   const mounted = useRef(false);
-  const waiting = retryAt !== undefined && retryAt > now;
+  const waiting = useRetryWaiting(retryAt);
 
   useEffect(() => {
     mounted.current = true;
     return () => { mounted.current = false; };
   }, []);
-
-  useEffect(() => {
-    if (retryAt === undefined) return;
-    const deadline = retryAt;
-    let timer: ReturnType<typeof setTimeout>;
-    function sync() {
-      clearTimeout(timer);
-      const time = Date.now();
-      setNow(time);
-      if (deadline > time) timer = setTimeout(sync, Math.min(deadline - time, maxTimerDelay));
-    }
-    sync();
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') sync(); });
-    return () => { clearTimeout(timer); subscription.remove(); };
-  }, [retryAt]);
 
   function clearFieldError(field: 'email' | 'password') {
     setFeedback((current) => {
@@ -60,7 +46,7 @@ export function LoginScreen({ submit, retryAt, initialFeedback }: LoginScreenPro
   }
 
   async function submitForm() {
-    if (inFlight.current || (retryAt !== undefined && retryAt > Date.now())) return;
+    if (inFlight.current || blocked || retrySecurity || (retryAt !== undefined && retryAt > Date.now())) return;
     // 버튼 탭과 키보드 제출은 React의 상태가 갱신되기 전에도 연달아 올 수 있다.
     inFlight.current = true;
     setSubmitting(true);
@@ -77,7 +63,8 @@ export function LoginScreen({ submit, retryAt, initialFeedback }: LoginScreenPro
     }
   }
 
-  const message = waiting ? requestLimited : feedback?.retryAt === undefined ? feedback?.message : undefined;
+  const message = waiting ? requestLimited : retrySecurity ? '보안 확인을 완료하지 못했어요.'
+    : feedback?.retryAt === undefined ? feedback?.message : undefined;
   return (
     <View style={styles.screen}>
       <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
@@ -104,7 +91,10 @@ export function LoginScreen({ submit, retryAt, initialFeedback }: LoginScreenPro
           </Pressable>
           <View style={styles.actions}>
             {message && <ErrorMessage message={message} />}
-            <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting} disabled={waiting} />
+            <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting}
+              disabled={waiting || blocked || !!retrySecurity} />
+            {retrySecurity && <Button label="보안 확인 다시 시도" variant="secondary" disabled={waiting} loading={blocked}
+              onPress={() => { void retrySecurity(); }} />}
             <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.signUp, styles.unavailable]}>
               <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
             </Pressable>

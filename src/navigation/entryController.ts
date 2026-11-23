@@ -3,6 +3,7 @@ import type { ApiClient, ApiResult, AuthContext } from '../api/client';
 import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api/recovery';
 import { parseApiResponse } from '../api/response';
 import { submitEmailLogin, type LoginFeedback } from '../auth/emailLogin';
+import { submitLogoutRequest } from '../auth/logout';
 import { ROUTES, type RoutePath } from './routes';
 
 type EntryError = {
@@ -20,7 +21,17 @@ type EntryAttempt = {
   expired?: boolean;
 };
 
-type EntryVisit = EntryRoute & { visit: number; generation: number; loginRetryAt?: number; loginFeedback?: LoginFeedback };
+type EntryVisit = EntryRoute & {
+  visit: number;
+  generation: number;
+  loginRetryAt?: number;
+  loginFeedback?: LoginFeedback;
+  loginBlocked?: boolean;
+  loginCsrfRecovery?: boolean;
+  logoutPending?: boolean;
+  logoutRetryAt?: number;
+  logoutFeedback?: string;
+};
 export type EntrySnapshot = { kind: 'loading' } | EntryVisit | EntryError;
 
 const loading = { kind: 'loading' } as const;
@@ -69,15 +80,38 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   let loginPending = false;
   let loginRetryAt = 0;
   let loginFeedback: LoginFeedback | undefined;
+  let logoutPending = false;
+  let logoutRetryAt = 0;
+  let logoutFeedback: string | undefined;
+  let showSignedOutOnResume = false;
+  let loginCsrfRecovery = false;
+  let retryingLogoutCsrf = false;
+
+  function loginControls() {
+    return {
+      ...(loginRetryAt > Date.now() ? { loginRetryAt } : {}),
+      ...(logoutPending || retryingLogoutCsrf ? { loginBlocked: true } : {}),
+      ...(loginCsrfRecovery ? { loginCsrfRecovery: true } : {}),
+    };
+  }
+
+  function logoutControls() {
+    return {
+      ...(logoutPending ? { logoutPending: true } : {}),
+      ...(logoutRetryAt > Date.now() ? { logoutRetryAt } : {}),
+      ...(logoutFeedback ? { logoutFeedback } : {}),
+    };
+  }
 
   function publish(next: typeof loading | EntryRoute | EntryError) {
     // React가 확인 중 렌더를 합쳐도 같은 경로의 이전 화면 상태를 재사용하지 않는다.
     const loginState = next.kind === 'route' && next.route === ROUTES.login ? {
-      ...(loginRetryAt > Date.now() ? { loginRetryAt } : {}),
+      ...loginControls(),
       ...(loginFeedback ? { loginFeedback } : {}),
     } : undefined;
     if (next.kind === 'route') loginFeedback = undefined;
-    setSnapshot(next.kind === 'route' ? { ...next, visit: ++visit, generation, ...loginState } : next);
+    const controls = next.kind === 'route' ? loginState ?? logoutControls() : undefined;
+    setSnapshot(next.kind === 'route' ? { ...next, visit: ++visit, generation, ...controls } : next);
   }
 
   function setSnapshot(next: EntrySnapshot) {
@@ -126,9 +160,27 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   function receiveExpiry(context: AuthContext): boolean {
     return client.expireIfCurrent(context, () => {
-      cancelAttempt();
-      publish({ kind: 'route', route: ROUTES.login });
+      confirmSignedOut();
     });
+  }
+
+  function confirmSignedOut() {
+    cancelAttempt();
+    logoutFeedback = undefined;
+    logoutRetryAt = 0;
+    if (suspended || !isForegroundGeneration()) {
+      showSignedOutOnResume = true;
+      publish(loading);
+      return;
+    }
+    showSignedOutOnResume = false;
+    if (snapshot.kind === 'route' && snapshot.route === ROUTES.login) {
+      setSnapshot({
+        ...snapshot, loginBlocked: undefined, loginCsrfRecovery: undefined, loginRetryAt: undefined, ...loginControls(),
+      });
+    } else {
+      publish({ kind: 'route', route: ROUTES.login });
+    }
   }
 
   function publishAttempt(attempt: EntryAttempt) {
@@ -178,6 +230,17 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   async function refresh(): Promise<void> {
     if (!mounted || suspended) return;
+    const nextGeneration = readForegroundGeneration();
+    if (logoutPending) {
+      if (generation !== nextGeneration) discardAttempt();
+      generation = nextGeneration;
+      return;
+    }
+    if (nextGeneration >= 0 && (showSignedOutOnResume || loginCsrfRecovery)) {
+      generation = nextGeneration;
+      confirmSignedOut();
+      return;
+    }
     if (retryAt > Date.now()) {
       if (snapshot.kind !== 'error' || snapshot.retryAt !== retryAt) {
         publish({ kind: 'error', reason: 'rate_limited', retryAt });
@@ -186,7 +249,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     }
     discardAttempt();
     // 복귀가 먼저 처리되어도 인증 전환이 끝날 때까지 계정 조회를 보류한다.
-    generation = readForegroundGeneration();
+    generation = nextGeneration;
     if (loginPending || generation < 0) return;
     const requestedGeneration = generation;
     const context = client.captureCurrentContext();
@@ -229,7 +292,8 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     if (!mounted || suspended) return;
     suspended = true;
     loginFeedback = undefined;
-    client.discardRequestContexts();
+    // 화면이 바뀌어도 동일 세션의 로그아웃 또는 토큰 재획득 결과는 이어 받는다.
+    if (!logoutPending && !retryingLogoutCsrf) client.discardRequestContexts();
     cancelAttempt();
     // 복귀 전 보호 화면을 내린다. 이미 표시된 오류의 재시도는 사용자에게 맡긴다.
     if (snapshot.kind !== 'error') publish(loading);
@@ -255,7 +319,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   }
 
   async function submitLogin(email: string, password: string): Promise<LoginFeedback | undefined> {
-    if (!mounted || suspended || loginPending || !isForegroundGeneration()
+    if (!mounted || suspended || loginPending || logoutPending || loginCsrfRecovery || !isForegroundGeneration()
       || snapshot.kind !== 'route' || snapshot.route !== ROUTES.login) return;
     const submittedVisit = snapshot.visit;
     const isSameForm = () => mounted && !suspended && isForegroundGeneration()
@@ -290,12 +354,82 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     if (isForegroundGeneration()) await refresh();
   }
 
+  async function submitLogout(): Promise<void> {
+    if (!mounted || suspended || logoutPending || loginPending || !isForegroundGeneration()
+      || snapshot.kind !== 'route' || snapshot.route === ROUTES.login || logoutRetryAt > Date.now()) return;
+    const submittedVisit = snapshot.visit;
+    const submittedMount = mountId;
+    const isSameMount = () => mounted && submittedMount === mountId;
+    logoutPending = true;
+    logoutFeedback = undefined;
+    setSnapshot({ ...snapshot, logoutPending: true, logoutFeedback: undefined });
+    let result;
+    try {
+      result = await submitLogoutRequest(client, () => {
+        // 204가 확정되면 CSRF 갱신과 별개로 이전 수신자를 내린다.
+        if (isSameMount()) confirmSignedOut();
+      });
+    } finally {
+      logoutPending = false;
+    }
+    if (!isSameMount()) {
+      if (mounted) await refresh();
+      return;
+    }
+    if (!client.isCurrentContext(result.context)) {
+      await refresh();
+      return;
+    }
+    if (result.retryAt !== undefined) {
+      if (result.kind === 'accepted') waitToRetryLogin(result.retryAt);
+      else logoutRetryAt = Math.max(logoutRetryAt, result.retryAt);
+      if (result.csrfLimited) retryAt = Math.max(retryAt, result.retryAt);
+    }
+    if (result.kind === 'accepted') {
+      loginCsrfRecovery = result.csrfFailed;
+      confirmSignedOut();
+    } else if (result.kind === 'expired') {
+      receiveExpiry(result.context!);
+    } else if (result.kind === 'rejected' && !suspended && isForegroundGeneration()
+      && snapshot.kind === 'route' && snapshot.visit === submittedVisit) {
+      logoutFeedback = result.feedback;
+      setSnapshot({ ...snapshot, logoutPending: undefined, ...logoutControls() });
+    } else {
+      if (result.kind === 'rejected') logoutFeedback = result.feedback;
+      await refresh();
+    }
+  }
+
+  async function retryLogoutCsrf(): Promise<void> {
+    if (!mounted || suspended || !loginCsrfRecovery || logoutPending || retryingLogoutCsrf
+      || !isForegroundGeneration() || loginRetryAt > Date.now()) return;
+    const context = client.captureCurrentContext();
+    const submittedMount = mountId;
+    retryingLogoutCsrf = true;
+    confirmSignedOut();
+    let result;
+    try {
+      result = await prepareCsrf(client);
+    } finally {
+      retryingLogoutCsrf = false;
+    }
+    if (!mounted || submittedMount !== mountId) return;
+    if (client.isCurrentContext(context)) {
+      loginCsrfRecovery = result.kind !== 'ready';
+      if (result.kind === 'error' && result.retryAt !== undefined) waitToRetryLogin(result.retryAt, true);
+    }
+    confirmSignedOut();
+  }
+
   function stop() {
     mounted = false;
     suspended = false;
     mountId += 1;
     entryCsrf = undefined;
     loginFeedback = undefined;
+    logoutFeedback = undefined;
+    showSignedOutOnResume = false;
+    loginCsrfRecovery = false;
     discardAttempt();
   }
 
@@ -322,6 +456,6 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin,
+    start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin, submitLogout, retryLogoutCsrf,
   };
 }

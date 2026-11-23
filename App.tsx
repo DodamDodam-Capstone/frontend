@@ -58,7 +58,14 @@ function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   if (state.kind === 'route') {
     return <EntryPrivacySurface key={state.visit} generation={state.generation} style={styles.screen}>
-      <EntryDestination route={state.route} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback} />
+      <View style={state.logoutPending ? styles.hidden : styles.screen}
+        accessibilityElementsHidden={state.logoutPending}
+        importantForAccessibility={state.logoutPending ? 'no-hide-descendants' : 'auto'}>
+        <EntryDestination route={state.route} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
+          loginBlocked={state.loginBlocked} loginCsrfRecovery={state.loginCsrfRecovery}
+          logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />
+      </View>
+      {state.logoutPending && <EntryFrame><LoadingIndicator label="로그아웃 중" /></EntryFrame>}
     </EntryPrivacySurface>;
   }
 
@@ -83,6 +90,8 @@ export default function App() {
         receiveProtectedAuthResult: controller.receiveProtectedAuthResult,
         refreshEntry: controller.refresh,
         submitLogin: controller.submitLogin,
+        submitLogout: controller.submitLogout,
+        retryLogoutCsrf: controller.retryLogoutCsrf,
       },
     };
   });
@@ -157,6 +166,7 @@ export default function App() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: colors.surface },
+  hidden: { display: 'none' },
   container: { flexGrow: 1, alignItems: 'center', justifyContent: 'center', padding: 32 },
   content: { width: '100%', maxWidth: 560, gap: 16 },
 });
