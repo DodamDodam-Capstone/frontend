@@ -83,6 +83,7 @@ export function createApiClient(
   }), csrfUrl);
 
   let generation = 0;
+  let lastExpiryGeneration = -1;
   let requestGeneration = 0;
   let transitioning = false;
   const inFlight = new Set<Promise<ApiResult>>();
@@ -119,6 +120,7 @@ export function createApiClient(
     if (!isCurrentContext(context)) return false;
     // 호출부가 계약상 만료를 확인한 뒤 호출한다. 먼저 무효화하여 중복 통지를 막는다.
     generation += 1;
+    lastExpiryGeneration = generation;
     csrf.invalidate();
     onExpired(captureContext('expired'));
     return true;
@@ -218,7 +220,13 @@ export function createApiClient(
     let result: CsrfResult;
     do {
       result = await (recoveryPending ?? csrf.prepare());
-      if (transitioning || generation !== started) return { ok: false, reason: 'auth_transition' };
+      if (transitioning || generation !== started) {
+        // 같은 진입의 401이 먼저 끝나도, 이미 발급을 요청한 서버의 429는 토큰을 복구하지 않는다.
+        // 로그인 폼이 너무 빨리 같은 발급 요청을 다시 보내지 않도록 대기 응답만 전달한다.
+        if (!transitioning && generation === started + 1 && generation === lastExpiryGeneration
+          && !result.ok && result.reason === 'http' && result.status === 429) return result;
+        return { ok: false, reason: 'auth_transition' };
+      }
     } while (result.ok && recoveryPending);
     return result;
   }

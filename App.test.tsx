@@ -137,6 +137,203 @@ function pendingResponse() {
   return { promise, resolve };
 }
 
+function loginFetch(post: () => Response | Promise<Response>, accountAfterLogin: Response, csrfAfterLogin?: Response) {
+  let posted = false;
+  let refreshedCsrf = false;
+  let accountChecks = 0;
+  return jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith('/auth/login') && init?.method === 'POST') {
+      posted = true;
+      return post();
+    }
+    if (path.endsWith('/auth/me')) {
+      return accountChecks++ === 0 ? authError(401, 'AUTHENTICATION_REQUIRED') : accountAfterLogin.clone();
+    }
+    if (path.endsWith('/auth/csrf')) {
+      if (posted && !refreshedCsrf) {
+        refreshedCsrf = true;
+        if (csrfAfterLogin) return csrfAfterLogin;
+      }
+      return response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'synthetic-csrf' });
+    }
+    throw new Error('Unexpected login fixture request');
+  });
+}
+
+async function openLoginForm() {
+  markers.set(marker, 'true');
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
+}
+
+test.each(['복귀 전', '복귀 후'])('로그인 응답이 %s 도착해도 현재 앱만 계정을 한 번 확인한다', async (when) => {
+  const changeAppState = observeAppState();
+  const login = pendingResponse();
+  const fetchCall = loginFetch(() => login.promise, response(200, { data: { ...account, childId: null } }));
+  await openLoginForm();
+  const password = screen.getByLabelText('비밀번호');
+  const submit = screen.getByRole('button', { name: '로그인' });
+  await act(async () => {
+    await fireEvent.press(submit);
+    await fireEvent(password, 'submitEditing');
+  });
+  await changeAppState('background');
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  if (when === '복귀 후') await changeAppState('active');
+  expect(screen.getByLabelText('로그인 상태 확인 중')).toBeVisible();
+  await act(() => { login.resolve(response(200, { data: account })); });
+  await changeAppState('active');
+  expect(await screen.findByRole('header', { name: '아이 등록' })).toBeVisible();
+  expect(screen.queryByLabelText('비밀번호')).not.toBeOnTheScreen();
+  const posts = fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/login'));
+  expect(posts).toHaveLength(1);
+  expect(JSON.parse(String(posts[0][1]?.body))).toEqual({ email: 'guardian@example.test', password: ' x ' });
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+});
+
+test('로그인 200 뒤 토큰 갱신이 429이면 기한 후 수동 확인에서만 토큰과 계정을 조회한다', async () => {
+  jest.useFakeTimers();
+  const changeAppState = observeAppState();
+  const fetchCall = loginFetch(
+    () => response(200, { data: account }),
+    response(200, { data: account }),
+    authError(429, 'RATE_LIMITED', { 'Retry-After': '3' }),
+  );
+  await openLoginForm();
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  const retry = await screen.findByRole('button', { name: '다시 시도' });
+  expect(retry).toBeDisabled();
+  const callsBefore = fetchCall.mock.calls.length;
+  await changeAppState('background');
+  await changeAppState('active');
+  await act(() => { jest.advanceTimersByTime(3000); });
+  expect(fetchCall).toHaveBeenCalledTimes(callsBefore);
+  expect(retry).toBeEnabled();
+  await fireEvent.press(retry);
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/login'))).toHaveLength(1);
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+});
+
+test('전송 뒤 로그인 응답이 유실되면 현재 계정으로 확인하고 비밀번호를 재전송하지 않는다', async () => {
+  const fetchCall = loginFetch(() => Promise.reject(new Error('fixture transport failure')), response(200, { data: account }));
+  await openLoginForm();
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/login'))).toHaveLength(1);
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+});
+
+test('최근 앱 카드 복귀 중 로그인 POST에 온 429는 새 폼의 재제출도 막는다', async () => {
+  jest.useFakeTimers();
+  const changeAppState = observeAppState();
+  const login = pendingResponse();
+  let posts = 0;
+  const fetchCall = loginFetch(
+    () => ++posts === 1 ? login.promise : authError(401, 'LOGIN_FAILED'),
+    authError(401, 'AUTHENTICATION_REQUIRED'),
+  );
+  await openLoginForm();
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  const taskReturn = jest.mocked(subscribeToTaskReentry).mock.calls[0][0];
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await act(() => taskReturn(1));
+  await changeAppState('active');
+  await act(() => login.resolve(authError(429, 'RATE_LIMITED', { 'Retry-After': '3' })));
+  const submit = await screen.findByRole('button', { name: '로그인' });
+  expect(submit).toBeDisabled();
+  expect(screen.getByLabelText('비밀번호')).toHaveDisplayValue('');
+  expect(posts).toBe(1);
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+  await act(() => { jest.advanceTimersByTime(3000); });
+  expect(submit).toBeEnabled();
+  expect(posts).toBe(1);
+  await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' ');
+  await fireEvent.press(submit);
+  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(posts).toBe(2);
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
+});
+
+test.each(['CSRF 먼저', '계정 먼저'])('첫 토큰 확인 429와 계정 401이 %s 도착해도 기한을 지킨다', async (order) => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const accountCheck = pendingResponse();
+  const csrfCheck = pendingResponse();
+  const fetchCall = jest.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+    if (String(input).endsWith('/auth/me')) return accountCheck.promise;
+    return csrfCheck.promise;
+  });
+  await render(<App />);
+  await finishSplash();
+  if (order === 'CSRF 먼저') {
+    await act(() => csrfCheck.resolve(authError(429, 'RATE_LIMITED', { 'Retry-After': '3' })));
+    expect(await screen.findByRole('button', { name: '다시 시도' })).toBeDisabled();
+  }
+  await act(() => accountCheck.resolve(authError(401, 'AUTHENTICATION_REQUIRED')));
+  const submit = await screen.findByRole('button', { name: '로그인' });
+  await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), 'x');
+  await fireEvent(screen.getByLabelText('비밀번호'), 'submitEditing');
+  expect(fetchCall).toHaveBeenCalledTimes(2);
+  if (order === '계정 먼저') {
+    await act(() => csrfCheck.resolve(authError(429, 'RATE_LIMITED', { 'Retry-After': '3' })));
+  }
+  expect(submit).toBeDisabled();
+  expect(fetchCall.mock.calls.map(([url, init]) => [new URL(String(url)).pathname, init?.method])).toEqual([
+    ['/api/v1/auth/csrf', 'GET'], ['/api/v1/auth/me', 'GET'],
+  ]);
+  await act(() => { jest.advanceTimersByTime(3000); });
+  expect(submit).toBeEnabled();
+  expect(fetchCall).toHaveBeenCalledTimes(2);
+});
+
+test('열려 있는 폼에서 로그인 429의 대기시간이 지나면 대기 안내도 사라진다', async () => {
+  jest.useFakeTimers();
+  const fetchCall = loginFetch(() => authError(429, 'RATE_LIMITED', { 'Retry-After': '3' }), authError(401, 'AUTHENTICATION_REQUIRED'));
+  await openLoginForm();
+  const submit = screen.getByRole('button', { name: '로그인' });
+  await fireEvent.press(submit);
+  expect(submit).toBeDisabled();
+  expect(screen.getByRole('alert')).toBeVisible();
+  await act(() => { jest.advanceTimersByTime(3000); });
+  expect(submit).toBeEnabled();
+  expect(screen.queryByRole('alert')).not.toBeOnTheScreen();
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/login'))).toHaveLength(1);
+});
+
+test('토큰을 기다리던 폼을 떠나면 이전 429로 새 세션 확인을 막거나 비밀번호를 보내지 않는다', async () => {
+  const changeAppState = observeAppState();
+  const oldCsrf = pendingResponse();
+  let csrfRequests = 0;
+  let accountChecks = 0;
+  const fetchCall = jest.spyOn(globalThis, 'fetch').mockImplementation(async input => {
+    const path = String(input);
+    if (path.endsWith('/auth/me')) {
+      return ++accountChecks === 1 ? authError(401, 'AUTHENTICATION_REQUIRED') : response(200, { data: account });
+    }
+    if (path.endsWith('/auth/csrf')) {
+      return ++csrfRequests === 1 ? oldCsrf.promise
+        : response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'synthetic-csrf' });
+    }
+    throw new Error('Retired form sent credentials');
+  });
+  await openLoginForm();
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  await changeAppState('background');
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  await act(() => oldCsrf.resolve(authError(429, 'RATE_LIMITED', { 'Retry-After': '30' })));
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/login'))).toHaveLength(0);
+  expect(accountChecks).toBe(2);
+});
+
 test('홈에서 백그라운드에 다녀오면 새 조회 중 홈을 숨기고 세션 만료를 로그인에 반영한다', async () => {
   const changeAppState = observeAppState();
   const expired = pendingResponse();
@@ -159,7 +356,7 @@ test('홈에서 백그라운드에 다녀오면 새 조회 중 홈을 숨기고 
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/csrf'))).toHaveLength(1);
 
   await act(() => { expired.resolve(authError(401, 'AUTHENTICATION_REQUIRED')); });
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
 });
 
@@ -180,7 +377,7 @@ test('최근 앱 카드를 탭해 Android가 pause 없이 복귀해도 한 번 �
   expect(screen.getByLabelText('로그인 상태 확인 중')).toBeVisible();
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
   await act(() => { held.resolve(authError(401, 'AUTHENTICATION_REQUIRED')); });
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
 });
 
 test('복귀 전 보호 요청의 늦은 401은 같은 경로로 들어온 새 사용자를 만료시키지 않는다', async () => {
@@ -209,7 +406,7 @@ test('복귀 전 보호 요청의 늦은 401은 같은 경로로 들어온 새 �
 
   await act(() => { previous.resolve(authError(401, 'AUTHENTICATION_REQUIRED')); });
   expect(screen.getByText('시험 사용자 B')).toBeVisible();
-  expect(screen.queryByRole('header', { name: '로그인' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '보호자 로그인' })).not.toBeOnTheScreen();
 });
 
 test('복귀 뒤 React가 최종 홈만 렌더해도 이전 사용자의 수신자를 새로 마운트한다', async () => {
@@ -256,9 +453,9 @@ test('첫 조회의 늦은 성공은 복귀 후 확인된 로그인 화면을 �
 
   await changeAppState('background');
   await changeAppState('active');
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
   await act(() => { previous.resolve(response(200, { data: account })); });
-  expect(screen.getByRole('header', { name: '로그인' })).toBeVisible();
+  expect(screen.getByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
 });
 
@@ -310,17 +507,17 @@ test('첫 실행 중 먼저 도착한 401은 온보딩 완료 뒤 로그인으�
   expect(fetchCall.mock.calls.map(([url]) => url)).toEqual([
     'https://api.example.invalid/api/v1/auth/csrf', 'https://api.example.invalid/api/v1/auth/me',
   ]);
-  expect(screen.queryByRole('header', { name: '로그인' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '보호자 로그인' })).not.toBeOnTheScreen();
 
   await finishSplash();
   await skipMicrophoneFromOnboarding();
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect([...markers]).toEqual([[marker, 'true']]);
 
   await screen.unmount();
   await render(<App />);
   await finishSplash();
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect(screen.queryByRole('header', { name: '아이의 하루를 들어주는 마음 친구, 도담이' })).not.toBeOnTheScreen();
   expect(AsyncStorage.setItem).toHaveBeenCalledTimes(1);
 });
@@ -379,7 +576,7 @@ test('real 모드의 조회 실패 동안 목적지를 숨기고 명시적 재�
   await render(<App />);
   await finishSplash();
   expect(await screen.findByRole('alert')).toBeVisible();
-  expect(screen.queryByRole('header', { name: '로그인' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '보호자 로그인' })).not.toBeOnTheScreen();
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(1);
 
@@ -394,7 +591,7 @@ test('공통 세션을 쓰는 보호 목적지가 현재 401을 전달하면 홈
   await finishSplash();
   expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
   await fireEvent.press(screen.getByRole('button', { name: '아이 목록 확인' }));
-  expect(await screen.findByRole('header', { name: '로그인' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
   expect(AsyncStorage.setItem).not.toHaveBeenCalled();
 });

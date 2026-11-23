@@ -1,16 +1,27 @@
 import { ScrollView, StyleSheet } from 'react-native';
 
+import type { LoginFeedback } from '../auth/emailLogin';
+import { LoginScreen } from '../auth/LoginScreen';
 import { AppText } from '../components/AppText';
 import { colors, typography } from '../theme/tokens';
+import { useEntrySession } from './entrySession';
 import { ROUTES, type RoutePath } from './routes';
 
-const titles: Record<RoutePath, string> = {
-  [ROUTES.login]: '로그인',
+const titles = {
   [ROUTES.childRegistration]: '아이 등록',
   [ROUTES.home]: '홈',
 };
 
-export function EntryDestination({ route }: { route: RoutePath }) {
+export function EntryDestination({ route, loginRetryAt, loginFeedback }: {
+  route: RoutePath;
+  loginRetryAt?: number;
+  loginFeedback?: LoginFeedback;
+}) {
+  const { submitLogin } = useEntrySession();
+  if (route === ROUTES.login) {
+    return <LoginScreen submit={submitLogin} retryAt={loginRetryAt} initialFeedback={loginFeedback} />;
+  }
+
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <AppText accessibilityRole="header" style={styles.title}>{titles[route]}</AppText>

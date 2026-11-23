@@ -58,7 +58,7 @@ function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   if (state.kind === 'route') {
     return <EntryPrivacySurface key={state.visit} generation={state.generation} style={styles.screen}>
-      <EntryDestination route={state.route} />
+      <EntryDestination route={state.route} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback} />
     </EntryPrivacySurface>;
   }
 
@@ -78,7 +78,12 @@ export default function App() {
     const controller = createEntryController(client, readForegroundGeneration);
     return {
       controller,
-      session: { client, receiveProtectedAuthResult: controller.receiveProtectedAuthResult, refreshEntry: controller.refresh },
+      session: {
+        client,
+        receiveProtectedAuthResult: controller.receiveProtectedAuthResult,
+        refreshEntry: controller.refresh,
+        submitLogin: controller.submitLogin,
+      },
     };
   });
   const [splashVisible, setSplashVisible] = useState(true);

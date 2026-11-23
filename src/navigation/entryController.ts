@@ -1,6 +1,8 @@
+import { isAccountView } from '../api/accountView';
 import type { ApiClient, ApiResult, AuthContext } from '../api/client';
 import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api/recovery';
 import { parseApiResponse } from '../api/response';
+import { submitEmailLogin, type LoginFeedback } from '../auth/emailLogin';
 import { ROUTES, type RoutePath } from './routes';
 
 type EntryError = {
@@ -15,69 +17,17 @@ type EntryAttempt = {
   context: AuthContext;
   account?: EntryRoute | EntryError;
   csrf?: { kind: 'ready' } | EntryError;
+  expired?: boolean;
 };
 
-export type EntrySnapshot = { kind: 'loading' } | (EntryRoute & { visit: number; generation: number }) | EntryError;
+type EntryVisit = EntryRoute & { visit: number; generation: number; loginRetryAt?: number; loginFeedback?: LoginFeedback };
+export type EntrySnapshot = { kind: 'loading' } | EntryVisit | EntryError;
 
 const loading = { kind: 'loading' } as const;
 const jsonResponse = { kind: 'json', statuses: [200] } as const;
-const uuid = /^[a-f\d]{8}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{4}-[a-f\d]{12}$/i;
-const kstSeconds = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+09:00$/;
-const emailAtom = /[a-z\d!#$%&'*+/=?^_`{|}~-]+/.source;
-const quotedEmailAtom = /"(?:[a-z\d!#$%&'*.(),<>[\]:;@+/=?^_`{|}~-]|\\["\\])+"/.source;
-const emailWord = `(?:${emailAtom}|${quotedEmailAtom})`;
-const emailLocalPart = new RegExp(`^${emailWord}(?:\\.${emailWord})*$`, 'i');
-const emailLabelAtom = /[a-z\d!#$%&'*+/=?^_`{|}~]+/.source;
-const emailDomainLabel = new RegExp(`^${emailLabelAtom}(?:-+${emailLabelAtom})*$`, 'i');
-
-function isUuid(value: unknown): value is string {
-  return typeof value === 'string' && value.length === 36 && uuid.test(value);
-}
-
-function isIpv6EmailLiteral(address: string): boolean {
-  const halves = address.split('::');
-  if (halves.length > 2) return false;
-  const groups = halves.flatMap((half) => half === '' ? [] : half.split(':'));
-  const tail = groups.at(-1);
-  let size = groups.length;
-  if (tail?.includes('.')) {
-    const octet = /^(?:25[0-5]|2[0-4]\d|1?\d{1,2})$/;
-    const octets = tail.split('.');
-    if (!address.endsWith(tail) || octets.length !== 4 || !octets.every((part) => octet.test(part))) return false;
-    groups.pop();
-    size += 1; // IPv4 꼬리는 16비트 그룹 두 개를 사용한다.
-  }
-  return groups.every((part) => /^[\da-f]{1,4}$/i.test(part)) && (halves.length === 2 ? size < 8 : size === 8);
-}
-
-function isAccountEmail(value: unknown): boolean {
-  if (typeof value !== 'string' || value.length > 254 || /[^!-~]/.test(value)) return false;
-  // Hibernate @Email과 동일하게 로컬 부분의 따옴표 안에는 @가 올 수 있다.
-  const separator = value.lastIndexOf('@');
-  if (separator < 1 || separator > 64 || !emailLocalPart.test(value.slice(0, separator))) return false;
-  const domain = value.slice(separator + 1);
-  if (/^\[(?:\d{1,3}\.){3}\d{1,3}\]$/.test(domain)) return true;
-  if (/^\[ipv6:fe80:(?::[\da-f]{0,4}){0,4}%[a-z\d]+\]$/i.test(domain)) return true;
-  const ipv6 = /^\[ipv6:([\da-f:.]+)\]$/i.exec(domain);
-  if (ipv6) return isIpv6EmailLiteral(ipv6[1]);
-  return domain.split('.').every((label) => label.length <= 63 && emailDomainLabel.test(label));
-}
-
-function isKstDateTime(value: unknown): boolean {
-  if (typeof value !== 'string' || value.length !== 25 || !kstSeconds.test(value)) return false;
-  // UTC는 비교 표기일 뿐이다. 달력에 없는 날이나 24시를 JS가 정규화하면 거절한다.
-  const localTime = `${value.slice(0, -6)}.000Z`;
-  const time = Date.parse(localTime);
-  return Number.isFinite(time) && new Date(time).toISOString() === localTime;
-}
-
 function routeForAccount(value: unknown): RoutePath | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) return;
-  const { accountId, email: address, childId, hasPin, guardianUnlockedUntil } = value as Record<string, unknown>;
-  if (Object.keys(value).length !== 5 || !isUuid(accountId) || !isAccountEmail(address) || typeof hasPin !== 'boolean'
-    || (guardianUnlockedUntil !== null && !isKstDateTime(guardianUnlockedUntil))) return;
-  if (childId === null) return ROUTES.childRegistration;
-  if (isUuid(childId)) return ROUTES.home;
+  if (!isAccountView(value)) return;
+  return value.childId === null ? ROUTES.childRegistration : ROUTES.home;
 }
 
 function rateLimit(decision: RecoveryDecision, receivedAt: number): EntryError | undefined {
@@ -114,13 +64,34 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   let generation = -1;
   let lastTaskReentry = -1;
   let currentAttempt: EntryAttempt | undefined;
+  let entryCsrf: Promise<void> | undefined;
   let retryAt = 0;
+  let loginPending = false;
+  let loginRetryAt = 0;
+  let loginFeedback: LoginFeedback | undefined;
 
   function publish(next: typeof loading | EntryRoute | EntryError) {
-    if (snapshot === next) return;
     // React가 확인 중 렌더를 합쳐도 같은 경로의 이전 화면 상태를 재사용하지 않는다.
-    snapshot = next.kind === 'route' ? { ...next, visit: ++visit, generation } : next;
+    const loginState = next.kind === 'route' && next.route === ROUTES.login ? {
+      ...(loginRetryAt > Date.now() ? { loginRetryAt } : {}),
+      ...(loginFeedback ? { loginFeedback } : {}),
+    } : undefined;
+    if (next.kind === 'route') loginFeedback = undefined;
+    setSnapshot(next.kind === 'route' ? { ...next, visit: ++visit, generation, ...loginState } : next);
+  }
+
+  function setSnapshot(next: EntrySnapshot) {
+    if (snapshot === next) return;
+    snapshot = next;
     for (const listener of listeners) listener();
+  }
+
+  function waitToRetryLogin(deadline: number, csrfLimited = false) {
+    loginRetryAt = Math.max(loginRetryAt, deadline);
+    if (csrfLimited) retryAt = Math.max(retryAt, deadline);
+    if (snapshot.kind === 'route' && snapshot.route === ROUTES.login && isForegroundGeneration()) {
+      setSnapshot({ ...snapshot, loginRetryAt });
+    }
   }
 
   function cancelAttempt() {
@@ -193,7 +164,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
         const decision = classifyRecovery(parsed, 'general');
         if (decision.kind === 'authentication_required') {
           // CSRF 실패나 지연은 확정된 미인증 구분을 막지 않는다.
-          receiveExpiry(result.context);
+          attempt.expired = receiveExpiry(result.context);
           return;
         }
         const route = parsed.kind === 'json' ? routeForAccount(parsed.data) : undefined;
@@ -214,10 +185,12 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       return;
     }
     discardAttempt();
+    // 복귀가 먼저 처리되어도 인증 전환이 끝날 때까지 계정 조회를 보류한다.
+    generation = readForegroundGeneration();
+    if (loginPending || generation < 0) return;
+    const requestedGeneration = generation;
     const context = client.captureCurrentContext();
     if (!context) return;
-    // 요청과 목적지에 같은 네이티브 세대를 적용한다.
-    generation = readForegroundGeneration();
     let finishCancelled!: () => void;
     const cancelled = new Promise<void>((resolve) => { finishCancelled = resolve; });
     const attempt: EntryAttempt = { aborter: new AbortController(), finishCancelled, context };
@@ -228,9 +201,19 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       await Promise.resolve();
       if (!isCurrentAttempt(attempt)) return;
       const csrf = prepareCsrf(client).then((result) => {
+        if (entryCsrf === csrf) {
+          entryCsrf = undefined;
+          // /me 401이 먼저 로그인 화면을 열어도, 이미 전송한 CSRF 조회의 대기 기한은 지킨다.
+          const currentSession = client.isCurrentContext(attempt.context) || attempt.expired;
+          if (currentSession && !suspended && requestedGeneration === readForegroundGeneration()
+            && result.kind === 'error' && result.retryAt !== undefined) {
+            waitToRetryLogin(result.retryAt, true);
+          }
+        }
         attempt.csrf = result;
         publishAttempt(attempt);
       });
+      entryCsrf = csrf;
       await Promise.race([Promise.all([csrf, checkAccount(attempt)]), cancelled]);
     } finally {
       if (currentAttempt === attempt) currentAttempt = undefined;
@@ -245,6 +228,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   function suspend() {
     if (!mounted || suspended) return;
     suspended = true;
+    loginFeedback = undefined;
     client.discardRequestContexts();
     cancelAttempt();
     // 복귀 전 보호 화면을 내린다. 이미 표시된 오류의 재시도는 사용자에게 맡긴다.
@@ -270,10 +254,48 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     if (snapshot.kind === 'error') await refresh();
   }
 
+  async function submitLogin(email: string, password: string): Promise<LoginFeedback | undefined> {
+    if (!mounted || suspended || loginPending || !isForegroundGeneration()
+      || snapshot.kind !== 'route' || snapshot.route !== ROUTES.login) return;
+    const submittedVisit = snapshot.visit;
+    const isSameForm = () => mounted && !suspended && isForegroundGeneration()
+      && snapshot.kind === 'route' && snapshot.visit === submittedVisit;
+    loginPending = true;
+    let result;
+    try {
+      if (entryCsrf) await entryCsrf;
+      if (loginRetryAt > Date.now() && isSameForm()) {
+        return { message: '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.', retryAt: loginRetryAt };
+      }
+      if (isSameForm()) result = await submitEmailLogin(client, email, password);
+    } finally {
+      loginPending = false;
+    }
+    if (!mounted) return;
+    if (result?.kind === 'rejected') {
+      if (result.retryAt !== undefined) waitToRetryLogin(result.retryAt, result.csrfLimited);
+      if (isSameForm()) return { ...result.feedback, retryAt: result.retryAt };
+    } else if (result?.kind === 'accepted' && result.csrfFailed) {
+      retryAt = Math.max(retryAt, result.retryAt ?? 0);
+      publish(result.retryAt === undefined
+        ? { kind: 'error', reason: 'csrf_unavailable' }
+        : { kind: 'error', reason: 'rate_limited', retryAt });
+      return;
+    } else if (result?.kind === 'uncertain' && isSameForm()) {
+      loginFeedback = result.feedback;
+    }
+
+    // 화면이 이미 사라졌어도 현재 진입이 조회를 이어 간다. 네이티브가 먼저
+    // 전환된 경우는 AppState 또는 최근 앱 이벤트가 복귀 확인을 시작한다.
+    if (isForegroundGeneration()) await refresh();
+  }
+
   function stop() {
     mounted = false;
     suspended = false;
     mountId += 1;
+    entryCsrf = undefined;
+    loginFeedback = undefined;
     discardAttempt();
   }
 
@@ -300,6 +322,6 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult,
+    start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin,
   };
 }
