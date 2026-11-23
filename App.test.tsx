@@ -247,6 +247,123 @@ function authFlowFetch(gates: { failedLogin?: () => Promise<void>; logout?: () =
   };
 }
 
+function signupFixture() {
+  let signedIn = false;
+  const challengeId = '12345678-abcd-4abc-8abc-123456789012';
+  const futureKst = () => new Date(Date.now() + (9 * 60 + 5) * 60_000).toISOString().replace('Z', '000+09:00');
+  const requests: { path: string; body: unknown }[] = [];
+  jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (init?.method === 'GET' && path.endsWith('/auth/csrf')) {
+      return response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'signup-test-csrf' });
+    }
+    if (init?.method === 'GET' && path.endsWith('/auth/me')) {
+      return signedIn ? response(200, { data: account }) : authError(401, 'AUTHENTICATION_REQUIRED');
+    }
+    if (init?.method !== 'POST' || !new Headers(init.headers).has('X-XSRF-TOKEN') || init.credentials !== 'include') {
+      throw new Error('Invalid signup request');
+    }
+    requests.push({ path, body: JSON.parse(String(init.body)) });
+    if (path === '/api/v1/auth/email-verifications') return response(200, { data: { challengeId, expiresAt: futureKst() } });
+    if (path === '/api/v1/auth/email-verifications/verify') {
+      return response(200, { data: { verificationToken: challengeId + '.' + 'a'.repeat(43), tokenExpiresAt: futureKst() } });
+    }
+    throw new Error('Unexpected signup endpoint');
+  });
+  return { requests, challengeId, signIn: () => { signedIn = true; } };
+}
+
+async function openSignupForm() {
+  markers.set(marker, 'true');
+  await render(<App />);
+  await finishSplash();
+  const signup = await screen.findByRole('button', { name: '이메일로 회원 가입' });
+  await fireEvent.press(signup);
+  expect(await screen.findByRole('header', { name: '보호자 계정 만들기' })).toBeVisible();
+  await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
+  await fireEvent.press(screen.getByRole('button', { name: '인증하기' }));
+}
+
+test('실제 가입 진입 후 메일 앱에서 돌아와 발급받은 번호를 확인하고 인증 완료 폼으로 돌아온다', async () => {
+  const changeAppState = observeAppState();
+  const server = signupFixture();
+  await openSignupForm();
+  expect(server.requests).toHaveLength(0);
+  await fireEvent.press(screen.getByRole('button', { name: '인증번호 받기' }));
+  expect(await screen.findByLabelText('인증번호 6자리')).toBeVisible();
+  await changeAppState('background');
+  expect(screen.queryByLabelText('인증번호 6자리')).not.toBeOnTheScreen();
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  await fireEvent.changeText(await screen.findByLabelText('인증번호 6자리'), '012345');
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+  expect(await screen.findByRole('header', { name: '이메일 인증 완료' })).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '비밀번호 설정하기' }));
+  expect(screen.getByText('이메일 인증이 완료되었어요.')).toBeVisible();
+  expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+  expect(server.requests).toEqual([
+    { path: '/api/v1/auth/email-verifications', body: { email: 'guardian@example.test', purpose: 'SIGNUP' } },
+    { path: '/api/v1/auth/email-verifications/verify', body: { challengeId: server.challengeId, code: '012345' } },
+  ]);
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+});
+
+test('복귀 조회에서 로그인한 계정이 확인되면 가입 진행을 폐기한다', async () => {
+  const changeAppState = observeAppState();
+  const server = signupFixture();
+  await openSignupForm();
+  await fireEvent.press(screen.getByRole('button', { name: '인증번호 받기' }));
+  expect(await screen.findByLabelText('인증번호 6자리')).toBeVisible();
+  await changeAppState('background');
+  server.signIn();
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(screen.queryByLabelText('인증번호 6자리')).not.toBeOnTheScreen();
+  expect(server.requests).toHaveLength(1);
+});
+
+test.each(['누르기 전', '누른 뒤'])('초기 계정 401 뒤 가입 발송을 %s 도착한 CSRF 제한도 반영한다', async timing => {
+  const held = pendingResponse();
+  const calls: string[] = [];
+  jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    calls.push(init?.method + ' ' + path);
+    if (path.endsWith('/me')) return authError(401, 'AUTHENTICATION_REQUIRED');
+    if (calls.filter(call => call.endsWith('/csrf')).length === 1) return held.promise;
+    throw new Error('Unexpected second security or verification request');
+  });
+  await openSignupForm();
+  if (timing === '누른 뒤') await fireEvent.press(screen.getByRole('button', { name: '인증번호 받기' }));
+  await act(() => held.resolve(authError(429, 'RATE_LIMITED', { 'Retry-After': '30' })));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/요청이 많아요/);
+  expect(screen.getByRole('button', { name: '인증번호 받기' })).toBeDisabled();
+  expect(calls).toEqual(['GET /api/v1/auth/csrf', 'GET /api/v1/auth/me']);
+});
+
+test.each(['준비', '복구'])('가입에서 CSRF %s 조회가 제한되면 로그인으로 돌아가도 기한을 지킨다', async timing => {
+  let csrfReads = 0;
+  const posts: string[] = [];
+  jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith('/me')) return authError(401, 'AUTHENTICATION_REQUIRED');
+    if (path.endsWith('/csrf')) {
+      if (++csrfReads >= (timing === '준비' ? 2 : 3)) return authError(429, 'RATE_LIMITED', { 'Retry-After': '90' });
+      return response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'signup-test-csrf' });
+    }
+    if (init?.method === 'POST') posts.push(path);
+    return authError(403, 'CSRF_INVALID');
+  });
+  await openSignupForm();
+  await fireEvent.press(screen.getByRole('button', { name: '인증번호 받기' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent(/요청이 많아요/);
+  await fireEvent.press(screen.getByRole('button', { name: '닫기' }));
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+  expect(screen.getByRole('button', { name: '로그인' })).toBeDisabled();
+  expect(posts).toHaveLength(timing === '준비' ? 0 : 1);
+  expect(csrfReads).toBe(timing === '준비' ? 2 : 3);
+});
+
 async function requestChildren() {
   const start = mockChildrenReads.length;
   await fireEvent.press(screen.getByRole('button', { name: '아이 목록 확인' }));

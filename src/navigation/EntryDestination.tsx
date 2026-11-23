@@ -16,7 +16,7 @@ const titles = {
 };
 
 export function EntryDestination({
-  route, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback,
+  route, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback, openSignup,
 }: {
   route: RoutePath;
   loginRetryAt?: number;
@@ -25,12 +25,13 @@ export function EntryDestination({
   loginCsrfRecovery?: boolean;
   logoutRetryAt?: number;
   logoutFeedback?: string;
+  openSignup: () => void;
 }) {
   const { submitLogin, submitLogout, retryLogoutCsrf } = useEntrySession();
   const waiting = useRetryWaiting(logoutRetryAt);
   if (route === ROUTES.login) {
     return <LoginScreen submit={submitLogin} retryAt={loginRetryAt} initialFeedback={loginFeedback}
-      blocked={loginBlocked} retrySecurity={loginCsrfRecovery ? retryLogoutCsrf : undefined} />;
+      blocked={loginBlocked} retrySecurity={loginCsrfRecovery ? retryLogoutCsrf : undefined} openSignup={openSignup} />;
   }
 
   return (

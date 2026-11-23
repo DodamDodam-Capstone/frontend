@@ -467,3 +467,38 @@ describe('SCRUM-170 앱 진입', () => {
     expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
   });
 });
+
+it('가입에서 나갔다 다시 들어가도 서버가 지정한 재시도 시각까지 새 번호를 요청하지 않는다', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000);
+  try {
+    const sent: string[] = [];
+    const api = client(async url => {
+      if (url.endsWith('/csrf')) return csrf();
+      if (url.endsWith('/me')) return error(401, 'AUTHENTICATION_REQUIRED');
+      sent.push(url);
+      return error(429, 'RATE_LIMITED', { 'Retry-After': '30' });
+    });
+    const entry = controllerForTest(api);
+    await entry.start();
+    function enterEmail() {
+      entry.openSignup();
+      const snapshot = entry.getSnapshot();
+      if (snapshot.kind !== 'route' || !snapshot.signup) throw new Error('가입 진입 실패');
+      snapshot.signup.setEmail('guardian@example.test');
+      snapshot.signup.openEmail();
+      return snapshot.signup;
+    }
+    const first = enterEmail();
+    await first.issue();
+    entry.closeSignup(first);
+    const second = enterEmail();
+    expect(second.getSnapshot().issueRetryAt).toBe(Date.now() + 30_000);
+    await second.issue();
+    expect(sent).toHaveLength(1);
+    now.mockReturnValue(Date.now() + 30_000);
+    await second.issue();
+    expect(sent).toHaveLength(2);
+  } finally {
+    now.mockRestore();
+  }
+});

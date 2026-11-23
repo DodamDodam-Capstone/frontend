@@ -17,12 +17,13 @@ type LoginScreenProps = {
   initialFeedback?: LoginFeedback;
   blocked?: boolean;
   retrySecurity?: () => Promise<void>;
+  openSignup?: () => void;
 };
 
 const symbol = require('../../assets/images/login/symbol.png');
 const requestLimited = '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.';
 
-export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false, retrySecurity }: LoginScreenProps) {
+export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false, retrySecurity, openSignup }: LoginScreenProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [feedback, setFeedback] = useState(initialFeedback);
@@ -31,6 +32,7 @@ export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false,
   const inFlight = useRef(false);
   const mounted = useRef(false);
   const waiting = useRetryWaiting(retryAt);
+  const signupDisabled = !openSignup || submitting || blocked || !!retrySecurity;
 
   useEffect(() => {
     mounted.current = true;
@@ -95,7 +97,8 @@ export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false,
               disabled={waiting || blocked || !!retrySecurity} />
             {retrySecurity && <Button label="보안 확인 다시 시도" variant="secondary" disabled={waiting} loading={blocked}
               onPress={() => { void retrySecurity(); }} />}
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.signUp, styles.unavailable]}>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: signupDisabled }} disabled={signupDisabled}
+              onPress={openSignup} style={[styles.signUp, signupDisabled && styles.unavailable]}>
               <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
             </Pressable>
           </View>
