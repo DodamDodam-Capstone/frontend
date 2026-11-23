@@ -1585,6 +1585,23 @@ iPad에서 홈을 보다가 제스처로 전환기를 열고 같은 앱으로 �
 | [176](https://dodamdodam.atlassian.net/browse/SCRUM-176) 권한·녹음·재생 | 기기에서 마이크 허용/거부, 녹음, 재생을 확인하고 아동 정보가 없는 시험 음성의 MIME/codec/sample rate/channels/duration/bytes를 기록한다. Jest의 네이티브 mock은 이 결과를 대신하지 않는다. |
 | [177](https://dodamdodam.atlassian.net/browse/SCRUM-177) 호환성 정리 | 환경별 성공/실패/차단/미검증 표와 권장 방식을 남긴다. D13/D14의 미확정 제한값은 임의 숫자로 채우지 않고 확인 담당·다음 확인 시점을 남긴다. |
 
+### 7. 아이 홈 — SCRUM-132
+
+[SCRUM-132](https://dodamdodam.atlassian.net/browse/SCRUM-132)는 인증을 확인한 뒤 같은 아이 ID로 홈을 조회한다. 홈은 서버의 애칭·인사·함께한 날·이용시간을 표시한다. 대화 시작·이어하기·종료 처리 중·시간외 상태와 자정·오전 8시 재조회는 [홈 조회 명세 §7.2](https://github.com/DodamDodam-Capstone/backend/blob/38cae80339b90500ef2b6673d6fa8e119f8533e1/docs/p0/api/06-conversations.md#section-7-2)에 맞춘다.
+
+| 확인 항목 | 증거 |
+| --- | --- |
+| 스플래시와 첫 온보딩 → 보호자 로그인 → 별이 홈 | `App.test.tsx`에서 로그인 실패 시 홈 조회 0건, 성공 시 현재 계정 확인 뒤 같은 아이 홈 조회 1건, 아이 생성 0건을 확인한다. 아이가 없는 계정은 아이 등록으로 분기한다. |
+| 이용 가능 시간·오류·앱 복귀 | `src/home/homeData.test.ts`와 `App.test.tsx`에서 응답 일치, 4개 이용 상태, 시간 경계, 기기 시각과 무관한 `Retry-After`, 404·503, 현재 401과 이전 계정의 늦은 홈 결과를 확인한다. 정상 복귀당 홈을 한 번 조회한다. |
+| 홈 그림·텍스트와 준비 중 안내 | [홈](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-12659)과 [출석 팝업](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-12750)을 기준으로 방과 정적 캐릭터를 적용했다. 테스트에서 그림·글자 윤곽의 터치 연동과 각 준비 중 안내의 추가 요청 0건을 확인했다. 가로 iPad Air 실기기와 호스트 GPU Android Pixel Tablet을 한 대씩 실행해 4개 상태, 복귀, 로그아웃, 20자 애칭과 큰 글씨를 캡처했다. |
+| 보호자·대화 진입 | 공통 앱 내부 경로의 테스트 화면에서 전달받은 아이 ID, 시작/이어하기 의도와 이어갈 대화 ID를 검증한다. 실제 보호자 권한 확인은 [SCRUM-147](https://dodamdodam.atlassian.net/browse/SCRUM-147), 실제 대화 시작·복원은 [SCRUM-137](https://dodamdodam.atlassian.net/browse/SCRUM-137)이 맡는다. |
+
+iPad의 로컬 시연에서는 기존 임시 보호자 계정으로 로그인하면 합성 API가 별이의 등록 ID를 반환한다. 화면은 일반 로그인 요청과 계정 확인, 홈 조회를 순서대로 실행한다. 시연 도구와 가상 데이터 기기 증거는 로컬 `build/scrum-132/`에 있다.
+
+2026-11-24 최종 로컬 검사에서 Expo 의존성 호환성, manifest, workflow 검사 26개, lint, typecheck, Jest 54개 스위트·1,090개 테스트, 환경 설정 14개 조합, 양 플랫폼 단일 워커 Hermes export가 통과했다. Astra 리뷰에서 비활성 캐릭터 터치 영역이 작은 가로 화면의 ‘다시 확인’ 버튼을 덮는 문제를 찾았다. 터치 대상에서 제외하고 회귀 테스트를 추가한 뒤 재검토했다.
+
+[SCRUM-131](https://dodamdodam.atlassian.net/browse/SCRUM-131)에서 아이 등록을 구현하면 등록 성공 뒤 공통 `refreshEntry`로 현재 계정을 다시 확인한다. 테스트는 가입 후 아이 없음 → 아이 등록 성공 → `/auth/me`에 등록한 아이 ID 반영 → 같은 아이의 홈 조회 순서로 이어간다. 그때 기기 시연용 계정의 사전 등록 데이터도 신규 등록 흐름에 맞춘다. 실제 서버의 가입부터 아이 홈까지는 [SCRUM-133](https://dodamdodam.atlassian.net/browse/SCRUM-133)에서 검증한다.
+
 ## SCRUM-179: Dependabot Jira 검사 회귀 — 2026-10-26
 
 - `jira-issue-key`는 실행자 대신 PR 작성자 `dependabot[bot]`, 현재 저장소와 동일한 head 저장소, `dependabot/` 브랜치를 함께 확인한다. 사람이 PR을 갱신해도 기존 Dependabot 예외가 유지된다.

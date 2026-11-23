@@ -4,6 +4,7 @@ import type { LoginFeedback } from '../auth/emailLogin';
 import { LoginScreen } from '../auth/LoginScreen';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
+import { HomeEntry } from '../home/HomeEntry';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useRetryWaiting } from '../components/useRetryWaiting';
 import { colors, typography } from '../theme/tokens';
@@ -16,9 +17,11 @@ const titles = {
 };
 
 export function EntryDestination({
-  route, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback, openSignup,
+  route, visit, childId, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback, openSignup,
 }: {
   route: RoutePath;
+  visit: number;
+  childId?: string;
   loginRetryAt?: number;
   loginFeedback?: LoginFeedback;
   loginBlocked?: boolean;
@@ -32,6 +35,10 @@ export function EntryDestination({
   if (route === ROUTES.login) {
     return <LoginScreen submit={submitLogin} retryAt={loginRetryAt} initialFeedback={loginFeedback}
       blocked={loginBlocked} retrySecurity={loginCsrfRecovery ? retryLogoutCsrf : undefined} openSignup={openSignup} />;
+  }
+
+  if (route === ROUTES.home && childId) {
+    return <HomeEntry visit={visit} childId={childId} logoutRetryAt={logoutRetryAt} logoutFeedback={logoutFeedback} />;
   }
 
   return (
