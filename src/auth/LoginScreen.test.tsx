@@ -23,6 +23,7 @@ test('시안의 제목과 마스킹된 입력을 보여주며 후속 동작은 �
   expect(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' })).toBeDisabled();
   expect(screen.getByRole('button', { name: '이메일로 회원 가입' })).toBeDisabled();
   expect(screen.getByRole('button', { name: 'Google' })).toBeDisabled();
+  expect(screen.queryByRole('button', { name: /카카오|kakao/i })).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();
   expect(submit).not.toHaveBeenCalled();
 });
