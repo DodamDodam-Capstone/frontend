@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
 import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
 
 import App from './App';
@@ -32,20 +32,30 @@ jest.mock('./src/navigation/EntryDestination', () => {
   const { Pressable, Text } = jest.requireActual<typeof import('react-native')>('react-native');
   const { EntryDestination } = jest.requireActual<typeof import('./src/navigation/EntryDestination')>('./src/navigation/EntryDestination');
   const { useEntrySession } = jest.requireActual<typeof import('./src/navigation/entrySession')>('./src/navigation/entrySession');
+  const { parseApiResponse } = jest.requireActual<typeof import('./src/api/response')>('./src/api/response');
   return {
     EntryDestination: function TestDestination(props: Parameters<typeof EntryDestination>[0]) {
       const { client, receiveProtectedAuthResult } = useEntrySession();
-      const [accountLabel] = useState(() => mockAccountLabel);
+      const [accountLabel, setAccountLabel] = useState(() => mockAccountLabel);
       async function openChildren() {
         const result = await client.request({ method: 'GET', path: '/children' });
-        await receiveProtectedAuthResult(result);
+        if (result.kind !== 'response' || result.response.status !== 200) return receiveProtectedAuthResult(result);
+        const parsed = await parseApiResponse(result.response, { kind: 'json', statuses: [200] });
+        if (parsed.kind !== 'json' || typeof parsed.data !== 'string') throw new Error('Invalid test receiver value');
+        const value = parsed.data;
+        await mockAfterChildrenParse?.(value);
+        return client.commitIfCurrent(result.context, () => {
+          setAccountLabel(value);
+          // 방문이 끝난 화면에서는 setState가 표시되지 않아도 쓰기 시도 자체를 관찰한다.
+          mockAccountWrites.push(value);
+        });
       }
       return <>
         <EntryDestination {...props} />
         {props.route === '/home' && (
           <>
             {accountLabel && <Text>{accountLabel}</Text>}
-            <Pressable accessibilityRole="button" onPress={() => { void openChildren(); }}><Text>아이 목록 확인</Text></Pressable>
+            <Pressable accessibilityRole="button" onPress={() => { mockChildrenReads.push(openChildren()); }}><Text>아이 목록 확인</Text></Pressable>
           </>
         )}
       </>;
@@ -58,6 +68,9 @@ const saved = keys.map(key => process.env[key]);
 const markers = new Map<string, string>();
 const marker = '@dodamdodam/onboarding-complete-v1';
 let mockAccountLabel: string | undefined;
+let mockAfterChildrenParse: ((value: string) => Promise<void>) | undefined;
+const mockAccountWrites: string[] = [];
+const mockChildrenReads: Promise<boolean>[] = [];
 const account = {
   accountId: '11111111-1111-4111-8111-111111111111',
   email: 'guardian@example.com',
@@ -74,6 +87,9 @@ beforeEach(() => {
   process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.invalid/api/v1';
   markers.clear();
   mockAccountLabel = undefined;
+  mockAfterChildrenParse = undefined;
+  mockAccountWrites.length = 0;
+  mockChildrenReads.length = 0;
   jest.mocked(AsyncStorage.getItem).mockReset().mockImplementation(async key => markers.get(key) ?? null);
   jest.mocked(AsyncStorage.setItem).mockReset().mockImplementation(async (key, value) => { markers.set(key, value); });
   jest.spyOn(AccessibilityInfo, 'isReduceMotionEnabled').mockResolvedValue(true);
@@ -161,14 +177,191 @@ function loginFetch(post: () => Response | Promise<Response>, accountAfterLogin:
   });
 }
 
-async function openLoginForm() {
+async function fillLoginForm(email: string, password: string) {
+  await fireEvent.changeText(screen.getByLabelText('이메일'), email);
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), password);
+}
+
+async function openLoginForm(email = 'guardian@example.test', password = ' x ') {
   markers.set(marker, 'true');
   await render(<App />);
   await finishSplash();
   expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
-  await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
-  await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
+  await fillLoginForm(email, password);
 }
+
+function pause() {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  return { wait: jest.fn(() => pending), release };
+}
+
+function pauseBody(body: Response) {
+  const gate = pause();
+  const read = body.text.bind(body);
+  jest.spyOn(body, 'text').mockImplementation(async () => {
+    await gate.wait();
+    return read();
+  });
+  return gate;
+}
+
+const accountA = { ...account, email: 'guardian@example.test' };
+const accountB = { ...account, accountId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', email: 'second@example.test' };
+
+function authFlowFetch(gates: { failedLogin?: () => Promise<void>; logout?: () => Promise<void> } = {}) {
+  let session: typeof account | undefined;
+  let visit = 0;
+  const children = jest.fn((value: string) => response(200, { data: value }));
+  const expired = () => authError(401, 'AUTHENTICATION_REQUIRED');
+  const fetchCall = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    switch (`${init?.method} ${path}`) {
+      case 'GET /api/v1/auth/csrf':
+        return response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'synthetic-csrf' });
+      case 'GET /api/v1/auth/me':
+        return session ? response(200, { data: session }) : expired();
+      case 'POST /api/v1/auth/login': {
+        const { email, password } = JSON.parse(String(init?.body));
+        const next = [accountA, accountB].find(candidate => candidate.email === email);
+        if (!next || password !== ' x ') {
+          await gates.failedLogin?.();
+          return authError(401, 'LOGIN_FAILED');
+        }
+        session = next;
+        visit += 1;
+        return response(200, { data: session });
+      }
+      case 'POST /api/v1/auth/logout':
+        await gates.logout?.();
+        session = undefined;
+        return new Response(null, { status: 204 });
+      case 'GET /api/v1/children':
+        return session ? children(`${session.email} · 방문 ${visit}`) : expired();
+      default: throw new Error('Unexpected auth flow request');
+    }
+  });
+  return {
+    children, expire() { session = undefined; },
+    calls: (path: string) => fetchCall.mock.calls.filter(([url]) => String(url).endsWith(path)),
+  };
+}
+
+async function requestChildren() {
+  const start = mockChildrenReads.length;
+  await fireEvent.press(screen.getByRole('button', { name: '아이 목록 확인' }));
+  expect(mockChildrenReads).toHaveLength(start + 1);
+  return { finished: mockChildrenReads[start] };
+}
+
+async function expectCurrentValue(value: string) {
+  const { finished } = await requestChildren();
+  expect(await finished).toBe(true);
+  expect(await screen.findByText(value)).toBeVisible();
+}
+
+async function expectBlankLogin() {
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  expect(screen.getByLabelText('이메일')).toHaveDisplayValue('');
+  expect(screen.getByLabelText('비밀번호')).toHaveDisplayValue('');
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+}
+
+test('로그인 실패 후 같은 계정에 다시 로그인하면 로그아웃 전의 늦은 본문과 만료를 무시한다', async () => {
+  const failedLogin = pause();
+  const logout = pause();
+  const server = authFlowFetch({ failedLogin: failedLogin.wait, logout: logout.wait });
+  await openLoginForm(accountA.email, 'z');
+  const login = screen.getByRole('button', { name: '로그인' });
+  await fireEvent.press(login);
+  await fireEvent(screen.getByLabelText('비밀번호'), 'submitEditing');
+  await fireEvent.press(login);
+  await waitFor(() => expect(failedLogin.wait).toHaveBeenCalledTimes(1));
+  expect(login).toBeBusy();
+  await act(() => { failedLogin.release(); });
+  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(screen.getByLabelText('이메일')).toHaveDisplayValue(accountA.email);
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  expect(server.calls('/auth/login')).toHaveLength(1);
+  expect(server.calls('/auth/me')).toHaveLength(1); // 최초 미인증 확인만 수행했다.
+
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
+  await fireEvent.press(login);
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  const first = `${accountA.email} · 방문 1`;
+  const second = `${accountA.email} · 방문 2`;
+  await expectCurrentValue(first);
+
+  const oldValue = response(200, { data: '이전 방문의 늦은 값' });
+  const successBody = pauseBody(oldValue);
+  server.children.mockReturnValueOnce(oldValue);
+  const oldSuccess = await requestChildren();
+  await waitFor(() => expect(successBody.wait).toHaveBeenCalledTimes(1));
+  const oldExpiry = authError(401, 'AUTHENTICATION_REQUIRED');
+  const copy = oldExpiry.clone();
+  const expiryBody = pauseBody(copy);
+  jest.spyOn(oldExpiry, 'clone').mockReturnValueOnce(copy);
+  server.children.mockReturnValueOnce(oldExpiry);
+  const oldFailure = await requestChildren();
+  await waitFor(() => expect(expiryBody.wait).toHaveBeenCalledTimes(1));
+
+  await fireEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+  await waitFor(() => expect(logout.wait).toHaveBeenCalledTimes(1));
+  expect(screen.getByText('로그아웃 중')).toBeVisible();
+  expect(screen.queryByText(first)).not.toBeOnTheScreen();
+  await act(() => { logout.release(); });
+  await expectBlankLogin();
+  await fillLoginForm(accountA.email, ' x ');
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(screen.queryByText(first)).not.toBeOnTheScreen();
+  await expectCurrentValue(second);
+
+  await act(async () => {
+    successBody.release();
+    expiryBody.release();
+    expect(await Promise.all([oldSuccess.finished, oldFailure.finished])).toEqual([false, false]);
+  });
+  expect(mockAccountWrites).toEqual([first, second]);
+  expect(screen.getByText(second)).toBeVisible();
+  expect(server.calls('/auth/login')).toHaveLength(3);
+  expect(server.calls('/auth/logout').map(([, init]) => init?.body)).toEqual([undefined]);
+});
+
+test('사용 중 세션이 만료되어 다른 계정으로 로그인하면 본문 해석을 마친 이전 작업도 반영되지 않는다', async () => {
+  const server = authFlowFetch();
+  await openLoginForm(accountA.email);
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  const first = `${accountA.email} · 방문 1`;
+  const second = `${accountB.email} · 방문 2`;
+  await expectCurrentValue(first);
+
+  const afterParse = pause();
+  mockAfterChildrenParse = afterParse.wait;
+  const old = await requestChildren();
+  await waitFor(() => expect(afterParse.wait).toHaveBeenCalledWith(first));
+  mockAfterChildrenParse = undefined;
+  server.expire();
+  const expiry = await requestChildren();
+  expect(await expiry.finished).toBe(true);
+  await expectBlankLogin();
+  expect(screen.queryByText(first)).not.toBeOnTheScreen();
+
+  await fillLoginForm(accountB.email, ' x ');
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
+  expect(screen.queryByText(first)).not.toBeOnTheScreen();
+  await expectCurrentValue(second);
+  await act(async () => {
+    afterParse.release();
+    expect(await old.finished).toBe(false);
+  });
+  expect(mockAccountWrites).toEqual([first, second]);
+  expect(screen.getByText(second)).toBeVisible();
+  expect(server.calls('/auth/login')).toHaveLength(2);
+  expect(server.calls('/auth/logout')).toHaveLength(0);
+});
 
 test('앱에서 로그아웃하면 갱신을 기다리는 동안에도 기존 계정 내용을 숨긴다', async () => {
   markers.set(marker, 'true');
