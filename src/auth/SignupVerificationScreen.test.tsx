@@ -24,6 +24,7 @@ function harness() {
     finish: () => update({ step: 'verified' }),
     closeDialog: () => update({ step: 'form' }),
     syncTime: jest.fn<() => void>(),
+    submitSignup: jest.fn(async (_password: string, _confirmation: string) => {}),
   };
   return { flow, update };
 }
@@ -34,6 +35,7 @@ test('주소 확인과 발송을 분리하고 선행 0을 보존한 인증 결�
   await render(<SignupVerificationScreen flow={flow} onBack={back} />);
   expect(screen.getByRole('header', { name: '보호자 계정 만들기' })).toBeVisible();
   expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+  expect(screen.getByLabelText('비밀번호')).toBeDisabled();
   await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.org');
   await fireEvent.press(screen.getByRole('button', { name: '인증하기' }));
   expect(flow.issue).not.toHaveBeenCalled();
@@ -46,11 +48,52 @@ test('주소 확인과 발송을 분리하고 선행 0을 보존한 인증 결�
   await fireEvent.press(screen.getByRole('button', { name: '확인' }));
   expect(flow.verify).toHaveBeenCalledWith('012345');
   expect(screen.getByRole('header', { name: '이메일 인증 완료' })).toBeVisible();
+  expect(flow.submitSignup).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: '비밀번호 설정하기' }));
   expect(screen.getByText('이메일 인증이 완료되었어요.')).toBeVisible();
   expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+  expect(screen.getByLabelText('비밀번호')).toBeEnabled();
+  expect(flow.submitSignup).not.toHaveBeenCalled();
   await fireEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
   expect(back).toHaveBeenCalledTimes(1);
+});
+
+test('비밀번호를 보안 입력하며 확인 오류와 이메일 변경에 따른 초기화를 표시한다', async () => {
+  const { flow, update } = harness();
+  update({ step: 'verified', email: 'guardian@example.test', tokenExpiresAt: Date.now() + 60_000 });
+  await render(<SignupVerificationScreen flow={flow} onBack={jest.fn()} />);
+  const password = screen.getByLabelText('비밀번호');
+  expect(password).toHaveProp('secureTextEntry', true);
+  expect(password).toHaveProp('submitBehavior', 'submit');
+  const original = ' 한🙂' + 'a'.repeat(11) + ' ';
+  await fireEvent.changeText(password, original);
+  await fireEvent.changeText(screen.getByLabelText('비밀번호 확인'), original.trim());
+  expect(screen.getByText(/비밀번호가 일치하지 않아요/)).toBeVisible();
+  expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+  await fireEvent.changeText(screen.getByLabelText('비밀번호 확인'), original);
+  await fireEvent.press(screen.getByRole('button', { name: '계정 만들기' }));
+  expect(flow.submitSignup).toHaveBeenCalledWith(original, original);
+  await fireEvent.changeText(screen.getByLabelText('이메일'), 'another@example.test');
+  expect(screen.getByLabelText('비밀번호')).toHaveDisplayValue('');
+  expect(screen.getByLabelText('비밀번호 확인')).toHaveDisplayValue('');
+  expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+});
+
+test('iOS 가입 폼은 스크롤 영역에서 키보드 인셋을 조정한다', async () => {
+  const { flow } = harness();
+  await render(<SignupVerificationScreen flow={flow} onBack={jest.fn()} />);
+  expect(screen.getByTestId('signup-form-scroll')).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+});
+
+test('Android 가입 폼에는 iOS 키보드 인셋을 적용하지 않는다', async () => {
+  const platform = jest.replaceProperty(Platform, 'OS', 'android');
+  try {
+    const { flow } = harness();
+    await render(<SignupVerificationScreen flow={flow} onBack={jest.fn()} />);
+    expect(screen.getByTestId('signup-form-scroll')).toHaveProp('automaticallyAdjustKeyboardInsets', false);
+  } finally {
+    platform.restore();
+  }
 });
 
 test('기한과 요청 제한에 맞춰 확인·재전송을 막고 새 요청 ID에서 이전 입력을 지운다', async () => {

@@ -37,7 +37,7 @@ export type ApiClient = {
   commitIfCurrent(context: AuthContext | undefined, apply: () => undefined): boolean;
   expireIfCurrent(context: AuthContext | undefined, onExpired: (next: AuthContext) => undefined): boolean;
   discardRequestContexts(): void;
-  request(request: ApiRequest): Promise<ApiResult>;
+  request(request: ApiRequest, beforeSend?: () => boolean): Promise<ApiResult>;
   authTransition(request: ApiRequest, classify: (response: Response) => AuthOutcome | Promise<AuthOutcome>): Promise<AuthTransitionResult>;
 };
 type PreparedRequest = ApiRequest & { url: string; headers: Headers };
@@ -165,7 +165,9 @@ export function createApiClient(
   }
 
   // 인증 전송도 같은 검증·CSRF 설정을 사용한다. 공개 bypass 옵션은 제공하지 않는다.
-  async function perform(value: PreparedRequest, blocked: () => boolean, context: AuthContext): Promise<ApiResult> {
+  async function perform(
+    value: PreparedRequest, blocked: () => boolean, context: AuthContext, beforeSend?: () => boolean,
+  ): Promise<ApiResult> {
     const { method, path, body, signal, url, headers } = value;
     if (signal?.aborted) return { kind: 'not_sent', reason: 'cancelled' };
     if (method === 'POST') {
@@ -185,6 +187,8 @@ export function createApiClient(
       headers.set('X-XSRF-TOKEN', token);
       state.sentVersion = version;
     }
+    // 호출부의 일회성 권한은 CSRF 대기 중에도 만료될 수 있다.
+    if (beforeSend && !beforeSend()) return { kind: 'not_sent', reason: 'cancelled' };
     try {
       const response = await send(path, url, {
         method, credentials: 'include', cache: 'no-store', redirect: 'error', headers,
@@ -197,13 +201,13 @@ export function createApiClient(
     }
   }
 
-  async function request(value: ApiRequest): Promise<ApiResult> {
+  async function request(value: ApiRequest, beforeSend?: () => boolean): Promise<ApiResult> {
     const prepared = prepareRequest(value);
     if (!prepared) return { kind: 'not_sent', reason: 'invalid_request' };
     if (transitioning) return { kind: 'not_sent', reason: 'auth_transition' };
     const context = captureContext();
     const blocked = () => !isCurrentContext(context);
-    const operation = perform(prepared, blocked, context);
+    const operation = perform(prepared, blocked, context, beforeSend);
     inFlight.add(operation);
     try {
       const result = await operation;

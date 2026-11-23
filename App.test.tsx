@@ -247,7 +247,7 @@ function authFlowFetch(gates: { failedLogin?: () => Promise<void>; logout?: () =
   };
 }
 
-function signupFixture() {
+function signupFixture(createAccount = () => Promise.resolve(response(201, { data: { accountId: account.accountId } }))) {
   let signedIn = false;
   const challengeId = '12345678-abcd-4abc-8abc-123456789012';
   const futureKst = () => new Date(Date.now() + (9 * 60 + 5) * 60_000).toISOString().replace('Z', '000+09:00');
@@ -268,9 +268,18 @@ function signupFixture() {
     if (path === '/api/v1/auth/email-verifications/verify') {
       return response(200, { data: { verificationToken: challengeId + '.' + 'a'.repeat(43), tokenExpiresAt: futureKst() } });
     }
+    if (path === '/api/v1/auth/signup') return createAccount();
     throw new Error('Unexpected signup endpoint');
   });
   return { requests, challengeId, signIn: () => { signedIn = true; } };
+}
+
+async function verifySignupEmail() {
+  await openSignupForm();
+  await fireEvent.press(screen.getByRole('button', { name: '인증번호 받기' }));
+  await fireEvent.changeText(await screen.findByLabelText('인증번호 6자리'), '012345');
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+  await fireEvent.press(await screen.findByRole('button', { name: '비밀번호 설정하기' }));
 }
 
 async function openSignupForm() {
@@ -321,6 +330,50 @@ test('복귀 조회에서 로그인한 계정이 확인되면 가입 진행을 �
   expect(await screen.findByRole('header', { name: '홈' })).toBeVisible();
   expect(screen.queryByLabelText('인증번호 6자리')).not.toBeOnTheScreen();
   expect(server.requests).toHaveLength(1);
+});
+
+test('일반 앱에서 인증과 가입을 분리하고 가입 완료 뒤 기존 로그인으로 이동한다', async () => {
+  const held = pendingResponse();
+  const server = signupFixture(() => held.promise);
+  await verifySignupEmail();
+  const original = ' 한🙂' + 'a'.repeat(11) + ' ';
+  expect(server.requests).toHaveLength(2);
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), original);
+  await fireEvent.changeText(screen.getByLabelText('비밀번호 확인'), original);
+  await fireEvent.press(screen.getByRole('button', { name: '계정 만들기' }));
+  const pending = screen.getByRole('button', { name: '계정 만드는 중' });
+  expect(pending).toBeBusy();
+  await fireEvent.press(pending);
+  expect(server.requests.slice(2)).toEqual([{ path: '/api/v1/auth/signup', body: {
+    verificationToken: server.challengeId + '.' + 'a'.repeat(43), password: original,
+  } }]);
+  await act(() => held.resolve(response(201, { data: { accountId: account.accountId } })));
+  expect(await screen.findByRole('header', { name: '보호자 계정이 만들어졌어요!' })).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '로그인하기' }));
+  expect(screen.getByRole('button', { name: '로그인' })).toBeVisible();
+  expect(server.requests.map(({ path }) => path)).toHaveLength(3);
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+});
+
+test('가입 응답을 기다리는 중 앱을 떠나면 복귀한 화면에서 이전 성공을 표시하지 않는다', async () => {
+  const changeAppState = observeAppState();
+  const held = pendingResponse();
+  const server = signupFixture(() => held.promise);
+  await verifySignupEmail();
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), 'a'.repeat(15));
+  await fireEvent.changeText(screen.getByLabelText('비밀번호 확인'), 'a'.repeat(15));
+  await fireEvent.press(screen.getByRole('button', { name: '계정 만들기' }));
+  expect(server.requests).toHaveLength(3);
+  await changeAppState('background');
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  await act(() => held.resolve(response(201, { data: { accountId: account.accountId } })));
+  expect(screen.queryByText('가입 완료!')).not.toBeOnTheScreen();
+  expect(await screen.findByLabelText('비밀번호')).toHaveDisplayValue('');
+  expect(screen.getByRole('alert')).toHaveTextContent(/가입 결과를 확인할 수 없어요/);
+  expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
+  expect(screen.getByRole('button', { name: '로그인하기' })).toBeEnabled();
+  expect(server.requests).toHaveLength(3);
 });
 
 test.each(['누르기 전', '누른 뒤'])('초기 계정 401 뒤 가입 발송을 %s 도착한 CSRF 제한도 반영한다', async timing => {

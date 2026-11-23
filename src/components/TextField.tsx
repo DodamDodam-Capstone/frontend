@@ -7,7 +7,7 @@ import { colors, typography } from '../theme/tokens';
 export type TextFieldProps = Pick<TextInputProps,
   'value' | 'onChangeText' | 'secureTextEntry' | 'keyboardType' | 'autoCapitalize' |
   'autoCorrect' | 'autoComplete' | 'textContentType' | 'returnKeyType' | 'onSubmitEditing' |
-  'submitBehavior' | 'placeholder'
+  'submitBehavior' | 'placeholder' | 'onFocus'
 > & {
   label: string;
   value: string;
@@ -18,7 +18,7 @@ export type TextFieldProps = Pick<TextInputProps,
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, value, onChangeText, helperText, error, disabled = false, ...inputProps }, ref,
+  { label, value, onChangeText, helperText, error, disabled = false, onFocus, ...inputProps }, ref,
 ) {
   const labelId = useId();
   const [focused, setFocused] = useState(false);
@@ -37,7 +37,7 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         accessibilityHint={message}
         accessibilityState={{ disabled }}
         editable={!disabled}
-        onFocus={() => setFocused(true)}
+        onFocus={event => { setFocused(true); onFocus?.(event); }}
         onBlur={() => setFocused(false)}
         placeholderTextColor={colors.textPlaceholder}
         selectionColor={colors.textLabel}

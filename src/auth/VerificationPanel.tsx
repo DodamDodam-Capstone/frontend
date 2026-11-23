@@ -10,17 +10,18 @@ import { ErrorMessage } from '../components/ErrorMessage';
 import { colors, fonts, typography } from '../theme/tokens';
 
 export function useVerificationClock(syncTime: () => void, expiresAt?: number, tokenExpiresAt?: number,
-  issueRetryAt?: number, verifyRetryAt?: number) {
+  issueRetryAt?: number, verifyRetryAt?: number, signupRetryAt?: number) {
   const [now, setNow] = useState(Date.now);
   useEffect(() => {
-    if ([expiresAt, tokenExpiresAt, issueRetryAt, verifyRetryAt].every(at => at === undefined)) return;
+    const times = [expiresAt, tokenExpiresAt, issueRetryAt, verifyRetryAt, signupRetryAt];
+    if (times.every(at => at === undefined)) return;
     let timer: ReturnType<typeof setTimeout>;
     function tick() {
       clearTimeout(timer);
       syncTime();
       const now = Date.now();
       setNow(now);
-      const deadlines = [expiresAt, tokenExpiresAt, issueRetryAt, verifyRetryAt].filter((at): at is number => at !== undefined && at > now);
+      const deadlines = times.filter((at): at is number => at !== undefined && at > now);
       if (!deadlines.length) return;
       const delay = Math.min(...deadlines) - now;
       timer = setTimeout(tick, Math.min(delay, expiresAt || issueRetryAt ? 1_000 : 2_147_483_647));
@@ -28,7 +29,7 @@ export function useVerificationClock(syncTime: () => void, expiresAt?: number, t
     tick();
     const listener = AppState.addEventListener('change', status => { if (status === 'active') tick(); });
     return () => { clearTimeout(timer); listener.remove(); };
-  }, [syncTime, expiresAt, tokenExpiresAt, issueRetryAt, verifyRetryAt]);
+  }, [syncTime, expiresAt, tokenExpiresAt, issueRetryAt, verifyRetryAt, signupRetryAt]);
   return now;
 }
 
