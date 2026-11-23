@@ -5,7 +5,12 @@ import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api
 import { prepareRequestBody } from '../api/requestBody';
 import { parseApiResponse } from '../api/response';
 
-export type LoginFeedback = { message: string; fields?: { email?: string; password?: string }; retryAt?: number };
+export type LoginFeedback = {
+  message: string;
+  kind?: 'credentials';
+  fields?: { email?: string; password?: string };
+  retryAt?: number;
+};
 export type EmailLoginResult =
   | { kind: 'accepted'; csrfFailed: boolean; retryAt?: number }
   | { kind: 'uncertain'; feedback: LoginFeedback }
@@ -16,7 +21,7 @@ type LoginDecision = { outcome: AuthOutcome; feedback?: LoginFeedback; retryAt?:
 const uncertainFeedback = { message: '로그인 결과를 확인할 수 없어요. 로그인 상태를 다시 확인해 주세요.' };
 const csrfFeedback = { message: '로그인 요청을 준비할 수 없어요. 다시 시도해 주세요.' };
 const rateLimitFeedback = { message: '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.' };
-const inputFeedback = { message: '입력한 이메일과 비밀번호를 확인해 주세요.' };
+const inputFeedback: LoginFeedback = { kind: 'credentials', message: '입력한 이메일과 비밀번호를 확인해 주세요.' };
 
 function retryAtFor(decision: RecoveryDecision, receivedAt: number): number | undefined {
   if (decision.kind === 'rate_limited' && decision.retryAfter.kind === 'valid') {
@@ -41,7 +46,7 @@ async function classifyLogin(response: Response): Promise<LoginDecision> {
       return { outcome: 'unchanged', feedback: { ...inputFeedback, fields } };
     }
     case 'login_failed':
-      return { outcome: 'unchanged', feedback: { message: '이메일 또는 비밀번호가 올바르지 않아요.' } };
+      return { outcome: 'unchanged', feedback: inputFeedback };
     case 'request_too_large':
       return { outcome: 'unchanged', feedback: { message: '로그인 요청의 크기가 너무 커요. 입력을 확인해 주세요.' } };
     case 'unsupported_media_type':
@@ -68,7 +73,10 @@ export async function submitEmailLogin(client: ApiClient, email: string, passwor
   const fields: NonNullable<LoginFeedback['fields']> = {};
   if (email.trim() === '') fields.email = '이메일을 입력해 주세요.';
   if (password === '') fields.password = '비밀번호를 입력해 주세요.';
-  if (fields.email || fields.password) return { kind: 'rejected', feedback: { ...inputFeedback, fields } };
+  if (fields.email || fields.password) {
+    const message = fields.email && fields.password ? '이메일과 비밀번호를 입력해 주세요.' : inputFeedback.message;
+    return { kind: 'rejected', feedback: { ...inputFeedback, message, fields } };
+  }
 
   const body = prepareRequestBody({ kind: 'json', value: { email, password } });
   if (!body.ok) return { kind: 'rejected', feedback: inputFeedback };

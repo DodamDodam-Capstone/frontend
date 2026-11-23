@@ -15,7 +15,7 @@ export function SignupCompleteScreen({ onLogin }: { onLogin: () => void }) {
   }, []);
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: 88 * scale }]}>
+    <ScrollView bounces={false} style={styles.screen} contentContainerStyle={[styles.content, { paddingTop: 88 * scale }]}>
       <View style={styles.badge}><AppText style={styles.badgeText}>가입 완료!</AppText></View>
       <AppText ref={heading} accessibilityRole="header" style={styles.title}>보호자 계정이 만들어졌어요!</AppText>
       <AppText style={styles.description}>가입한 이메일과 비밀번호로 로그인해 주세요.</AppText>

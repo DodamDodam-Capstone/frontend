@@ -14,7 +14,7 @@ import { SignupCompleteScreen } from './SignupCompleteScreen';
 import { validateSignupPassword } from './signupPassword';
 import { VerificationPanel, useVerificationClock } from './VerificationPanel';
 
-type ScreenFlow = Pick<EmailVerificationFlow, 'getSnapshot' | 'subscribe' | 'setEmail' | 'openEmail' | 'issue' |
+type ScreenFlow = Pick<EmailVerificationFlow, 'getSnapshot' | 'subscribe' | 'setEmail' | 'clearInvalidEmail' | 'openEmail' | 'issue' |
   'verify' | 'closeDialog' | 'finish' | 'syncTime' | 'submitSignup'>;
 type SignupSnapshot = ReturnType<ScreenFlow['getSnapshot']>;
 
@@ -160,6 +160,10 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
   }, [close]);
 
   useEffect(() => {
+    if (state.emailFormatError) AccessibilityInfo.announceForAccessibility(state.emailFormatError);
+  }, [state.emailFormatError]);
+
+  useEffect(() => {
     if (previousPanel.current && !panel) {
       if (!verified) trigger.current?.focus();
       const returnTarget = verified ? heading.current : trigger.current;
@@ -176,7 +180,7 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
         importantForAccessibility={panel ? 'no-hide-descendants' : 'auto'} pointerEvents={panel ? 'none' : 'auto'}>
         <SignupProgress verified={verified} width={railWidth} />
         <KeyboardAvoidingView style={styles.formColumn} behavior="padding" enabled={Platform.OS === 'android'}>
-          <ScrollView ref={scroll} testID="signup-form-scroll" keyboardShouldPersistTaps="handled"
+          <ScrollView ref={scroll} bounces={false} testID="signup-form-scroll" keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.formScroll} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
             <View style={styles.form}>
               <View style={styles.heading}>
@@ -186,6 +190,7 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
               </View>
               <TextField label="이메일" value={state.email} onChangeText={flow.setEmail} disabled={emailLocked}
                 placeholder="이메일을 입력해주세요." keyboardType="email-address" autoComplete="email"
+                error={state.emailFormatError} showErrorInInput onPress={flow.clearInvalidEmail} onFocus={flow.clearInvalidEmail}
                 autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
               <View style={styles.fieldGroup}>
                 <AppText style={styles.label}>이메일 인증  *필수</AppText>

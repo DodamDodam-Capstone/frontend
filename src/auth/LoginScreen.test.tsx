@@ -19,6 +19,9 @@ test('이메일 가입만 연결하고 비밀번호 찾기와 Google은 후속 �
   await render(<LoginScreen submit={submit} retryAt={undefined} openSignup={openSignup} />);
 
   expect(screen.getByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  const [formScroll] = screen.container.queryAll(view => view.props.automaticallyAdjustKeyboardInsets === true);
+  expect(formScroll).toHaveProp('bounces', false);
+  expect(formScroll).not.toHaveProp('scrollEnabled', false);
   expect(screen.getByLabelText('이메일')).toHaveProp('keyboardType', 'email-address');
   expect(screen.getByLabelText('비밀번호')).toHaveProp('secureTextEntry', true);
   expect(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' })).toBeDisabled();
@@ -104,4 +107,28 @@ test('계정 재확인 뒤 다시 열린 폼은 전달받은 안내만 표시하
   expect(screen.getByLabelText('비밀번호')).toHaveDisplayValue('');
   await fireEvent.changeText(screen.getByLabelText('이메일'), email);
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+test.each([
+  ['틀린 계정', { kind: 'credentials', message: '입력한 이메일과 비밀번호를 확인해 주세요.' }, '입력한 이메일과 비밀번호를 확인해 주세요.'],
+  ['두 입력이 비어 있음', {
+    kind: 'credentials', message: '이메일과 비밀번호를 입력해 주세요.',
+    fields: { email: '이메일을 입력해 주세요.', password: '비밀번호를 입력해 주세요.' },
+  }, '이메일과 비밀번호를 입력해 주세요.'],
+  ['비밀번호만 비어 있음', {
+    kind: 'credentials', message: '입력한 이메일과 비밀번호를 확인해 주세요.',
+    fields: { password: '비밀번호를 입력해 주세요.' },
+  }, '비밀번호를 입력해 주세요.'],
+] satisfies [string, LoginFeedback, string][])('%s 안내는 비밀번호 찾기와 같은 줄에 한 번만 표시한다', async (_case, feedback, message) => {
+  const submit = jest.fn(async () => feedback);
+  await render(<LoginScreen submit={submit} retryAt={undefined} />);
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+
+  const alert = await screen.findByRole('alert');
+  const reset = screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' });
+  expect(alert).toHaveTextContent(message);
+  expect(alert).toHaveStyle({ fontSize: 15, lineHeight: 21, color: '#BC135D' });
+  expect(alert.parent?.parent).toBe(reset.parent);
+  expect(reset.parent).toHaveStyle({ flexDirection: 'row', alignItems: 'center' });
+  expect(screen.queryByText(/^오류:/)).not.toBeOnTheScreen();
 });

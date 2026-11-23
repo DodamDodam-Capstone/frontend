@@ -12,7 +12,8 @@ type EntryError = {
   reason: 'request_failed' | 'auth_state_unavailable' | 'rate_limited' | 'invalid_response' | 'csrf_unavailable';
   retryAt?: number;
 };
-type EntryRoute = { kind: 'route'; route: RoutePath };
+type HomeIdentity = { accountId: string; childId: string };
+type EntryRoute = { kind: 'route'; route: RoutePath; child?: HomeIdentity };
 type EntryAttempt = {
   aborter: AbortController;
   finishCancelled: () => void;
@@ -22,7 +23,8 @@ type EntryAttempt = {
   expired?: boolean;
 };
 
-type EntryVisit = EntryRoute & {
+type EntryVisit = Omit<EntryRoute, 'child'> & {
+  childId?: string;
   visit: number;
   generation: number;
   loginRetryAt?: number;
@@ -38,9 +40,10 @@ export type EntrySnapshot = { kind: 'loading' } | EntryVisit | EntryError;
 
 const loading = { kind: 'loading' } as const;
 const jsonResponse = { kind: 'json', statuses: [200] } as const;
-function routeForAccount(value: unknown): RoutePath | undefined {
+function routeForAccount(value: unknown): EntryRoute | undefined {
   if (!isAccountView(value)) return;
-  return value.childId === null ? ROUTES.childRegistration : ROUTES.home;
+  if (value.childId === null) return { kind: 'route', route: ROUTES.childRegistration };
+  return { kind: 'route', route: ROUTES.home, child: { accountId: value.accountId, childId: value.childId } };
 }
 
 function rateLimit(decision: RecoveryDecision, receivedAt: number): EntryError | undefined {
@@ -79,6 +82,8 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   let currentAttempt: EntryAttempt | undefined;
   let entryCsrf: Promise<void> | undefined;
   let retryAt = 0;
+  let homeIdentity: HomeIdentity | undefined;
+  let homeRetry: (HomeIdentity & { retryAt: number }) | undefined;
   let loginPending = false;
   let loginRetryAt = 0;
   let loginFeedback: LoginFeedback | undefined;
@@ -147,9 +152,17 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       ...(signup ? { signup } : {}),
       ...(loginFeedback ? { loginFeedback } : {}),
     } : undefined;
-    if (next.kind === 'route') loginFeedback = undefined;
+    if (next.kind === 'route') {
+      loginFeedback = undefined;
+      if (homeRetry && (next.child?.accountId !== homeRetry.accountId
+        || next.child?.childId !== homeRetry.childId)) homeRetry = undefined;
+    }
+    homeIdentity = next.kind === 'route' ? next.child : undefined;
     const controls = next.kind === 'route' ? loginState ?? logoutControls() : undefined;
-    setSnapshot(next.kind === 'route' ? { ...next, visit: ++visit, generation, ...controls } : next);
+    setSnapshot(next.kind === 'route' ? {
+      kind: 'route', route: next.route, ...(homeIdentity ? { childId: homeIdentity.childId } : {}),
+      visit: ++visit, generation, ...controls,
+    } : next);
   }
 
   function setSnapshot(next: EntrySnapshot) {
@@ -209,6 +222,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     cancelAttempt();
     logoutFeedback = undefined;
     logoutRetryAt = 0;
+    homeRetry = undefined;
     if (suspended || !isForegroundGeneration()) {
       showSignedOutOnResume = true;
       publish(loading);
@@ -262,7 +276,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
         }
         const route = parsed.kind === 'json' ? routeForAccount(parsed.data) : undefined;
         if (route) discardSignup();
-        attempt.account = route ? { kind: 'route', route } : rateLimit(decision, receivedAt) ?? {
+        attempt.account = route ?? rateLimit(decision, receivedAt) ?? {
           kind: 'error', reason: decision.kind === 'auth_state_unavailable' ? 'auth_state_unavailable' : 'invalid_response',
         };
       }
@@ -474,10 +488,26 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     logoutFeedback = undefined;
     showSignedOutOnResume = false;
     loginCsrfRecovery = false;
+    homeRetry = undefined;
     discardAttempt();
   }
 
-  async function receiveProtectedAuthResult(result: ApiResult): Promise<boolean> {
+  function isHomeVisitCurrent(visit: number): boolean {
+    return mounted && !suspended && !logoutPending && isForegroundGeneration()
+      && snapshot.kind === 'route' && snapshot.route === ROUTES.home && snapshot.visit === visit;
+  }
+
+  function getHomeRetryAt(visit: number): number | undefined {
+    return isHomeVisitCurrent(visit) ? homeRetry?.retryAt : undefined;
+  }
+
+  function rememberHomeRetry(visit: number, retryAt: number) {
+    if (isHomeVisitCurrent(visit) && homeIdentity) {
+      homeRetry = { ...homeIdentity, retryAt };
+    }
+  }
+
+  async function receiveProtectedAuthResult(result: ApiResult, stillCurrent?: () => boolean): Promise<boolean> {
     if (!mounted || suspended || result.kind !== 'response' || result.response.status !== 401
       || !client.isCurrentContext(result.context) || !isForegroundGeneration()) return false;
     const receivedOnMount = mountId;
@@ -490,7 +520,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     }
     const parsed = await parseApiResponse(response, jsonResponse);
     return mounted && !suspended && mountId === receivedOnMount && isForegroundGeneration()
-      && classifyRecovery(parsed, 'general').kind === 'authentication_required'
+      && (stillCurrent?.() ?? true) && classifyRecovery(parsed, 'general').kind === 'authentication_required'
       && receiveExpiry(result.context);
   }
 
@@ -501,6 +531,6 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       return () => { listeners.delete(listener); };
     },
     start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin, submitLogout, retryLogoutCsrf,
-    openSignup, closeSignup,
+    openSignup, closeSignup, isHomeVisitCurrent, getHomeRetryAt, rememberHomeRetry,
   };
 }

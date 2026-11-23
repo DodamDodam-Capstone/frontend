@@ -4,6 +4,8 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-
 import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
 
 import App from './App';
+import { createHomeFixture } from './src/home/homeFixture';
+import type { HomeDestination } from './src/navigation/routes';
 import * as entry from './src/navigation/entryController';
 import { readForegroundGeneration, subscribeToTaskReentry } from './src/navigation/entryPrivacy';
 
@@ -63,6 +65,18 @@ jest.mock('./src/navigation/EntryDestination', () => {
   };
 });
 
+jest.mock('./src/home/HomeDestinationPreview', () => {
+  const { HomeDestinationPreview } = jest.requireActual<typeof import('./src/home/HomeDestinationPreview')>('./src/home/HomeDestinationPreview');
+  return {
+    HomeDestinationPreview: function TestHomeDestination(props: Parameters<typeof HomeDestinationPreview>[0]) {
+      mockHomeDestination(props.destination);
+      return <HomeDestinationPreview {...props} />;
+    },
+  };
+});
+
+const mockHomeDestination = jest.fn<(destination: HomeDestination) => void>();
+
 const keys = ['EXPO_PUBLIC_APP_ENV', 'EXPO_PUBLIC_API_MODE', 'EXPO_PUBLIC_API_BASE_URL'] as const;
 const saved = keys.map(key => process.env[key]);
 const markers = new Map<string, string>();
@@ -86,6 +100,7 @@ beforeEach(() => {
   process.env.EXPO_PUBLIC_API_MODE = 'real';
   process.env.EXPO_PUBLIC_API_BASE_URL = 'https://api.example.invalid/api/v1';
   markers.clear();
+  mockHomeDestination.mockClear();
   mockAccountLabel = undefined;
   mockAfterChildrenParse = undefined;
   mockAccountWrites.length = 0;
@@ -209,7 +224,11 @@ function pauseBody(body: Response) {
 const accountA = { ...account, email: 'guardian@example.test' };
 const accountB = { ...account, accountId: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', email: 'second@example.test' };
 
-function authFlowFetch(gates: { failedLogin?: () => Promise<void>; logout?: () => Promise<void> } = {}) {
+function authFlowFetch(gates: {
+  failedLogin?: () => Promise<void>;
+  logout?: () => Promise<void>;
+  home?: (session: typeof account) => Response;
+} = {}) {
   let session: typeof account | undefined;
   let visit = 0;
   const children = jest.fn((value: string) => response(200, { data: value }));
@@ -238,8 +257,11 @@ function authFlowFetch(gates: { failedLogin?: () => Promise<void>; logout?: () =
         return new Response(null, { status: 204 });
       case 'GET /api/v1/children':
         return session ? children(`${session.email} · 방문 ${visit}`) : expired();
-      default: throw new Error('Unexpected auth flow request');
+      case `GET /api/v1/children/${account.childId}/home`:
+        if (session && gates.home) return gates.home(session);
+        break;
     }
+    throw new Error('Unexpected auth flow request');
   });
   return {
     children, expire() { session = undefined; },
@@ -449,7 +471,7 @@ test('로그인 실패 후 같은 계정에 다시 로그인하면 로그아웃 
   await waitFor(() => expect(failedLogin.wait).toHaveBeenCalledTimes(1));
   expect(login).toBeBusy();
   await act(() => { failedLogin.release(); });
-  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
   expect(screen.getByLabelText('이메일')).toHaveDisplayValue(accountA.email);
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
   expect(server.calls('/auth/login')).toHaveLength(1);
@@ -651,7 +673,7 @@ test('최근 앱 카드 복귀 중 로그인 POST에 온 429는 새 폼의 재�
   await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' ');
   await fireEvent.press(submit);
-  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
   expect(posts).toBe(2);
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
 });
@@ -1028,4 +1050,305 @@ test('네이티브 예약 한도를 넘는 Retry-After 값에서도 실제 마�
   await act(async () => { await jest.advanceTimersByTimeAsync(1_352); });
   expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled();
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(1);
+});
+
+const homePath = `/api/v1/children/${account.childId}/home`;
+const homeAtNoon = createHomeFixture({ serverTime: '2026-11-24T12:00:00+09:00' });
+
+function homeServer(readHome: () => Response | Promise<Response>, getAccount = () => response(200, { data: account })) {
+  return jest.spyOn(globalThis, 'fetch').mockImplementation(async (url, init) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith('/auth/csrf')) {
+      return response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'public-test-fixture' });
+    }
+    if (path.endsWith('/auth/me')) return getAccount();
+    if (path === homePath && init?.method === 'GET' && init.credentials === 'include') return readHome();
+    throw new Error('Unexpected home fixture request');
+  });
+}
+
+test('등록된 아이의 ID로 일반 앱 진입에서 홈을 한 번만 조회한다', async () => {
+  markers.set(marker, 'true');
+  const server = homeServer(() => response(200, { data: homeAtNoon }));
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByText(homeAtNoon.greeting)).toBeVisible();
+  expect(screen.getByText(`${homeAtNoon.daysTogether}일째`)).toBeVisible();
+  expect(server.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+    '/api/v1/auth/csrf', '/api/v1/auth/me', homePath,
+  ]);
+  expect(screen.queryByRole('header', { name: '아이 등록' })).not.toBeOnTheScreen();
+});
+
+test.each([
+  [response(200, { data: { ...account, childId: null } }), '아이 등록'],
+  [authError(401, 'AUTHENTICATION_REQUIRED'), '보호자 로그인'],
+])('%# 홈 진입 대상이 아니면 홈 요청을 보내지 않는다', async (accountResponse, heading) => {
+  markers.set(marker, 'true');
+  const home = jest.fn(() => response(200, { data: homeAtNoon }));
+  homeServer(home, () => accountResponse);
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('header', { name: heading })).toBeVisible();
+  expect(home).not.toHaveBeenCalled();
+});
+
+test.each<[string, string | null, HomeDestination]>([
+  ['대화하기', null, { route: '/conversation', childId: account.childId, intent: 'start' }],
+  ['도담이 캐릭터로 대화하기', null, { route: '/conversation', childId: account.childId, intent: 'start' }],
+  ['이어하기', '33333333-3333-4333-8333-333333333333',
+    { route: '/conversation', childId: account.childId, intent: 'resume', conversationId: '33333333-3333-4333-8333-333333333333' }],
+  ['도담이 캐릭터로 이어하기', '33333333-3333-4333-8333-333333333333',
+    { route: '/conversation', childId: account.childId, intent: 'resume', conversationId: '33333333-3333-4333-8333-333333333333' }],
+  ['보호자 모드', null, { route: '/guardian', childId: account.childId }],
+])('%s 탭의 값을 목적지에서 받고, 뒤로 돌아오면 홈만 다시 조회한다', async (label, activeConversationId, destination) => {
+  markers.set(marker, 'true');
+  const data = createHomeFixture({
+    serverTime: label === '보호자 모드' ? '2026-11-24T02:00:00+09:00' : homeAtNoon.availability.serverTime,
+    activeConversationId,
+  });
+  const home = jest.fn(() => response(200, { data }));
+  const server = homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  const button = await screen.findByRole('button', { name: label });
+  await fireEvent.press(button);
+  await fireEvent.press(button);
+  expect(mockHomeDestination.mock.calls).toEqual([[destination]]);
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+  expect(await screen.findByText(data.greeting)).toBeVisible();
+  expect(home).toHaveBeenCalledTimes(2);
+  expect(server.mock.calls.filter(([, init]) => init?.method !== 'GET')).toHaveLength(0);
+  expect(server.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(1);
+});
+
+test('홈 429 대기 중 앱 복귀가 요청을 보내지 않고 기한 후 정상 복귀는 홈을 한 번 조회한다', async () => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const changeAppState = observeAppState();
+  const home = jest.fn(() => authError(429, 'RATE_LIMITED', { 'Retry-After': '8' }))
+    .mockImplementationOnce(() => authError(429, 'RATE_LIMITED', { 'Retry-After': '8' }))
+    .mockImplementationOnce(() => response(200, { data: homeAtNoon }));
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('button', { name: '다시 시도' })).toBeDisabled();
+  jest.setSystemTime(Date.now() + 86_400_000);
+  await changeAppState('background');
+  await changeAppState('active');
+  expect(await screen.findByRole('button', { name: '다시 시도' })).toBeDisabled();
+  expect(home).toHaveBeenCalledTimes(1);
+  await act(() => { jest.advanceTimersByTime(8_000); });
+  await changeAppState('background');
+  await changeAppState('active');
+  expect(await screen.findByText(homeAtNoon.greeting)).toBeVisible();
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
+test.each([
+  [authError(404, 'RESOURCE_NOT_FOUND'), '홈'],
+  [authError(401, 'AUTHENTICATION_REQUIRED'), '보호자 로그인'],
+])('%# 홈 응답의 오류는 아이 등록으로 보내지 않는다', async (homeResponse, heading) => {
+  markers.set(marker, 'true');
+  homeServer(() => homeResponse);
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('header', { name: heading })).toBeVisible();
+  if (heading === '홈') expect(await screen.findByRole('alert')).toBeVisible();
+  expect(screen.queryByRole('header', { name: '아이 등록' })).not.toBeOnTheScreen();
+});
+
+test.each([200, 401])('로그아웃 전 홈 %s 본문이 늦어도 새 계정 홈만 표시한다', async status => {
+  const first = createHomeFixture({ nickname: '이전아이', serverTime: homeAtNoon.availability.serverTime });
+  const next = createHomeFixture({ nickname: '새아이', serverTime: homeAtNoon.availability.serverTime });
+  const late = status === 200 ? response(200, { data: first }) : authError(401, 'AUTHENTICATION_REQUIRED');
+  const copy = status === 401 ? late.clone() : late;
+  const body = pauseBody(copy);
+  if (status === 401) jest.spyOn(late, 'clone').mockReturnValueOnce(copy);
+  const logout = pause();
+  const home = jest.fn((session: typeof account) => response(200, { data: session === accountA ? first : next }))
+    .mockReturnValueOnce(response(200, { data: first })).mockReturnValueOnce(late);
+  const server = authFlowFetch({ home, logout: logout.wait });
+
+  await openLoginForm(accountA.email);
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByText(first.greeting)).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '보호자 모드' }));
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+  await waitFor(() => expect(body.wait).toHaveBeenCalledTimes(1));
+
+  await fireEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+  expect(await screen.findByText('로그아웃 중')).toBeVisible();
+  expect(screen.queryByText(first.greeting)).not.toBeOnTheScreen();
+  await act(() => { logout.release(); });
+  await expectBlankLogin();
+  await fillLoginForm(accountB.email, ' x ');
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByText(next.greeting)).toBeVisible();
+  await act(() => { body.release(); });
+
+  expect(screen.getByText(next.greeting)).toBeVisible();
+  expect(screen.queryByText(first.greeting)).not.toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '보호자 로그인' })).not.toBeOnTheScreen();
+  expect(server.calls('/home')).toHaveLength(3);
+});
+
+test('서버 자정과 08시 경계에서 새로 조회하며 08시 오류가 대화를 허용하지 않는다', async () => {
+  jest.useFakeTimers();
+  jest.setSystemTime(new Date('2026-11-23T12:00:00-05:00'));
+  markers.set(marker, 'true');
+  const open = createHomeFixture({ serverTime: '2026-11-24T23:59:58+09:00' });
+  const closed = createHomeFixture({ serverTime: '2026-11-25T07:59:58+09:00' });
+  const home = jest.fn(() => authError(503, 'AUTH_STATE_UNAVAILABLE'))
+    .mockReturnValueOnce(response(200, { data: open }))
+    .mockReturnValueOnce(response(200, { data: closed }))
+    .mockReturnValueOnce(authError(503, 'AUTH_STATE_UNAVAILABLE'))
+    .mockReturnValueOnce(response(200, { data: homeAtNoon }));
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('button', { name: '대화하기' })).toBeEnabled();
+  await act(() => { jest.advanceTimersByTime(1_500); });
+  expect(screen.getByRole('button', { name: '대화하기' })).toBeDisabled();
+  expect(home).toHaveBeenCalledTimes(1);
+  await act(() => { jest.advanceTimersByTime(500); });
+  expect(await screen.findByText('오전 8시에 만나요')).toBeVisible();
+  expect(screen.getByRole('button', { name: '대화하기' })).toBeDisabled();
+  await act(() => { jest.advanceTimersByTime(2_000); });
+  expect(await screen.findByRole('alert')).toBeVisible();
+  expect(screen.queryByRole('button', { name: '대화하기' })).not.toBeOnTheScreen();
+  expect(home).toHaveBeenCalledTimes(3);
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도' }));
+  expect(await screen.findByRole('button', { name: '대화하기' })).toBeEnabled();
+});
+
+test('08시 홈 갱신은 준비 중 화면을 유지하고 조회 중 닫아도 새 홈에서 포커스를 복원한다', async () => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const focus = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockImplementation(() => {});
+  const beforeOpening = createHomeFixture({ serverTime: '2026-11-25T07:59:58+09:00' });
+  const boundary = pendingResponse();
+  const home = jest.fn<() => Response | Promise<Response>>()
+    .mockReturnValueOnce(response(200, { data: beforeOpening }))
+    .mockReturnValueOnce(boundary.promise);
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  const menu = '같이 놀기 · 준비 중';
+  await fireEvent.press(await screen.findByRole('button', { name: menu }));
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(2_000); });
+  expect(home).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('header', { name: '같이 놀기' })).toBeVisible();
+  expect(screen.queryByText('홈 정보 확인 중')).not.toBeOnTheScreen();
+  focus.mockClear();
+
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+  expect(screen.getByText('홈 정보 확인 중')).toBeVisible();
+  await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+  expect(focus).not.toHaveBeenCalled();
+
+  await act(async () => { boundary.resolve(response(200, { data: homeAtNoon })); });
+  expect(screen.getByRole('button', { name: '대화하기' })).toBeEnabled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+  expect(focus).toHaveBeenCalledTimes(1);
+  const target = focus.mock.lastCall?.[0] as unknown as { props?: { accessibilityLabel?: string } };
+  expect(target?.props?.accessibilityLabel).toBe(menu);
+  expect(focus.mock.lastCall?.[1]).toBe('focus');
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
+test.each<[number, string]>([
+  [503, 'AUTH_STATE_UNAVAILABLE'],
+  [401, 'AUTHENTICATION_REQUIRED'],
+])('자정 출석 안내가 열렸을 때 %s 홈 갱신 결과를 반영한다', async (status, code) => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const beforeMidnight = createHomeFixture({ serverTime: '2026-11-24T23:59:58+09:00' });
+  const boundary = pendingResponse();
+  const home = jest.fn<() => Response | Promise<Response>>()
+    .mockReturnValueOnce(response(200, { data: beforeMidnight }))
+    .mockReturnValueOnce(boundary.promise);
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: '출석 · 준비 중' }));
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(2_000); });
+  expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
+  expect(screen.queryByText('홈 정보 확인 중')).not.toBeOnTheScreen();
+  await act(async () => { boundary.resolve(authError(status, code)); });
+
+  if (status === 401) {
+    expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+    expect(screen.queryByRole('header', { name: '출석 보상은 준비 중이에요!' })).not.toBeOnTheScreen();
+  } else {
+    expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled();
+  }
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
+test('출석 안내 열기·닫기는 네트워크를 사용하지 않고 앱을 다녀오면 안내가 닫힌 홈을 갱신한다', async () => {
+  markers.set(marker, 'true');
+  const changeAppState = observeAppState();
+  const home = jest.fn(() => response(200, { data: homeAtNoon }));
+  const server = homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: '출석 · 준비 중' }));
+  expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: '대화하기' })).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+  expect(server.mock.calls).toHaveLength(3);
+
+  await fireEvent.press(screen.getByRole('button', { name: '출석 · 준비 중' }));
+  await changeAppState('background');
+  await changeAppState('active');
+  expect(await screen.findByText(homeAtNoon.greeting)).toBeVisible();
+  expect(screen.queryByRole('header', { name: '출석 보상은 준비 중이에요!' })).not.toBeOnTheScreen();
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
+test.each(['도담이 꾸미기', '추억 다시보기', '같이 놀기'])('%s 그림과 라벨은 같은 준비 중 화면을 열고 홈으로 돌아올 때 추가 요청이 없다', async label => {
+  markers.set(marker, 'true');
+  const server = homeServer(() => response(200, { data: homeAtNoon }));
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: `${label} · 준비 중` }));
+  expect(screen.getByRole('header', { name: label })).toBeVisible();
+  expect(screen.getByText('준비 중이에요.')).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+  expect(await screen.findByText(homeAtNoon.greeting)).toBeVisible();
+  expect(server.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+    '/api/v1/auth/csrf', '/api/v1/auth/me', homePath,
+  ]);
+});
+
+test('첫 실행에서 임시 보호자 계정으로 로그인에 성공한 뒤 등록된 별이의 홈을 연다', async () => {
+  const server = authFlowFetch({
+    home: () => response(200, { data: homeAtNoon }),
+  });
+  await render(<App />);
+  await finishSplash();
+  await skipMicrophoneFromOnboarding();
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  expect(server.calls('/home')).toHaveLength(0);
+
+  await fillLoginForm(accountA.email, 'incorrect-fixture-password');
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
+  expect(server.calls('/home')).toHaveLength(0);
+
+  await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+  expect(await screen.findByText(homeAtNoon.greeting)).toBeVisible();
+  expect(server.calls('/auth/login')).toHaveLength(2);
+  expect(server.calls('/auth/me')).toHaveLength(2);
+  expect(server.calls('/home')).toHaveLength(1);
+  expect(server.calls('/children')).toHaveLength(0);
+  expect(screen.queryByRole('header', { name: '아이 등록' })).not.toBeOnTheScreen();
 });

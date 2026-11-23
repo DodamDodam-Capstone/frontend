@@ -119,7 +119,7 @@ export function VerificationPanel(props: PanelProps) {
             <Image source={require('../../assets/images/ui/close.png')} style={styles.closeIcon} accessible={false} />
           </Pressable>}
         </View>
-        <ScrollView keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.body}>
+        <ScrollView bounces={false} keyboardShouldPersistTaps="handled" style={styles.scroll} contentContainerStyle={styles.body}>
           {step === 'email' && <>
             <View style={styles.addressGroup}>
               <AppText style={styles.addressLabel}>이메일 주소</AppText>
@@ -171,7 +171,7 @@ const styles = StyleSheet.create({
   digit: { ...typography.body, color: colors.textPrimary, fontSize: 24, lineHeight: 32 },
   nativeInput: { ...StyleSheet.absoluteFill, padding: 0, fontSize: 1, color: 'transparent', backgroundColor: 'transparent' },
   resendRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 8 },
-  clock: { ...typography.label, color: '#BC135D' },
+  clock: { ...typography.label, color: colors.textError },
   resend: { justifyContent: 'center', minHeight: 48, borderRadius: 20, backgroundColor: '#DCFFA3', paddingHorizontal: 16 },
   disabled: { opacity: 0.6 },
   resendText: { ...typography.label, color: '#367818' },

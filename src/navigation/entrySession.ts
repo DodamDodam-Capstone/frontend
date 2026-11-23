@@ -5,7 +5,10 @@ import type { LoginFeedback } from '../auth/emailLogin';
 
 type EntrySession = {
   client: ApiClient;
-  receiveProtectedAuthResult: (result: ApiResult) => Promise<boolean>;
+  receiveProtectedAuthResult: (result: ApiResult, stillCurrent?: () => boolean) => Promise<boolean>;
+  isHomeVisitCurrent: (visit: number) => boolean;
+  getHomeRetryAt: (visit: number) => number | undefined;
+  rememberHomeRetry: (visit: number, retryAt: number) => void;
   refreshEntry: () => Promise<void>;
   submitLogin: (email: string, password: string) => Promise<LoginFeedback | undefined>;
   submitLogout: () => Promise<void>;

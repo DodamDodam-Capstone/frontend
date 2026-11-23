@@ -24,7 +24,7 @@ type EntryErrorState = Extract<EntrySnapshot, { kind: 'error' }>;
 
 function EntryFrame({ children }: { children: ReactNode }) {
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
       <View style={styles.content}>{children}</View>
     </ScrollView>
   );
@@ -59,14 +59,17 @@ function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   if (state.kind === 'route') {
     const signup = state.signup;
+    const hideHome = state.logoutPending && state.childId !== undefined;
     return <EntryPrivacySurface key={state.visit} generation={state.generation} style={styles.screen}>
       <View style={state.logoutPending ? styles.hidden : styles.screen}
         accessibilityElementsHidden={state.logoutPending}
         importantForAccessibility={state.logoutPending ? 'no-hide-descendants' : 'auto'}>
-        {signup ? <SignupVerificationScreen flow={signup} onBack={() => controller.closeSignup(signup)} />
-          : <EntryDestination route={state.route} openSignup={controller.openSignup} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
-          loginBlocked={state.loginBlocked} loginCsrfRecovery={state.loginCsrfRecovery}
-          logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />}
+        {signup
+          ? <SignupVerificationScreen flow={signup} onBack={() => controller.closeSignup(signup)} />
+          : !hideHome && <EntryDestination route={state.route} visit={state.visit} childId={state.childId}
+            openSignup={controller.openSignup} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
+            loginBlocked={state.loginBlocked} loginCsrfRecovery={state.loginCsrfRecovery}
+            logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />}
       </View>
       {state.logoutPending && <EntryFrame><LoadingIndicator label="로그아웃 중" /></EntryFrame>}
     </EntryPrivacySurface>;
@@ -91,6 +94,9 @@ export default function App() {
       session: {
         client,
         receiveProtectedAuthResult: controller.receiveProtectedAuthResult,
+        isHomeVisitCurrent: controller.isHomeVisitCurrent,
+        getHomeRetryAt: controller.getHomeRetryAt,
+        rememberHomeRetry: controller.rememberHomeRetry,
         refreshEntry: controller.refresh,
         submitLogin: controller.submitLogin,
         submitLogout: controller.submitLogout,
