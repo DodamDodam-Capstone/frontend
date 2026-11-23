@@ -11,6 +11,7 @@ GitHub-first 중 한 가지 경로를 선택합니다.
 - `feature/<issue>-<description>`: 기능 개발
 - `fix/<issue>-<description>`: 일반 버그 수정
 - `hotfix/<issue>-<description>`: `development`에서 시작하는 긴급 수정
+- `release/vX.Y.Z`: 품질 검사를 통과한 `main` 출시 커밋을 CI가 보관하는 브랜치
 
 `main`과 `development`의 모든 변경은 반드시 PR을 사용해야 합니다. `main` 대상
 PR의 source branch는 예외 없이 `development`여야 합니다.
@@ -62,4 +63,7 @@ Gitmoji와 type을 의미상 고정해 연결하지 않습니다. 변경 내용�
 - 작업 브랜치 → `development`는 squash merge합니다.
 - `development` → `main` 승격은 두 장기 브랜치의 계보를 보존하도록 merge
   commit을 사용합니다.
+- 승격 PR은 `🚀 chore(release): [FE] vX.Y.Z 스프린트 릴리스` 제목에 루트
+  `VERSION` 값을 사용합니다. [릴리스 절차](docs/TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)에 따라
+  본문의 `## 스프린트 작업`에 실제 포함 작업과 검증 결과를 기록합니다.
 - 자동 브랜치 삭제는 사용하지 않으며, 작업 브랜치는 sprint 정리 시 수동으로 삭제합니다.

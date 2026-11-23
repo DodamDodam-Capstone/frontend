@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 
-const requiredFiles = ['.nvmrc', 'package.json', 'package-lock.json'];
+const requiredFiles = ['.nvmrc', 'package.json', 'package-lock.json', 'app.json', 'VERSION'];
 const otherLockfiles = [
   'npm-shrinkwrap.json',
   'pnpm-lock.yaml',
@@ -23,6 +23,8 @@ for (const file of otherLockfiles) {
 
 const manifest = JSON.parse(readFileSync('package.json', 'utf8'));
 const lockfile = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+const expoConfig = JSON.parse(readFileSync('app.json', 'utf8'));
+const releaseVersion = readFileSync('VERSION', 'utf8').trim();
 const nodeVersion = readFileSync('.nvmrc', 'utf8').trim();
 const npmVersion = manifest.engines?.npm;
 
@@ -38,10 +40,18 @@ if (lockfile.name !== manifest.name || lockfile.version !== manifest.version) {
   throw new Error('package-lock.json root package must match package.json');
 }
 
-for (const script of ['lint', 'typecheck', 'test']) {
+if (!/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(releaseVersion)) {
+  throw new Error('VERSION must contain a stable X.Y.Z version without leading zeros');
+}
+if (manifest.version !== releaseVersion || lockfile.packages?.['']?.version !== releaseVersion
+    || expoConfig.expo?.version !== releaseVersion) {
+  throw new Error('VERSION must match package.json, the lockfile root package, and expo.version');
+}
+
+for (const script of ['lint', 'typecheck', 'test', 'test:env']) {
   if (typeof manifest.scripts?.[script] !== 'string' || !manifest.scripts[script].trim()) {
     throw new Error(`Required npm script is missing or empty: ${script}`);
   }
 }
 
-console.log(`Project manifest valid: Node ${nodeVersion}, npm ${npmVersion}, lint/typecheck/test present`);
+console.log(`Project manifest valid: Node ${nodeVersion}, npm ${npmVersion}, release ${releaseVersion}, lint/typecheck/test/test:env present`);

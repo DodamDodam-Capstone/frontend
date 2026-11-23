@@ -54,7 +54,7 @@ GitHub     frontend#9 SCRUM-2 [FE] GitHub·Jira 연동 및 문서 검증
 
 ## 개발 식별자
 
-GitHub for Atlassian이 개발 정보를 Jira에 연결할 수 있도록 모든 식별자에
+GitHub for Atlassian이 개발 정보를 Jira에 연결할 수 있도록 일반 작업의 식별자에
 정확한 Jira 키를 포함합니다.
 
 ```text
@@ -73,11 +73,13 @@ Resolves #9
 일반 작업 PR의 대상은 `development`입니다. `development` 반영과 검증이 끝난
 뒤 sprint 승격 PR로 `main`에 반영합니다. `main` 대상 PR의 source branch는
 항상 `development`여야 하며 hotfix도 먼저 `development`에 반영합니다.
+승격 PR은 제목에 `[FE] vX.Y.Z`를 쓰고 본문의 `## 스프린트 작업`에서 실제 포함된
+Jira 작업을 연결합니다. Fix Version과 릴리스 확인은 [팀 가이드](TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)를 따릅니다.
 
 ## 완료 조건
 
 - GitHub-first 업무는 Jira Task와 GitHub Issue가 서로 연결되어 있습니다.
-- branch, commit, PR 제목에 같은 Jira 키가 있습니다.
+- 일반 작업 branch, commit, `development` 대상 PR 제목에 같은 Jira 키가 있습니다.
 - Gitmoji PR 제목 검사와 `frontend-quality`가 통과합니다.
 - 모든 필수 검사를 통과하고, 작성자와 다른 `Write` 권한자의 승인 리뷰 1건을
   받은 뒤 검토 대화를 해결합니다.

@@ -1553,6 +1553,12 @@ iPad에서 홈을 보다가 제스처로 전환기를 열고 같은 앱으로 �
 - 로컬 재현: `python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v`. 기존 JS CI에서 같은 명령을 실행하며 실패는 `frontend-quality` 실패로 연결된다. 필수 검사 이름·읽기 권한·이벤트 종류는 유지한다.
 - 수정 PR을 development에 반영한 뒤 PR #28·#32를 최신화해 새 `synchronize` 실행의 필수 검사를 확인한다. 과거 실패 run 재실행이나 로컬 통과를 새 원격 CI 통과로 간주하지 않는다.
 
+## SCRUM-187 FE 스프린트 릴리스 검증
+
+- `node .github/scripts/validate_frontend_project.mjs`로 루트 `VERSION`, Expo 설정, npm 패키지 및 lockfile의 앱 버전을 대조한다. Android·iOS CI는 빌드한 APK의 `versionName`과 시뮬레이터 앱의 `CFBundleShortVersionString`까지 검사한다.
+- `python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v`로 작업 PR·승격 PR의 제목과 본문, 승격할 커밋의 버전, 발행·부분 실패·재실행·기존 버전 충돌을 재현한다. 이 검사는 모의 GitHub API를 사용한다.
+- 변경을 승격할 때 PR 검사와 해당 `main` 병합 SHA의 Actions 실행을 각각 확인한다. JS·Android·iOS가 모두 성공해야 발행으로 넘어간다. 발행 후 브랜치·태그·Release와 integration 갱신 PR이 같은 FE SHA를 가리키는지 확인한다. [FE 스프린트 릴리스 운영 절차](TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)
+
 ## CI를 어떻게 바꿀 것인가
 
 이 절은 **향후 구현 기준**이다. 현재 workflow가 이미 아래처럼 동작한다는 뜻이 아니다.
