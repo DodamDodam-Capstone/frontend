@@ -27,7 +27,7 @@ function isIpv6EmailLiteral(address: string): boolean {
   return groups.every((part) => /^[\da-f]{1,4}$/i.test(part)) && (halves.length === 2 ? size < 8 : size === 8);
 }
 
-function isAccountEmail(value: unknown): boolean {
+export function isAccountEmail(value: unknown): boolean {
   if (typeof value !== 'string' || value.length > 254 || /[^!-~]/.test(value)) return false;
   // Hibernate @Email과 동일하게 로컬 부분의 따옴표 안에는 @가 올 수 있다.
   const separator = value.lastIndexOf('@');

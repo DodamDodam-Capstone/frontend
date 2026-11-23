@@ -13,15 +13,17 @@ async function enterCredentials() {
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), password);
 }
 
-test('시안의 제목과 마스킹된 입력을 보여주며 후속 동작은 비활성화한다', async () => {
+test('이메일 가입만 연결하고 비밀번호 찾기와 Google은 후속 작업으로 둔다', async () => {
   const submit = jest.fn<() => Promise<LoginFeedback | undefined>>();
-  await render(<LoginScreen submit={submit} retryAt={undefined} />);
+  const openSignup = jest.fn();
+  await render(<LoginScreen submit={submit} retryAt={undefined} openSignup={openSignup} />);
 
   expect(screen.getByRole('header', { name: '보호자 로그인' })).toBeVisible();
   expect(screen.getByLabelText('이메일')).toHaveProp('keyboardType', 'email-address');
   expect(screen.getByLabelText('비밀번호')).toHaveProp('secureTextEntry', true);
   expect(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: '이메일로 회원 가입' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: '이메일로 회원 가입' }));
+  expect(openSignup).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: 'Google' })).toBeDisabled();
   expect(screen.queryByRole('button', { name: /카카오|kakao/i })).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();

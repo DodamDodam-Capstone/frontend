@@ -4,6 +4,7 @@ import { StatusBar } from 'expo-status-bar';
 import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import { createApiClient } from './src/api/client';
+import { SignupVerificationScreen } from './src/auth/SignupVerificationScreen';
 import { Button } from './src/components/Button';
 import { EntrySplash } from './src/components/EntrySplash';
 import { ErrorMessage } from './src/components/ErrorMessage';
@@ -57,13 +58,15 @@ function EntryError({ state, onRetry }: { state: EntryErrorState; onRetry: () =>
 function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   if (state.kind === 'route') {
+    const signup = state.signup;
     return <EntryPrivacySurface key={state.visit} generation={state.generation} style={styles.screen}>
       <View style={state.logoutPending ? styles.hidden : styles.screen}
         accessibilityElementsHidden={state.logoutPending}
         importantForAccessibility={state.logoutPending ? 'no-hide-descendants' : 'auto'}>
-        <EntryDestination route={state.route} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
+        {signup ? <SignupVerificationScreen flow={signup} onBack={() => controller.closeSignup(signup)} />
+          : <EntryDestination route={state.route} openSignup={controller.openSignup} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
           loginBlocked={state.loginBlocked} loginCsrfRecovery={state.loginCsrfRecovery}
-          logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />
+          logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />}
       </View>
       {state.logoutPending && <EntryFrame><LoadingIndicator label="로그아웃 중" /></EntryFrame>}
     </EntryPrivacySurface>;

@@ -1381,7 +1381,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 #### SCRUM-172 이메일 로그인 검증
 
-- 기본 화면은 가로 1280×800의 [보호자 로그인 시안](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005)을 적용한다. 상태별 오류와 대기 표시는 공통 입력·버튼·안내를 사용한다. 비밀번호 재설정, 이메일 회원가입, Google 버튼은 각각 SCRUM-128·130·126에서 기능을 연결할 때까지 비활성으로 표시한다.
+- 기본 화면은 가로 1280×800의 [보호자 로그인 시안](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005)을 적용한다. 상태별 오류와 대기 표시는 공통 입력·버튼·안내를 사용한다. SCRUM-172 시점에는 비밀번호 재설정, 이메일 회원가입, Google 버튼이 비활성이었다. 가입 버튼은 SCRUM-127에서 이메일 인증에 연결하며, 비밀번호 재설정과 Google 로그인 연결은 각각 SCRUM-128·126에서 진행한다.
 - 일반 `App`에서 온보딩을 마친 미인증 계정으로 시작한다. 합성 전송은 로그인 전 `/auth/me`에서 401을, 세션이 생긴 뒤 200을 반환한다. `POST /auth/login`은 이메일과 비밀번호 원문만 보낸다. 비밀번호의 마스킹, 화면 키보드 제출, 중복 요청 1회, 400·401·403·413·415·429·503, 비정상 200과 응답 유실을 단위 및 앱 연결 테스트에서 확인한다. [백엔드 계약](https://github.com/DodamDodam-Capstone/backend/blob/6d38bd38ddb972841fd8abf4ec4b93c2359a5ae9/docs/p0/api/02-auth.md#section-6-5) · [API 테스트](../src/auth/emailLogin.test.ts) · [앱 테스트](../App.test.tsx)
 - 첫 CSRF 준비 실패에는 로그인 POST를 보내지 않는다. 토큰 재발급 또는 상태 확인에서 유효한 `Retry-After`가 오면 해당 요청을 기한까지 미룬다. 로그인 200 뒤 갱신 오류는 로그인 실패와 구분하며 사용자 재시도에서 CSRF와 계정 조회만 다시 실행한다.
 - 로그인 요청이 보류된 동안 앱을 나갔다 돌아오면, 전환 완료 뒤 앱 진입 컨트롤러가 계정을 확인한다. 앞선 폼의 입력이나 늦게 온 오류는 새 폼으로 넘기지 않는다. 현재 `/auth/me`가 아이 등록 또는 홈의 테스트 수신자를 선택한다. 실제 서버 연결은 SCRUM-129에서 검증한다.
@@ -1448,6 +1448,26 @@ Node 24.20.0과 npm 11.19.0에서 lint, typecheck, Jest 48개 스위트·954개 
 기기별 화면, 합성 요청 기록과 Android의 같은 프로세스 복귀 관찰값은 로컬 `build/scrum-174/evidence/`에 있다. iPad 실행 당시 커밋은 `69614da`, Android는 `23fe631`이며 두 커밋의 제품 소스가 같다.
 
 두 기기와 Metro·합성 서버를 종료한 뒤 Node 24.20.0·npm 11.19.0에서 `npm run lint`, `npm run typecheck`, `npm test -- --watchman=false`(48개 스위트·956개 테스트), `npm run test:env`(14개 조합)가 통과했다. `expo export`를 iOS와 Android 순서로 실행해 각각 Hermes 번들 1개와 에셋 53개를 확인했다. 실행 로그는 로컬 `build/scrum-174/checks/`에 있다.
+
+#### SCRUM-127 가입 진입과 공통 이메일 인증
+
+- 일반 앱에서 로그인 → 이메일로 회원 가입 → 주소 확인 → 6자리 입력 → 인증 완료 팝업 → 인증 완료 폼까지 확인한다. **인증하기**는 팝업을 열고, **인증번호 받기**가 최초 발송을 요청한다. [주소 확인](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2874) · [번호 입력](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2967) · [완료 팝업](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3067)
+- 발급·재발급은 공개 목적에만 이메일을 포함하고 PIN 목적은 로그인 세션을 사용한다. 확인 요청은 요청 ID(`challengeId`)와 선행 0을 보존한 여섯 자리 문자열만 보낸다. 번호와 토큰의 만료, 요청 제한, 응답 유실과 늦은 응답을 명세의 합성 응답으로 검증한다. [인증 API §6.2·6.3](https://github.com/DodamDodam-Capstone/backend/blob/6d38bd38ddb972841fd8abf4ec4b93c2359a5ae9/docs/p0/api/02-auth.md#section-6-2)
+- 완료 팝업은 토큰을 소비하지 않는다. 현재 가입 흐름의 `takeToken('SIGNUP')`은 인증 완료 폼에서 유효한 가입 토큰을 한 번만 반환한다. SCRUM-130은 사용자 입력 검사를 통과한 계정 생성 요청에 이를 연결한다. 가입 화면 이탈·이메일 변경·만료·다른 계정 확인 후에는 이전 토큰을 사용할 수 없다.
+- 재전송에서 429를 받아도 이미 받은 유효한 번호는 확인할 수 있다. 반대로 번호 확인의 429는 새 번호를 발급받아도 확인 기한까지 유지한다. 공통 CSRF 조회의 429는 가입과 로그인 양쪽이 같은 기한을 지킨다. 번호 확인 중 유효 시간이 끝나고 오답 응답이 늦게 오면 새 번호를 요청할 수 있는 화면으로 돌아간다.
+- 공개 목적인 가입·비밀번호 재설정과 세션이 필요한 PIN 설정·재설정은 각각의 목적에 맞는 토큰만 인계한다. 보호자용 흐름은 세션·권한·PIN 상태 오류를 구분해 호출자에게 전달한다. 이번에 앱 화면까지 연결한 목적은 가입이다.
+
+2026-11-23 로컬 검증에서 `npm run lint`, `npm run typecheck`, `npm test -- --watchman=false`(50개 스위트, 1,007개 테스트), `npm run test:env`(14개 조합)가 통과했다. 로그는 `build/scrum-127/checks/`에 있다.
+
+가로 iPad Pro 11형(M5, iPadOS 26.5)에서 주소 확인, 최초 발송, 설정 앱을 거친 복귀, 재전송, 여섯 자리 확인, 완료 폼과 로그인 복귀까지 확인했다. 합성 서버는 발송·재전송·확인에 각각 200을 응답했다. 2420×1668 화면 여섯 장과 요청 기록은 `build/scrum-127/evidence/ipad/`에 있다.
+
+같은 iPad에서 인증번호 칸을 탭하자 기존 `number-pad`가 첫 칸을 덮는 작은 숫자판으로 표시됐다. iPad의 인증번호 입력에 `numbers-and-punctuation`을 적용한 뒤 같은 조작으로 화면 하단 전체 폭의 숫자·기호 키보드와 그 위의 여섯 칸·확인 버튼을 확인했다. 전후 화면은 `build/scrum-127/checks/ipad-keypad-before-frame-small.png`와 `ipad-docked-mid-frame-small.png`에 있다. 기호 입력을 무시하고 선행 0을 유지하는 회귀 테스트를 포함해 전체 50개 스위트·1,008개 테스트와 lint·타입 검사가 통과했다.
+
+가로 Pixel Tablet(API 36, 호스트 GPU)의 일반 앱에서 발송 503 후 수동 재요청 200을 확인했다. Gmail에서 돌아와 계정을 재확인하는 동안 기존 가입 내용이 가려졌고, 같은 프로세스에서 코드 입력을 이어갔다. 재전송 429의 35초 대기 중 기존 번호를 입력하고 키보드 위의 **확인**을 눌러 200을 받았다. 완료 폼에서 계정 만들기가 비활성인 상태와 로그인으로 돌아가는 경로까지 확인했다. 합성 응답 기록과 번호를 가린 키보드 캡처는 `build/scrum-127/evidence/android/`에 있다.
+
+인증 팝업의 위치는 가로 iPad에서 키보드를 닫은 화면과 연 화면을 각각 측정했다. 인증번호 입력 팝업은 키보드를 닫으면 전체 화면 중앙에, 열면 키보드 위 영역의 중앙에 놓였다. 2420×1668px 캡처에서 두 상태 모두 가로·세로 중심 편차는 0px였다. 캡처와 측정값은 `build/scrum-127/evidence/ipad/centered/`에 있다.
+
+두 기기를 한 대씩 사용한 뒤 모두 종료했다. iOS·Android 순서로 단일 워커 `expo export`를 실행해 각 플랫폼의 Hermes 번들 1개와 에셋 65개를 검증했다. 실제 메일 발송·인증 API 연동은 SCRUM-129에서, 가입 후 별도 로그인부터 홈까지의 실제 경로는 SCRUM-133에서 확인한다.
 
 ### 5. 진입·온보딩·상태별 이동 — SCRUM-124
 

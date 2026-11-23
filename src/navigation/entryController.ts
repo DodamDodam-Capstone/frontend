@@ -3,6 +3,7 @@ import type { ApiClient, ApiResult, AuthContext } from '../api/client';
 import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api/recovery';
 import { parseApiResponse } from '../api/response';
 import { submitEmailLogin, type LoginFeedback } from '../auth/emailLogin';
+import { createEmailVerification, type EmailVerificationFlow } from '../auth/emailVerification';
 import { submitLogoutRequest } from '../auth/logout';
 import { ROUTES, type RoutePath } from './routes';
 
@@ -27,6 +28,7 @@ type EntryVisit = EntryRoute & {
   loginRetryAt?: number;
   loginFeedback?: LoginFeedback;
   loginBlocked?: boolean;
+  signup?: EmailVerificationFlow;
   loginCsrfRecovery?: boolean;
   logoutPending?: boolean;
   logoutRetryAt?: number;
@@ -86,6 +88,40 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   let showSignedOutOnResume = false;
   let loginCsrfRecovery = false;
   let retryingLogoutCsrf = false;
+  // 메일 앱을 다녀와도 같은 미인증 가입 흐름은 화면보다 오래 유지한다.
+  let signup: EmailVerificationFlow | undefined;
+  let signupIssueRetryAt = 0;
+  let signupVerifyRetryAt = 0;
+
+  function discardSignup(keepRetryDeadline = false) {
+    const previous = signup;
+    signupIssueRetryAt = keepRetryDeadline ? previous?.getSnapshot().issueRetryAt ?? 0 : 0;
+    signupVerifyRetryAt = keepRetryDeadline ? previous?.getSnapshot().verifyRetryAt ?? 0 : 0;
+    signup = undefined;
+    previous?.reset();
+  }
+
+  function openSignup() {
+    if (!mounted || suspended || !isForegroundGeneration() || snapshot.kind !== 'route'
+      || snapshot.route !== ROUTES.login || signup || loginPending || logoutPending || loginCsrfRecovery) return;
+    const flow: EmailVerificationFlow = createEmailVerification(client, 'SIGNUP', {
+      isActive: () => mounted && !suspended && isForegroundGeneration() && signup === flow
+        && snapshot.kind === 'route' && snapshot.signup === flow,
+      entryCsrf: () => entryCsrf,
+      onCsrfLimited: deadline => waitToRetryLogin(deadline, true),
+    });
+    flow.deferUntil(retryAt);
+    flow.deferUntil(signupIssueRetryAt, 'issue');
+    flow.deferUntil(signupVerifyRetryAt, 'verify');
+    signup = flow;
+    publish({ kind: 'route', route: ROUTES.login });
+  }
+
+  function closeSignup(flow: EmailVerificationFlow) {
+    if (signup !== flow || snapshot.kind !== 'route' || snapshot.signup !== flow || !isForegroundGeneration()) return;
+    discardSignup(true);
+    publish({ kind: 'route', route: ROUTES.login });
+  }
 
   function loginControls() {
     return {
@@ -105,8 +141,10 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   function publish(next: typeof loading | EntryRoute | EntryError) {
     // React가 확인 중 렌더를 합쳐도 같은 경로의 이전 화면 상태를 재사용하지 않는다.
+    if (next.kind === 'route' && next.route === ROUTES.login) signup?.syncTime();
     const loginState = next.kind === 'route' && next.route === ROUTES.login ? {
       ...loginControls(),
+      ...(signup ? { signup } : {}),
       ...(loginFeedback ? { loginFeedback } : {}),
     } : undefined;
     if (next.kind === 'route') loginFeedback = undefined;
@@ -122,7 +160,10 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   function waitToRetryLogin(deadline: number, csrfLimited = false) {
     loginRetryAt = Math.max(loginRetryAt, deadline);
-    if (csrfLimited) retryAt = Math.max(retryAt, deadline);
+    if (csrfLimited) {
+      retryAt = Math.max(retryAt, deadline);
+      signup?.deferUntil(retryAt);
+    }
     if (snapshot.kind === 'route' && snapshot.route === ROUTES.login && isForegroundGeneration()) {
       setSnapshot({ ...snapshot, loginRetryAt });
     }
@@ -220,6 +261,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
           return;
         }
         const route = parsed.kind === 'json' ? routeForAccount(parsed.data) : undefined;
+        if (route) discardSignup();
         attempt.account = route ? { kind: 'route', route } : rateLimit(decision, receivedAt) ?? {
           kind: 'error', reason: decision.kind === 'auth_state_unavailable' ? 'auth_state_unavailable' : 'invalid_response',
         };
@@ -291,6 +333,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   function suspend() {
     if (!mounted || suspended) return;
     suspended = true;
+    signup?.suspend();
     loginFeedback = undefined;
     // 화면이 바뀌어도 동일 세션의 로그아웃 또는 토큰 재획득 결과는 이어 받는다.
     if (!logoutPending && !retryingLogoutCsrf) client.discardRequestContexts();
@@ -319,7 +362,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   }
 
   async function submitLogin(email: string, password: string): Promise<LoginFeedback | undefined> {
-    if (!mounted || suspended || loginPending || logoutPending || loginCsrfRecovery || !isForegroundGeneration()
+    if (!mounted || suspended || signup || loginPending || logoutPending || loginCsrfRecovery || !isForegroundGeneration()
       || snapshot.kind !== 'route' || snapshot.route !== ROUTES.login) return;
     const submittedVisit = snapshot.visit;
     const isSameForm = () => mounted && !suspended && isForegroundGeneration()
@@ -423,6 +466,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   function stop() {
     mounted = false;
+    discardSignup();
     suspended = false;
     mountId += 1;
     entryCsrf = undefined;
@@ -457,5 +501,6 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       return () => { listeners.delete(listener); };
     },
     start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin, submitLogout, retryLogoutCsrf,
+    openSignup, closeSignup,
   };
 }
