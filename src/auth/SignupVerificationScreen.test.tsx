@@ -1,9 +1,10 @@
 import { expect, jest, test } from '@jest/globals';
-import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { act, fireEvent, render, screen, userEvent } from '@testing-library/react-native';
 
 import { Platform } from 'react-native';
 
-import type { EmailVerificationFlow } from './emailVerification';
+import { createApiClient, type ApiFetch } from '../api/client';
+import { createEmailVerification, type EmailVerificationFlow } from './emailVerification';
 import { SignupVerificationScreen } from './SignupVerificationScreen';
 
 function harness() {
@@ -18,6 +19,7 @@ function harness() {
     getSnapshot: () => state,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     setEmail: (email: string) => update({ email, step: 'form' }),
+    clearInvalidEmail: () => { if (state.emailFormatError) update({ email: '', emailFormatError: undefined }); },
     openEmail: () => update({ step: 'email' }),
     issue: jest.fn(async () => update({ step: 'code', challengeId: 'challenge', expiresAt: Date.now() + 60_000 })),
     verify: jest.fn(async (_code: string) => update({ step: 'success', expiresAt: undefined, tokenExpiresAt: Date.now() + 60_000 })),
@@ -28,6 +30,43 @@ function harness() {
   };
   return { flow, update };
 }
+
+test('잘못된 이메일은 입력칸 안에 붉게 표시하고 다시 선택하면 입력값을 지운다', async () => {
+  const fetchImpl = jest.fn<ApiFetch>();
+  const api = createApiClient({ appEnv: 'test', apiMode: 'real', apiBaseUrl: 'https://example.invalid/api/v1' }, { fetchImpl });
+  if (!api.ok) throw new Error('Invalid test config');
+  const flow = createEmailVerification(api.value, 'SIGNUP');
+  await render(<SignupVerificationScreen flow={flow} onBack={jest.fn()} />);
+  const email = () => screen.getByLabelText('이메일');
+  const verify = () => screen.getByRole('button', { name: '인증하기' });
+  const invalid = '이메일 주소를 확인해 주세요.';
+
+  await fireEvent.changeText(email(), 'guardian@');
+  await fireEvent.press(verify());
+  expect(screen.getByPlaceholderText(invalid)).toBe(email());
+  expect(email()).toHaveProp('placeholderTextColor', '#BC135D');
+  expect(email()).toHaveDisplayValue('');
+  expect(screen.queryByText(invalid)).not.toBeOnTheScreen();
+  expect(fetchImpl).not.toHaveBeenCalled();
+
+  await userEvent.setup().press(email());
+  expect(screen.queryByPlaceholderText(invalid)).not.toBeOnTheScreen();
+  expect(email()).toHaveDisplayValue('');
+  expect(flow.getSnapshot().email).toBe('');
+
+  await fireEvent.changeText(email(), 'invalid');
+  await fireEvent.press(verify());
+  expect(screen.getByPlaceholderText(invalid)).toBe(email());
+  await fireEvent(email(), 'focus');
+  expect(screen.queryByPlaceholderText(invalid)).not.toBeOnTheScreen();
+  expect(email()).toHaveDisplayValue('');
+
+  await fireEvent.changeText(email(), 'guardian@example.test');
+  await userEvent.setup().press(email());
+  expect(email()).toHaveDisplayValue('guardian@example.test');
+  await fireEvent.press(verify());
+  expect(screen.getByRole('header', { name: '이메일 인증' })).toBeVisible();
+});
 
 test('주소 확인과 발송을 분리하고 선행 0을 보존한 인증 결과를 가입 화면으로 넘긴다', async () => {
   const { flow } = harness();
@@ -79,10 +118,13 @@ test('비밀번호를 보안 입력하며 확인 오류와 이메일 변경에 �
   expect(screen.getByRole('button', { name: '계정 만들기' })).toBeDisabled();
 });
 
-test('iOS 가입 폼은 스크롤 영역에서 키보드 인셋을 조정한다', async () => {
+test('iOS 가입 폼은 키보드 영역을 조정하고 내용이 다 보이면 튕기지 않는다', async () => {
   const { flow } = harness();
   await render(<SignupVerificationScreen flow={flow} onBack={jest.fn()} />);
-  expect(screen.getByTestId('signup-form-scroll')).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+  const formScroll = screen.getByTestId('signup-form-scroll');
+  expect(formScroll).toHaveProp('automaticallyAdjustKeyboardInsets', true);
+  expect(formScroll).toHaveProp('bounces', false);
+  expect(formScroll).not.toHaveProp('scrollEnabled', false);
 });
 
 test('Android 가입 폼에는 iOS 키보드 인셋을 적용하지 않는다', async () => {

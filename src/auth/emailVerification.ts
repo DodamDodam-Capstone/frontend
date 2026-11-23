@@ -18,6 +18,7 @@ export type VerificationSnapshot = Readonly<{
   email: string;
   busy: boolean;
   message?: string;
+  emailFormatError?: string;
   expiresAt?: number;
   tokenExpiresAt?: number;
   issueRetryAt?: number;
@@ -32,6 +33,7 @@ export type EmailVerificationFlow = ReturnType<typeof createEmailVerification>;
 
 const issuePath = '/auth/email-verifications';
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const invalidEmail = '이메일 주소를 확인해 주세요.';
 const limited = '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.';
 const uncertain = '요청 결과를 확인할 수 없어요. 인증번호를 새로 받아 주세요.';
 const expired = '인증 시간이 지났어요. 인증번호를 새로 받아 주세요.';
@@ -178,12 +180,16 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
       ...limits() });
   }
 
+  function clearInvalidEmail() {
+    if (state.emailFormatError) update({ ...state, email: '', emailFormatError: undefined });
+  }
+
   function openEmail() {
     if (!isActive() || pending || state.signupStatus) return;
     syncTime();
     if (state.step !== 'form' && state.step !== 'verified') return;
     if (!pin && !validEmail(state.email)) {
-      update({ ...state, message: '이메일 주소를 확인해 주세요.' });
+      update(purpose === 'SIGNUP' ? { ...state, emailFormatError: invalidEmail } : { ...state, message: invalidEmail });
       return;
     }
     update({ ...state, step: state.challengeId ? 'code' : 'email',
@@ -329,7 +335,7 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
         case 'rate_limited':
           setRateLimit(decision, receivedAt, verifying ? 'verify' : 'issue'); break;
         case 'validation_failed':
-          update({ ...state, message: verifying ? '인증번호 입력을 확인해 주세요.' : '이메일 주소를 확인해 주세요.' }); break;
+          update({ ...state, message: verifying ? '인증번호 입력을 확인해 주세요.' : invalidEmail }); break;
         case 'verification_invalid':
           update({ ...state, message: '인증번호를 확인하거나 새 번호를 받아 주세요.' }); break;
         case 'csrf_invalid': {
@@ -509,7 +515,7 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    setEmail, openEmail, closeDialog, finish, suspend, reset, syncTime, takeToken, deferUntil,
+    setEmail, clearInvalidEmail, openEmail, closeDialog, finish, suspend, reset, syncTime, takeToken, deferUntil,
     issue: () => submit(),
     verify: (code: string) => submit(code),
     submitSignup,

@@ -67,9 +67,12 @@ export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false,
 
   const message = waiting ? requestLimited : retrySecurity ? '보안 확인을 완료하지 못했어요.'
     : feedback?.retryAt === undefined ? feedback?.message : undefined;
+  const credentialError = !waiting && !retrySecurity && feedback?.kind === 'credentials' && message;
+  const fieldErrors = feedback?.fields;
+  const inlineMessage = fieldErrors?.email && fieldErrors.password ? message : fieldErrors?.email ?? fieldErrors?.password ?? message;
   return (
     <View style={styles.screen}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
+      <ScrollView bounces={false} style={styles.scroll} contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
         <View style={styles.form}>
           <View style={styles.heading}>
@@ -81,18 +84,21 @@ export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false,
               onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
               keyboardType="email-address" autoComplete="username" autoCapitalize="none" autoCorrect={false}
               returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => { passwordInput.current?.focus(); }}
-              error={feedback?.fields?.email} disabled={submitting} />
+              error={fieldErrors?.email} showMessage={false} disabled={submitting} />
             <TextField ref={passwordInput} label="비밀번호" placeholder="비밀번호를 입력해주세요." value={password}
               onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
               secureTextEntry autoComplete="current-password" autoCapitalize="none" autoCorrect={false}
               returnKeyType="go" onSubmitEditing={() => { void submitForm(); }}
-              error={feedback?.fields?.password} disabled={submitting} />
+              error={fieldErrors?.password} showMessage={false} disabled={submitting} />
           </View>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
-            <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
-          </Pressable>
+          <View style={styles.helpRow}>
+            {credentialError && inlineMessage && <ErrorMessage message={inlineMessage} inline />}
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
+              <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
+            </Pressable>
+          </View>
           <View style={styles.actions}>
-            {message && <ErrorMessage message={message} />}
+            {!credentialError && message && <ErrorMessage message={message} />}
             <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting}
               disabled={waiting || blocked || !!retrySecurity} />
             {retrySecurity && <Button label="보안 확인 다시 시도" variant="secondary" disabled={waiting} loading={blocked}
@@ -133,8 +139,11 @@ const styles = StyleSheet.create({
   symbol: { width: 80, height: 68 },
   title: { ...typography.title, color: colors.textPrimary, textAlign: 'center' },
   fields: { gap: 16 },
-  reset: { minHeight: 44, alignSelf: 'flex-end', justifyContent: 'center', marginTop: 12 },
-  resetLabel: { ...typography.label, fontFamily: fonts.regular, color: colors.textSecondary, textDecorationLine: 'underline' },
+  helpRow: { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 44, marginTop: 12 },
+  reset: { minHeight: 44, maxWidth: '48%', marginLeft: 'auto', justifyContent: 'center' },
+  resetLabel: {
+    ...typography.label, fontFamily: fonts.regular, color: colors.textSecondary, textAlign: 'right', textDecorationLine: 'underline',
+  },
   actions: { gap: 16, marginTop: 25 },
   signUp: { minHeight: 60, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceWhite, paddingVertical: 16, paddingHorizontal: 20 },
   signUpLabel: { ...typography.body, fontFamily: fonts.extraBold, color: colors.textSignUp, textAlign: 'center' },

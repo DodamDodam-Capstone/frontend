@@ -38,7 +38,7 @@ function IntroText({ copy, scale }: { copy: typeof guide; scale: number }) {
 
 function PermissionGuide({ scale, onComplete }: { scale: number; onComplete: () => void }) {
   return (
-    <ScrollView nestedScrollEnabled contentInsetAdjustmentBehavior="never"
+    <ScrollView bounces={false} nestedScrollEnabled contentInsetAdjustmentBehavior="never"
       contentContainerStyle={[styles.panelContent, {
         paddingHorizontal: 40 * scale, paddingTop: 56 * scale, paddingBottom: 44 * scale,
       }]}>
@@ -190,7 +190,7 @@ export function OnboardingFlow({ onComplete }: { onComplete: () => void }) {
 
   function renderSlide(index: Page) {
     return (
-      <ScrollView key={index} nestedScrollEnabled directionalLockEnabled contentInsetAdjustmentBehavior="never"
+      <ScrollView key={index} bounces={false} nestedScrollEnabled directionalLockEnabled contentInsetAdjustmentBehavior="never"
         contentContainerStyle={{ paddingHorizontal: padding, paddingTop: 56 * scale }}>
         <IntroText copy={slides[index]} scale={scale} />
         <View style={{ paddingTop: 29 * scale }}>

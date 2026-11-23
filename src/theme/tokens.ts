@@ -9,6 +9,7 @@ export const colors = {
   textBubble: '#241204',
   textSocial: '#3E3A32',
   textSignUp: '#3C1E1E',
+  textError: '#BC135D',
   primary: '#75CC3F',
   surface: '#FDF8F2',
   surfaceWhite: '#FFFFFF',

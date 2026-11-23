@@ -42,7 +42,7 @@ export function EntryDestination({
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
       <AppText accessibilityRole="header" style={styles.title}>{titles[route]}</AppText>
       <AppText style={styles.description}>화면을 준비하고 있어요.</AppText>
       {logoutFeedback && <ErrorMessage message={logoutFeedback} />}

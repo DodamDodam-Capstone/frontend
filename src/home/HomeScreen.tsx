@@ -1,4 +1,4 @@
-import { type RefObject, useCallback, useEffect, useRef, useState } from 'react';
+import { type ReactNode, type Ref, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import {
   AccessibilityInfo, BackHandler, Image, type ImageSourcePropType, type ImageStyle, Platform, Pressable,
   ScrollView, StatusBar, StyleSheet, type Text, useWindowDimensions, View, type ViewStyle,
@@ -11,15 +11,16 @@ import { colors, fonts, typography } from '../theme/tokens';
 import type { HomeData, HomeTalkState } from './homeData';
 
 type HomeScreenProps = {
-  data: HomeData;
-  talkState: HomeTalkState | 'checking';
   onTalk: () => void;
   onGuardian: () => void;
   onLogout: () => void;
   onRefresh: () => void;
   logoutDisabled: boolean;
   logoutFeedback?: string;
-};
+} & (
+  | { data: HomeData; talkState: HomeTalkState | 'checking'; fallback?: never }
+  | { data?: never; talkState?: never; fallback: ReactNode }
+);
 
 type Box = readonly [x: number, y: number, width: number, height: number];
 type Illustration = { source: ImageSourcePropType; box: Box; flip?: boolean };
@@ -114,19 +115,22 @@ function IllustrationLayer({ source, box: [x, y, width, height], flip, scale, st
   ]} />;
 }
 
-function HomeButton({ label, onPress, disabled = false, scale, style, tone, buttonRef, pairedPress }: {
+function HomeButton({ label, onPress, disabled = false, blocked = false, scale, style, tone, buttonRef, pairedPress }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
+  blocked?: boolean;
   scale: number;
   style?: ViewStyle;
   tone?: 'attendance' | 'confirm';
   buttonRef?: RefObject<View | null>;
   pairedPress?: PairedPress;
 }) {
+  const unavailable = disabled || blocked;
   return (
-    <Pressable ref={buttonRef} accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
-      disabled={disabled} onPress={onPress}
+    <Pressable ref={buttonRef} accessible={!blocked} accessibilityRole="button" accessibilityLabel={label}
+      accessibilityState={{ disabled: unavailable }}
+      disabled={unavailable} focusable={!unavailable} onPress={onPress}
       onPressIn={pairedPress && (() => pairedPress.onChange(true))}
       onPressOut={pairedPress && (() => pairedPress.onChange(false))}
       hitSlop={tone === 'attendance' ? { top: 8, bottom: 8, left: 5, right: 5 } : undefined}
@@ -144,22 +148,26 @@ function HomeButton({ label, onPress, disabled = false, scale, style, tone, butt
   );
 }
 
-function HomeArtButton({ label, hitBox, feedback, captionBox, scale, disabled = false, onPress, pairedPress }: {
+function HomeArtButton({ label, hitBox, feedback, captionBox, scale, disabled = false, blocked = false, onPress, pairedPress, buttonRef }: {
   label: string;
   hitBox: Box;
   feedback: PressFeedback;
   captionBox?: Box;
   scale: number;
   disabled?: boolean;
+  blocked?: boolean;
   onPress: () => void;
   pairedPress?: PairedPress;
+  buttonRef?: Ref<View>;
 }) {
+  const unavailable = disabled || blocked;
   const [x, y, width, height] = hitBox;
   const relative = ([left, top, width, height]: Box): Box => [left - x, top - y, width, height];
   const edge = { ...feedback.edge, box: relative(feedback.edge.box) };
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ disabled }}
-      disabled={disabled} pointerEvents={disabled ? 'none' : 'auto'} onPress={onPress}
+    <Pressable ref={buttonRef} accessible={!blocked} accessibilityRole="button" accessibilityLabel={label}
+      accessibilityState={{ disabled: unavailable }} disabled={unavailable} focusable={!unavailable}
+      pointerEvents={unavailable ? 'none' : 'auto'} onPress={onPress}
       onPressIn={pairedPress && (() => pairedPress.onChange(true))}
       onPressOut={pairedPress && (() => pairedPress.onChange(false))}
       style={[position(x, y, scale), { width: width * scale, height: height * scale }]}>
@@ -199,7 +207,7 @@ function UpcomingNotice({ menu, onClose }: { menu: UpcomingMenu; onClose: () => 
     };
   }, [onClose]);
   return (
-    <ScrollView style={styles.upcomingScreen} contentContainerStyle={styles.upcomingContent}>
+    <ScrollView bounces={false} style={styles.upcomingScreen} contentContainerStyle={styles.upcomingContent}>
       <Image source={menu.image} accessible={false} resizeMode="contain" style={styles.upcomingImage} />
       <AppText ref={title} accessibilityRole="header" style={styles.upcomingTitle}>{menu.title}</AppText>
       <AppText style={styles.upcomingMessage}>준비 중이에요.</AppText>
@@ -254,11 +262,12 @@ function AttendanceNotice({ scale, height, onClose }: { scale: number; height: n
   );
 }
 
-function HomeTime({ data, scale, openAttendance, attendanceAnchor }: {
+function HomeTime({ data, scale, openAttendance, attendanceAnchor, attendanceOpen }: {
   data: HomeData;
   scale: number;
   openAttendance: () => void;
   attendanceAnchor: RefObject<View | null>;
+  attendanceOpen: boolean;
 }) {
   const { serverTime, serviceDate, opensAt, closesAt } = data.availability;
   const [, month, day] = serviceDate.split('-');
@@ -273,7 +282,8 @@ function HomeTime({ data, scale, openAttendance, attendanceAnchor }: {
       </View>
       <View style={styles.timeRow}>
         <AppText style={[styles.daysTogether, { fontSize: 28 * scale }]}>{data.daysTogether}일째</AppText>
-        <HomeButton label="출석 · 준비 중" onPress={openAttendance} scale={scale} tone="attendance" buttonRef={attendanceAnchor} />
+        <HomeButton label="출석 · 준비 중" onPress={openAttendance} scale={scale} tone="attendance"
+          buttonRef={attendanceAnchor} blocked={attendanceOpen} />
       </View>
       <View style={[styles.week, { borderRadius: 16 * scale, padding: 8 * scale }]} accessible={false}
         accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
@@ -292,7 +302,7 @@ function HomeTime({ data, scale, openAttendance, attendanceAnchor }: {
 }
 
 export function HomeScreen({
-  data, talkState, onTalk, onGuardian, onLogout, onRefresh, logoutDisabled, logoutFeedback,
+  data, talkState, fallback, onTalk, onGuardian, onLogout, onRefresh, logoutDisabled, logoutFeedback,
 }: HomeScreenProps) {
   const window = useWindowDimensions();
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -301,9 +311,10 @@ export function HomeScreen({
   const [talkPressed, setTalkPressed] = useState(false);
   const closeUpcoming = useCallback(() => setUpcomingMenu(undefined), []);
   const [speechHeight, setSpeechHeight] = useState(0);
-  const openedAttendance = useRef(false);
   const closeAttendance = useCallback(() => setAttendanceOpen(false), []);
   const attendanceAnchor = useRef<View>(null);
+  const menuAnchors = useRef(new Map<UpcomingMenu, View>());
+  const returnFocus = useRef<UpcomingMenu | 'attendance' | undefined>(undefined);
   const availableWidth = size.width || window.width;
   const availableHeight = size.height || window.height;
   const scale = Math.min(availableWidth / designWidth, availableHeight / designHeight);
@@ -311,40 +322,47 @@ export function HomeScreen({
   const sceneTop = (availableHeight - designHeight * scale) / 2;
   const statusHeight = Platform.OS === 'android' ? StatusBar.currentHeight ?? 0 : 24;
   const controlsTop = Math.max(24 * scale, statusHeight + 5 - sceneTop);
-  const talkAllowed = talkState === 'start' || talkState === 'resume';
-  const talkLabel = talkState === 'resume' ? '이어하기' : '대화하기';
-  const talkPress = { active: talkAllowed && talkPressed, onChange: setTalkPressed };
-  const nicknamePrefix = `${data.child.nickname}, `;
-  const greeting = data.greeting.startsWith(nicknamePrefix)
-    ? `${data.child.nickname},\n${data.greeting.slice(nicknamePrefix.length)}`
-    : data.greeting.includes(data.child.nickname) ? data.greeting : `${data.child.nickname}\n${data.greeting}`;
-  const largeText = window.fontScale > 1.25;
-  const speechWidth = largeText ? 260 : 175;
-  let talkNote: string | undefined;
-  if (talkState === 'outside') talkNote = '지금은 쉬는 시간! 아침에 이야기하자';
-  if (talkState === 'closing') talkNote = '대화를 마무리하고 있어요.';
-  if (talkState === 'checking') talkNote = '이용 가능 시간을 확인하고 있어요.';
+  const hasRoom = data !== undefined;
 
   useEffect(() => {
-    if (attendanceOpen || !openedAttendance.current) return;
+    const target = returnFocus.current;
+    if (!hasRoom || attendanceOpen || upcomingMenu || !target) return;
     const frame = requestAnimationFrame(() => {
-      if (attendanceAnchor.current) AccessibilityInfo.sendAccessibilityEvent(attendanceAnchor.current, 'focus');
+      if (returnFocus.current !== target) return;
+      const anchor = target === 'attendance' ? attendanceAnchor.current : menuAnchors.current.get(target);
+      if (anchor) {
+        returnFocus.current = undefined;
+        AccessibilityInfo.sendAccessibilityEvent(anchor, 'focus');
+      }
     });
     return () => cancelAnimationFrame(frame);
-  }, [attendanceOpen]);
+  }, [attendanceOpen, hasRoom, upcomingMenu]);
 
   if (upcomingMenu) return <UpcomingNotice menu={upcomingMenu} onClose={closeUpcoming} />;
 
-  // 앱 내부 레이어만 사용해 홈 세대가 바뀌면 출석 열림 상태도 함께 폐기한다.
-  return (
-    <View style={styles.screen} onLayout={event => {
-      const { width, height } = event.nativeEvent.layout;
-      setSize(current => current.width === width && current.height === height ? current : { width, height });
-    }}>
-      <Image source={room} accessible={false} style={styles.room} resizeMode="stretch" />
-      <View pointerEvents={attendanceOpen ? 'none' : 'auto'}
-        accessibilityElementsHidden={attendanceOpen}
-        importantForAccessibility={attendanceOpen ? 'no-hide-descendants' : 'auto'}
+  const backgroundAccessibility = {
+    pointerEvents: attendanceOpen ? 'none' : 'auto',
+    accessibilityElementsHidden: attendanceOpen,
+    importantForAccessibility: attendanceOpen ? 'no-hide-descendants' : 'auto',
+  } as const;
+
+  function renderRoom(data: HomeData, talkState: HomeTalkState | 'checking') {
+    const talkAllowed = talkState === 'start' || talkState === 'resume';
+    const talkLabel = talkState === 'resume' ? '이어하기' : '대화하기';
+    const talkPress = { active: talkAllowed && talkPressed, onChange: setTalkPressed };
+    const nicknamePrefix = `${data.child.nickname}, `;
+    const greeting = data.greeting.startsWith(nicknamePrefix)
+      ? `${data.child.nickname},\n${data.greeting.slice(nicknamePrefix.length)}`
+      : data.greeting.includes(data.child.nickname) ? data.greeting : `${data.child.nickname}\n${data.greeting}`;
+    const largeText = window.fontScale > 1.25;
+    const speechWidth = largeText ? 260 : 175;
+    let talkNote: string | undefined;
+    if (talkState === 'outside') talkNote = '지금은 쉬는 시간! 아침에 이야기하자';
+    if (talkState === 'closing') talkNote = '대화를 마무리하고 있어요.';
+    if (talkState === 'checking') talkNote = '이용 가능 시간을 확인하고 있어요.';
+
+    return (
+      <View {...backgroundAccessibility}
         style={{ width: designWidth * scale, height: designHeight * scale }}>
         <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden
           style={StyleSheet.absoluteFill}>
@@ -360,14 +378,14 @@ export function HomeScreen({
           <IllustrationLayer source={smallSparkle} box={[840, 580, 11, 14]} scale={scale} flip />
         </View>
         <View style={[position(32, 24, scale), { top: controlsTop }]}>
-          <HomeTime data={data} scale={scale} attendanceAnchor={attendanceAnchor} openAttendance={() => {
-            openedAttendance.current = true;
+          <HomeTime data={data} scale={scale} attendanceAnchor={attendanceAnchor} attendanceOpen={attendanceOpen} openAttendance={() => {
+            returnFocus.current = 'attendance';
             setAttendanceOpen(true);
           }} />
         </View>
         <View style={[styles.guardianActions, { right: 32 * scale, top: controlsTop }]}>
-          <HomeButton label="로그아웃" scale={scale} disabled={logoutDisabled} onPress={onLogout} />
-          <HomeButton label="보호자 모드" scale={scale} onPress={onGuardian} style={{ minWidth: 163 * scale }} />
+          <HomeButton label="로그아웃" scale={scale} disabled={logoutDisabled} blocked={attendanceOpen} onPress={onLogout} />
+          <HomeButton label="보호자 모드" scale={scale} blocked={attendanceOpen} onPress={onGuardian} style={{ minWidth: 163 * scale }} />
         </View>
         {logoutFeedback && (
           <View style={[styles.logoutFeedback, { right: 32 * scale, top: controlsTop + Math.max(44, 48 * scale) + 4,
@@ -378,11 +396,12 @@ export function HomeScreen({
 
         <View style={[position(640, 155, scale), { alignItems: 'center', width: 215 * scale, marginLeft: -107.5 * scale }]}>
           <HomeButton label={talkLabel} onPress={onTalk} pairedPress={talkPress}
-            disabled={!talkAllowed} scale={scale} />
-          {talkState === 'closing' && <HomeButton label="다시 확인" onPress={onRefresh} scale={scale} />}
+            disabled={!talkAllowed} blocked={attendanceOpen} scale={scale} />
+          {talkState === 'closing' && <HomeButton label="다시 확인" onPress={onRefresh} scale={scale} blocked={attendanceOpen} />}
         </View>
         <HomeArtButton label={`도담이 캐릭터로 ${talkLabel}`} hitBox={[510, 226, 237, 423]}
-          feedback={characterFeedback} scale={scale} disabled={!talkAllowed} pairedPress={talkPress} onPress={onTalk} />
+          feedback={characterFeedback} scale={scale} disabled={!talkAllowed} blocked={attendanceOpen}
+          pairedPress={talkPress} onPress={onTalk} />
         <View pointerEvents="none" style={[styles.speech, position(701, 195, scale), {
           width: speechWidth * scale, minHeight: 109 * scale,
           paddingHorizontal: (largeText ? 40 : 22) * scale, paddingVertical: (largeText ? 44 : 24) * scale,
@@ -401,10 +420,27 @@ export function HomeScreen({
 
         {upcomingMenus.map(menu => (
           <HomeArtButton key={menu.title} label={`${menu.title} · 준비 중`}
-            hitBox={menu.hitBox} feedback={menu.feedback} captionBox={menu.captionBox}
-            scale={scale} onPress={() => setUpcomingMenu(menu)} />
+            hitBox={menu.hitBox} feedback={menu.feedback} captionBox={menu.captionBox} blocked={attendanceOpen}
+            buttonRef={anchor => {
+              if (anchor) menuAnchors.current.set(menu, anchor);
+              else menuAnchors.current.delete(menu);
+            }}
+            scale={scale} onPress={() => {
+              returnFocus.current = menu;
+              setUpcomingMenu(menu);
+            }} />
         ))}
       </View>
+    );
+  }
+
+  return (
+    <View style={styles.screen} onLayout={event => {
+      const { width, height } = event.nativeEvent.layout;
+      setSize(current => current.width === width && current.height === height ? current : { width, height });
+    }}>
+      {(data || attendanceOpen) && <Image source={room} accessible={false} style={styles.room} resizeMode="stretch" />}
+      {data ? renderRoom(data, talkState) : !attendanceOpen && <View style={styles.fallback}>{fallback}</View>}
       {attendanceOpen && <AttendanceNotice scale={scale} height={attendanceHeight} onClose={closeAttendance} />}
     </View>
   );
@@ -412,6 +448,7 @@ export function HomeScreen({
 
 const styles = StyleSheet.create({
   screen: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.surfaceWarm },
+  fallback: { flex: 1, alignSelf: 'stretch' },
   room: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
   pill: {
     backgroundColor: colors.surfaceWarm, borderRadius: 99, alignItems: 'center', justifyContent: 'center',

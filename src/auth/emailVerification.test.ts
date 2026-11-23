@@ -275,7 +275,7 @@ it.each(['', 'invalid', 'a@', 'a @example.test', 'é@example.test'])('keeps an i
   flow.closeDialog();
   flow.setEmail(address);
   flow.openEmail();
-  expect(flow.getSnapshot()).toMatchObject({ step: 'form', message: expect.any(String) });
+  expect(flow.getSnapshot()).toMatchObject({ step: 'form', email: address, emailFormatError: '이메일 주소를 확인해 주세요.' });
   expect(posts()).toHaveLength(0);
 });
 

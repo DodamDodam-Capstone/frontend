@@ -1,6 +1,6 @@
 import { expect, jest, test } from '@jest/globals';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
-import { BackHandler, StyleSheet } from 'react-native';
+import { AccessibilityInfo, BackHandler, StyleSheet } from 'react-native';
 
 import type { HomeData } from './homeData';
 import { HomeScreen } from './HomeScreen';
@@ -53,9 +53,19 @@ test('서버 날짜·함께한 날·애칭 인사를 표시하고 출석 안내�
   expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
   expect(screen.queryByRole('button', { name: '대화하기' })).not.toBeOnTheScreen();
   expect(screen.queryByRole('button', { name: '보호자 모드' })).not.toBeOnTheScreen();
+  const backgroundButtons = screen.container.queryAll(element =>
+    element.props.accessibilityRole === 'button' && element.props.accessibilityLabel !== '확인',
+  );
+  expect(backgroundButtons).toHaveLength(8);
+  for (const button of backgroundButtons) {
+    expect(button).toBeDisabled();
+    expect(button).toHaveProp('focusable', false);
+    expect(button).toHaveProp('accessible', false);
+  }
   await fireEvent.press(screen.getByRole('button', { name: '확인' }));
   expect(screen.queryByRole('button', { name: '확인' })).not.toBeOnTheScreen();
   expect(screen.getByRole('button', { name: '대화하기' })).toBeEnabled();
+  expect(screen.getByRole('button', { name: '대화하기' })).toHaveProp('focusable', true);
   expect(props.onTalk).not.toHaveBeenCalled();
   expect(props.onGuardian).not.toHaveBeenCalled();
   expect(props.onRefresh).not.toHaveBeenCalled();
@@ -111,21 +121,45 @@ test('이용시간 밖에는 다음 이용 시각을 알리고 보호자 모드�
   expect(screen.getByRole('button', { name: '보호자 모드' })).toBeEnabled();
 });
 
-test('준비 중 안내에서 시스템 뒤로 가면 홈을 그대로 다시 표시한다', async () => {
+test.each<[string, 'button' | 'system']>([
+  ['도담이 꾸미기', 'button'],
+  ['추억 다시보기', 'button'],
+  ['같이 놀기', 'system'],
+])('%s 안내를 %s 경로로 닫으면 원래 메뉴에 포커스를 복원한다', async (menu, close) => {
+  jest.useFakeTimers();
   const remove = jest.fn();
   const back = jest.spyOn(BackHandler, 'addEventListener').mockReturnValue({ remove });
+  const focus = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockClear().mockImplementation(() => {});
   try {
     const props = homeProps();
     await render(<HomeScreen {...props} talkState="start" />);
-    await fireEvent.press(screen.getByRole('button', { name: '같이 놀기 · 준비 중' }));
-    expect(screen.getByRole('header', { name: '같이 놀기' })).toBeVisible();
-    const handleBack = back.mock.calls[0][1];
-    await act(() => { expect(handleBack({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true); });
-    expect(screen.getByRole('button', { name: '같이 놀기 · 준비 중' })).toBeEnabled();
+    const name = `${menu} · 준비 중`;
+    await fireEvent.press(screen.getByRole('button', { name }));
+    expect(screen.getByRole('header', { name: menu })).toBeVisible();
+    await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+    expect(focus).toHaveBeenCalledTimes(1);
+    expect(focus.mock.lastCall?.[1]).toBe('focus');
+    focus.mockClear();
+
+    if (close === 'system') {
+      const handleBack = back.mock.calls[0][1];
+      await act(() => { expect(handleBack({ type: 'hardwareBackPress', timeStamp: 0 })).toBe(true); });
+    } else {
+      await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+    }
+    const target = screen.getByRole('button', { name });
+    expect(target).toBeEnabled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+    expect(focus).toHaveBeenCalledTimes(1);
+    const focused = focus.mock.lastCall?.[0] as unknown as { props?: { accessibilityLabel?: string } };
+    expect(focused?.props?.accessibilityLabel).toBe(name);
+    expect(focus.mock.lastCall?.[1]).toBe('focus');
     expect(props.onRefresh).not.toHaveBeenCalled();
     expect(remove).toHaveBeenCalledTimes(1);
   } finally {
+    focus.mockRestore();
     back.mockRestore();
+    jest.useRealTimers();
   }
 });
 

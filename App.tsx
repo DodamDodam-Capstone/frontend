@@ -24,7 +24,7 @@ type EntryErrorState = Extract<EntrySnapshot, { kind: 'error' }>;
 
 function EntryFrame({ children }: { children: ReactNode }) {
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
       <View style={styles.content}>{children}</View>
     </ScrollView>
   );

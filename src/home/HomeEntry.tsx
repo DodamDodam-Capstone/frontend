@@ -151,25 +151,36 @@ export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: Hom
     void submitLogout();
   }
 
-  if (!destination && state.kind === 'ready') {
-    const talkState = state.talkLocked ? 'checking' : getHomeTalkState(state.data);
-    return <HomeScreen data={state.data} talkState={talkState} onTalk={openConversation}
-      onGuardian={() => open({ route: HOME_DESTINATIONS.guardian, childId })}
-      onLogout={logout} onRefresh={() => { void load(); }} logoutDisabled={logoutDisabled} logoutFeedback={logoutFeedback} />;
+  const logoutActions = <>
+    {logoutFeedback && <ErrorMessage message={logoutFeedback} />}
+    <Button label="로그아웃" variant="secondary" disabled={logoutDisabled} onPress={logout} />
+  </>;
+
+  if (destination) {
+    return <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
+      <HomeDestinationPreview destination={destination} onBack={backToHome} />
+      {logoutActions}
+    </ScrollView>;
   }
 
-  return <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-    {destination ? <HomeDestinationPreview destination={destination} onBack={backToHome} /> : <>
+  const display = state.kind === 'ready' ? {
+    data: state.data,
+    talkState: state.talkLocked ? 'checking' as const : getHomeTalkState(state.data),
+  } : {
+    fallback: <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <AppText accessibilityRole="header" style={styles.title}>홈</AppText>
       {state.kind === 'loading' && <LoadingIndicator label="홈 정보 확인 중" />}
       {state.kind === 'error' && <>
         <ErrorMessage message={state.message} />
         <Button label="다시 시도" variant="secondary" disabled={retryWaiting} onPress={() => { void load(); }} />
       </>}
-    </>}
-    {logoutFeedback && <ErrorMessage message={logoutFeedback} />}
-    <Button label="로그아웃" variant="secondary" disabled={logoutDisabled} onPress={logout} />
-  </ScrollView>;
+      {logoutActions}
+    </ScrollView>,
+  };
+
+  return <HomeScreen {...display} onTalk={openConversation}
+    onGuardian={() => open({ route: HOME_DESTINATIONS.guardian, childId })}
+    onLogout={logout} onRefresh={() => { void load(); }} logoutDisabled={logoutDisabled} logoutFeedback={logoutFeedback} />;
 }
 
 const styles = StyleSheet.create({

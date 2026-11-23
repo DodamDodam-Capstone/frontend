@@ -7,22 +7,26 @@ import { colors, typography } from '../theme/tokens';
 export type TextFieldProps = Pick<TextInputProps,
   'value' | 'onChangeText' | 'secureTextEntry' | 'keyboardType' | 'autoCapitalize' |
   'autoCorrect' | 'autoComplete' | 'textContentType' | 'returnKeyType' | 'onSubmitEditing' |
-  'submitBehavior' | 'placeholder' | 'onFocus'
+  'submitBehavior' | 'placeholder' | 'onFocus' | 'onPress'
 > & {
   label: string;
   value: string;
   onChangeText: (value: string) => void;
   helperText?: string;
+  showMessage?: boolean;
+  showErrorInInput?: boolean;
   error?: string;
   disabled?: boolean;
 };
 
 export const TextField = forwardRef<TextInput, TextFieldProps>(function TextField(
-  { label, value, onChangeText, helperText, error, disabled = false, onFocus, ...inputProps }, ref,
+  { label, value, onChangeText, helperText, showMessage = true, showErrorInInput = false, error, disabled = false,
+    onFocus, placeholder, ...inputProps }, ref,
 ) {
   const labelId = useId();
   const [focused, setFocused] = useState(false);
   const message = error ? `오류: ${error}` : helperText;
+  const inputError = showErrorInInput ? error : undefined;
 
   return (
     <View style={styles.field}>
@@ -30,7 +34,8 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
       <TextInput
         {...inputProps}
         ref={ref}
-        value={value}
+        value={inputError ? '' : value}
+        placeholder={inputError ?? placeholder}
         onChangeText={(text) => { if (!disabled) onChangeText(text); }}
         accessibilityLabel={label}
         accessibilityLabelledBy={labelId}
@@ -39,11 +44,11 @@ export const TextField = forwardRef<TextInput, TextFieldProps>(function TextFiel
         editable={!disabled}
         onFocus={event => { setFocused(true); onFocus?.(event); }}
         onBlur={() => setFocused(false)}
-        placeholderTextColor={colors.textPlaceholder}
+        placeholderTextColor={inputError ? colors.textError : colors.textPlaceholder}
         selectionColor={colors.textLabel}
         style={[styles.input, !!error && styles.error, focused && !disabled && styles.focused, disabled && styles.disabled]}
       />
-      {!!message && <AppText style={styles.message} accessibilityLiveRegion="polite">{message}</AppText>}
+      {showMessage && !inputError && !!message && <AppText style={styles.message} accessibilityLiveRegion="polite">{message}</AppText>}
     </View>
   );
 });

@@ -471,7 +471,7 @@ test('로그인 실패 후 같은 계정에 다시 로그인하면 로그아웃 
   await waitFor(() => expect(failedLogin.wait).toHaveBeenCalledTimes(1));
   expect(login).toBeBusy();
   await act(() => { failedLogin.release(); });
-  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
   expect(screen.getByLabelText('이메일')).toHaveDisplayValue(accountA.email);
   expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
   expect(server.calls('/auth/login')).toHaveLength(1);
@@ -673,7 +673,7 @@ test('최근 앱 카드 복귀 중 로그인 POST에 온 429는 새 폼의 재�
   await fireEvent.changeText(screen.getByLabelText('이메일'), 'guardian@example.test');
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' ');
   await fireEvent.press(submit);
-  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
   expect(posts).toBe(2);
   expect(fetchCall.mock.calls.filter(([url]) => String(url).endsWith('/auth/me'))).toHaveLength(2);
 });
@@ -1222,6 +1222,76 @@ test('서버 자정과 08시 경계에서 새로 조회하며 08시 오류가 �
   expect(await screen.findByRole('button', { name: '대화하기' })).toBeEnabled();
 });
 
+test('08시 홈 갱신은 준비 중 화면을 유지하고 조회 중 닫아도 새 홈에서 포커스를 복원한다', async () => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const focus = jest.spyOn(AccessibilityInfo, 'sendAccessibilityEvent').mockImplementation(() => {});
+  const beforeOpening = createHomeFixture({ serverTime: '2026-11-25T07:59:58+09:00' });
+  const boundary = pendingResponse();
+  const home = jest.fn<() => Response | Promise<Response>>()
+    .mockReturnValueOnce(response(200, { data: beforeOpening }))
+    .mockReturnValueOnce(boundary.promise);
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  const menu = '같이 놀기 · 준비 중';
+  await fireEvent.press(await screen.findByRole('button', { name: menu }));
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(2_000); });
+  expect(home).toHaveBeenCalledTimes(2);
+  expect(screen.getByRole('header', { name: '같이 놀기' })).toBeVisible();
+  expect(screen.queryByText('홈 정보 확인 중')).not.toBeOnTheScreen();
+  focus.mockClear();
+
+  await fireEvent.press(screen.getByRole('button', { name: '홈으로 돌아가기' }));
+  expect(screen.getByText('홈 정보 확인 중')).toBeVisible();
+  await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+  expect(focus).not.toHaveBeenCalled();
+
+  await act(async () => { boundary.resolve(response(200, { data: homeAtNoon })); });
+  expect(screen.getByRole('button', { name: '대화하기' })).toBeEnabled();
+  await act(async () => { await jest.advanceTimersByTimeAsync(20); });
+  expect(focus).toHaveBeenCalledTimes(1);
+  const target = focus.mock.lastCall?.[0] as unknown as { props?: { accessibilityLabel?: string } };
+  expect(target?.props?.accessibilityLabel).toBe(menu);
+  expect(focus.mock.lastCall?.[1]).toBe('focus');
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
+test.each<[number, string]>([
+  [503, 'AUTH_STATE_UNAVAILABLE'],
+  [401, 'AUTHENTICATION_REQUIRED'],
+])('자정 출석 안내가 열렸을 때 %s 홈 갱신 결과를 반영한다', async (status, code) => {
+  jest.useFakeTimers();
+  markers.set(marker, 'true');
+  const beforeMidnight = createHomeFixture({ serverTime: '2026-11-24T23:59:58+09:00' });
+  const boundary = pendingResponse();
+  const home = jest.fn<() => Response | Promise<Response>>()
+    .mockReturnValueOnce(response(200, { data: beforeMidnight }))
+    .mockReturnValueOnce(boundary.promise);
+  homeServer(home);
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: '출석 · 준비 중' }));
+
+  await act(async () => { await jest.advanceTimersByTimeAsync(2_000); });
+  expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
+  expect(screen.queryByText('홈 정보 확인 중')).not.toBeOnTheScreen();
+  await act(async () => { boundary.resolve(authError(status, code)); });
+
+  if (status === 401) {
+    expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+    expect(screen.queryByRole('header', { name: '출석 보상은 준비 중이에요!' })).not.toBeOnTheScreen();
+  } else {
+    expect(screen.getByRole('header', { name: '출석 보상은 준비 중이에요!' })).toBeVisible();
+    expect(screen.queryByRole('button', { name: '다시 시도' })).not.toBeOnTheScreen();
+    await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+    expect(screen.getByRole('alert')).toBeVisible();
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeEnabled();
+  }
+  expect(home).toHaveBeenCalledTimes(2);
+});
+
 test('출석 안내 열기·닫기는 네트워크를 사용하지 않고 앱을 다녀오면 안내가 닫힌 홈을 갱신한다', async () => {
   markers.set(marker, 'true');
   const changeAppState = observeAppState();
@@ -1270,7 +1340,7 @@ test('첫 실행에서 임시 보호자 계정으로 로그인에 성공한 뒤 
 
   await fillLoginForm(accountA.email, 'incorrect-fixture-password');
   await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
-  expect(await screen.findByRole('alert')).toHaveTextContent('이메일 또는 비밀번호가 올바르지 않아요.');
+  expect(await screen.findByRole('alert')).toHaveTextContent('입력한 이메일과 비밀번호를 확인해 주세요.');
   expect(server.calls('/home')).toHaveLength(0);
 
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
