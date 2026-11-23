@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import {
-  AccessibilityInfo, BackHandler, Image, Keyboard, KeyboardAvoidingView, Platform,
+  AccessibilityInfo, ActivityIndicator, BackHandler, Image, Keyboard, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 
@@ -10,10 +10,13 @@ import { Logo } from '../components/Logo';
 import { TextField } from '../components/TextField';
 import { colors, fonts, typography } from '../theme/tokens';
 import type { EmailVerificationFlow } from './emailVerification';
+import { SignupCompleteScreen } from './SignupCompleteScreen';
+import { validateSignupPassword } from './signupPassword';
 import { VerificationPanel, useVerificationClock } from './VerificationPanel';
 
 type ScreenFlow = Pick<EmailVerificationFlow, 'getSnapshot' | 'subscribe' | 'setEmail' | 'openEmail' | 'issue' |
-  'verify' | 'closeDialog' | 'finish' | 'syncTime'>;
+  'verify' | 'closeDialog' | 'finish' | 'syncTime' | 'submitSignup'>;
+type SignupSnapshot = ReturnType<ScreenFlow['getSnapshot']>;
 
 const badges = [
   require('../../assets/images/signup/step-one.png'),
@@ -24,15 +27,6 @@ const activeTwo = require('../../assets/images/signup/step-two-active.png');
 const stages = [
   ['이메일 인증', '이메일 확인'], ['비밀번호 설정', '계정 만들기'], ['가입 완료', '별도 로그인'],
 ];
-// 비밀번호 입력을 여는 SCRUM-130 전까지 가입 폼의 비활성 상태를 표시한다.
-function InactivePasswordField({ label, placeholder }: { label: string; placeholder: string }) {
-  return <View style={[styles.fieldGroup, styles.unavailable]}>
-    <AppText style={styles.label}>{label}</AppText>
-    <TextInput accessibilityLabel={label} accessibilityState={{ disabled: true }} editable={false}
-      secureTextEntry placeholder={placeholder} placeholderTextColor={colors.textPlaceholder} style={styles.inactiveInput} />
-  </View>;
-}
-
 function SignupProgress({ verified, width }: { verified: boolean; width: number }) {
   const scale = width / 215;
   return (
@@ -66,6 +60,79 @@ function SignupProgress({ verified, width }: { verified: boolean; width: number 
   );
 }
 
+function SignupPasswordForm({ state, now, scroll, onSubmit, onBack }: {
+  state: SignupSnapshot;
+  now: number;
+  scroll: RefObject<ScrollView | null>;
+  onSubmit: ScreenFlow['submitSignup'];
+  onBack: () => void;
+}) {
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [edited, setEdited] = useState(false);
+  const passwordInput = useRef<TextInput>(null);
+  const confirmationInput = useRef<TextInput>(null);
+  const submitting = state.signupStatus === 'submitting';
+  const canEdit = state.step === 'verified' && !submitting && (state.tokenExpiresAt ?? 0) > now;
+  const passwordError = password === '' ? undefined : validateSignupPassword(password);
+  const mismatch = confirmation !== '' && confirmation !== password ? '비밀번호가 일치하지 않아요.' : undefined;
+  const canSubmit = canEdit && password !== '' && !passwordError && confirmation === password
+    && (state.signupRetryAt ?? 0) <= now;
+  const canGoToLogin = state.signupStatus === 'exists' || state.signupStatus === 'uncertain';
+  const scrollToFocusedPassword = useCallback(() => {
+    if (!Keyboard.isVisible()) return;
+    requestAnimationFrame(() => {
+      const input = passwordInput.current?.isFocused() ? passwordInput.current : confirmationInput.current;
+      if (input?.isFocused()) scroll.current?.scrollResponderScrollNativeHandleToKeyboard(input, 16, true);
+    });
+  }, [scroll]);
+
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    const keyboard = Keyboard.addListener('keyboardDidShow', scrollToFocusedPassword);
+    return () => keyboard.remove();
+  }, [scrollToFocusedPassword]);
+
+  function submit() {
+    if (!canSubmit) return;
+    Keyboard.dismiss();
+    setEdited(false);
+    void onSubmit(password, confirmation);
+  }
+
+  return (
+    <>
+      <View style={[styles.form, styles.passwordFields]}>
+        <TextField ref={passwordInput} label="비밀번호" value={password} placeholder="15~128자로 입력해 주세요."
+          onChangeText={value => { setEdited(true); setPassword(value); }}
+          secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="new-password"
+          returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => confirmationInput.current?.focus()}
+          onFocus={scrollToFocusedPassword}
+          disabled={!canEdit} error={passwordError ?? (edited ? undefined : state.signupPasswordError)} />
+        <TextField ref={confirmationInput} label="비밀번호 확인" value={confirmation}
+          placeholder="같은 비밀번호를 다시 입력해 주세요." onChangeText={setConfirmation}
+          secureTextEntry autoCapitalize="none" autoCorrect={false} autoComplete="off"
+          returnKeyType="done" onFocus={scrollToFocusedPassword} disabled={!canEdit} error={mismatch} />
+        {state.signupMessage && <ErrorMessage message={state.signupMessage} />}
+      </View>
+      <View style={styles.footer}>
+        <View style={styles.footerActions}>
+          <Pressable accessibilityRole="button" onPress={onBack} style={styles.backAction}>
+            <AppText style={styles.backText}>{canGoToLogin ? '로그인하기' : '뒤로 가기'}</AppText>
+          </Pressable>
+          <Pressable accessibilityRole="button" disabled={!canSubmit}
+            accessibilityState={{ disabled: !canSubmit, busy: submitting }}
+            style={({ pressed }) => [styles.createAction, !canSubmit && styles.createDisabled,
+              pressed && canSubmit && styles.createPressed]} onPress={submit}>
+            {submitting && <ActivityIndicator color={colors.surfaceWhite} accessible={false} />}
+            <AppText style={styles.createText}>{submitting ? '계정 만드는 중' : '계정 만들기'}</AppText>
+          </Pressable>
+        </View>
+      </View>
+    </>
+  );
+}
+
 export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; onBack: () => void }) {
   const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot);
   const { width } = useWindowDimensions();
@@ -74,8 +141,13 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
   const panel = state.step === 'email' || state.step === 'code' || state.step === 'success';
   const trigger = useRef<View>(null);
   const heading = useRef<Text>(null);
+  const scroll = useRef<ScrollView>(null);
   const previousPanel = useRef(false);
-  const now = useVerificationClock(flow.syncTime, state.expiresAt, state.tokenExpiresAt, state.issueRetryAt, state.verifyRetryAt);
+  const now = useVerificationClock(
+    flow.syncTime, state.expiresAt, state.tokenExpiresAt, state.issueRetryAt, state.verifyRetryAt, state.signupRetryAt,
+  );
+  const emailLocked = state.signupStatus === 'submitting' || state.signupStatus === 'uncertain';
+  const verifyDisabled = verified || emailLocked || state.signupStatus === 'exists';
   const close = useCallback(() => {
     Keyboard.dismiss();
     if (panel) flow.closeDialog();
@@ -96,20 +168,23 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
     previousPanel.current = panel;
   }, [panel, verified]);
 
+  if (state.signupStatus === 'complete') return <SignupCompleteScreen onLogin={close} />;
+
   return (
     <View style={styles.root}>
       <View style={styles.layout} accessibilityElementsHidden={panel}
         importantForAccessibility={panel ? 'no-hide-descendants' : 'auto'} pointerEvents={panel ? 'none' : 'auto'}>
         <SignupProgress verified={verified} width={railWidth} />
-        <KeyboardAvoidingView style={styles.formColumn} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.formScroll}>
+        <KeyboardAvoidingView style={styles.formColumn} behavior="padding" enabled={Platform.OS === 'android'}>
+          <ScrollView ref={scroll} testID="signup-form-scroll" keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.formScroll} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
             <View style={styles.form}>
               <View style={styles.heading}>
                 <AppText ref={heading} style={styles.title} accessibilityRole="header">보호자 계정 만들기</AppText>
                 <AppText style={styles.subheading}>{verified ? '인증을 마쳤어요. 비밀번호를 설정해 주세요.'
                   : '이메일을 인증하고 비밀번호를 설정해 주세요.'}</AppText>
               </View>
-              <TextField label="이메일" value={state.email} onChangeText={flow.setEmail}
+              <TextField label="이메일" value={state.email} onChangeText={flow.setEmail} disabled={emailLocked}
                 placeholder="이메일을 입력해주세요." keyboardType="email-address" autoComplete="email"
                 autoCapitalize="none" autoCorrect={false} returnKeyType="done" />
               <View style={styles.fieldGroup}>
@@ -117,28 +192,18 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
                 <View style={styles.verificationRow}>
                   <View style={styles.statusBox}><AppText style={styles.statusText}>{verified
                     ? '이메일 인증이 완료되었어요.' : '이메일 인증을 완료해 주세요.'}</AppText></View>
-                  <Pressable ref={trigger} accessibilityRole="button" disabled={verified}
-                    accessibilityState={{ disabled: verified }}
+                  <Pressable ref={trigger} accessibilityRole="button" disabled={verifyDisabled}
+                    accessibilityState={{ disabled: verifyDisabled }}
                     style={[styles.verifyTrigger, verified && styles.verifiedTrigger]}
                     onPress={() => { Keyboard.dismiss(); flow.openEmail(); }}>
                     <AppText style={[styles.triggerText, verified && styles.verifiedText]}>{verified ? '인증 완료' : '인증하기'}</AppText>
                   </Pressable>
                 </View>
-                {!panel && state.message && <ErrorMessage message={state.message} />}
-              </View>
-              <InactivePasswordField label="비밀번호" placeholder="15~128자로 입력해 주세요." />
-              <InactivePasswordField label="비밀번호 확인" placeholder="같은 비밀번호를 다시 입력해 주세요." />
-            </View>
-            <View style={styles.footer}>
-              <View style={styles.footerActions}>
-                <Pressable accessibilityRole="button" onPress={close} style={styles.backAction}>
-                  <AppText style={styles.backText}>뒤로 가기</AppText>
-                </Pressable>
-                <Pressable accessibilityRole="button" disabled accessibilityState={{ disabled: true }} style={styles.createAction}>
-                  <AppText style={styles.createText}>계정 만들기</AppText>
-                </Pressable>
+                {!panel && state.message && state.message !== state.signupMessage && <ErrorMessage message={state.message} />}
               </View>
             </View>
+            <SignupPasswordForm key={state.step === 'verified' ? state.email : state.step}
+              state={state} now={now} scroll={scroll} onBack={close} onSubmit={flow.submitSignup} />
           </ScrollView>
         </KeyboardAvoidingView>
       </View>
@@ -176,15 +241,16 @@ const styles = StyleSheet.create({
   verifiedTrigger: { backgroundColor: colors.primary },
   triggerText: { ...typography.body, fontFamily: fonts.extraBold, textAlign: 'center', color: '#418813' },
   verifiedText: { color: colors.surfaceWhite },
-  unavailable: { opacity: 0.55 },
-  inactiveInput: { ...typography.input, minHeight: 56, paddingVertical: 12, paddingHorizontal: 18,
-    borderWidth: 2, borderColor: colors.border, borderRadius: 18, backgroundColor: colors.surfaceWhite },
+  passwordFields: { marginTop: 20 },
   footer: { borderTopWidth: 1, borderColor: colors.border, marginTop: 32, paddingTop: 22 },
   footerActions: { alignSelf: 'center', flexDirection: 'row', justifyContent: 'space-between', width: '87%', maxWidth: 802 },
   backAction: { width: '22.5%', minWidth: 110, minHeight: 60, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center',
     borderRadius: 20, borderWidth: 2, borderColor: colors.border, backgroundColor: colors.surfaceWhite },
-  createAction: { width: '22.5%', minWidth: 110, minHeight: 60, paddingHorizontal: 12, alignItems: 'center', justifyContent: 'center',
-    borderRadius: 20, backgroundColor: '#BBB1A7' },
+  createAction: { width: '22.5%', minWidth: 145, minHeight: 60, paddingHorizontal: 12, paddingVertical: 8,
+    alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6, borderRadius: 20,
+    backgroundColor: colors.primary, boxShadow: '0px 2px 5px rgba(0, 0, 0, 0.05)' },
+  createDisabled: { backgroundColor: '#BBB1A7' },
+  createPressed: { opacity: 0.8 },
+  createText: { ...typography.body, color: colors.surfaceWhite, textAlign: 'center', flexShrink: 1 },
   backText: { ...typography.body, color: colors.textSignUp },
-  createText: { ...typography.body, color: colors.surfaceWhite },
 });

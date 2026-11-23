@@ -108,7 +108,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       isActive: () => mounted && !suspended && isForegroundGeneration() && signup === flow
         && snapshot.kind === 'route' && snapshot.signup === flow,
       entryCsrf: () => entryCsrf,
-      onCsrfLimited: deadline => waitToRetryLogin(deadline, true),
+      onCsrfLimited: (deadline, announce) => waitToRetryLogin(deadline, true, announce),
     });
     flow.deferUntil(retryAt);
     flow.deferUntil(signupIssueRetryAt, 'issue');
@@ -158,11 +158,11 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     for (const listener of listeners) listener();
   }
 
-  function waitToRetryLogin(deadline: number, csrfLimited = false) {
+  function waitToRetryLogin(deadline: number, csrfLimited = false, announce = true) {
     loginRetryAt = Math.max(loginRetryAt, deadline);
     if (csrfLimited) {
       retryAt = Math.max(retryAt, deadline);
-      signup?.deferUntil(retryAt);
+      signup?.deferUntil(retryAt, 'csrf', announce);
     }
     if (snapshot.kind === 'route' && snapshot.route === ROUTES.login && isForegroundGeneration()) {
       setSnapshot({ ...snapshot, loginRetryAt });

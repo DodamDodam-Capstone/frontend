@@ -1,12 +1,16 @@
 import { isAccountEmail } from '../api/accountView';
 import type { ApiClient, ApiResult, AuthContext } from '../api/client';
+import type { CsrfFailure } from '../api/csrf';
 import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api/recovery';
 import { prepareRequestBody } from '../api/requestBody';
 import { parseApiResponse } from '../api/response';
+import { validateSignupPassword } from './signupPassword';
 
 export type VerificationPurpose = 'SIGNUP' | 'RESET_PASSWORD' | 'PIN_SETUP' | 'PIN_RESET';
 type Step = 'form' | 'email' | 'code' | 'success' | 'verified';
 type RateScope = 'issue' | 'verify' | 'csrf';
+type SignupStatus = 'submitting' | 'complete' | 'exists' | 'uncertain';
+type SignupAttempt = { controller: AbortController; mayHaveCreatedAccount: boolean; expired?: boolean };
 type PinFailure = Extract<RecoveryDecision['kind'], 'authentication_required' | 'pin_setup_authorization_required'
   | 'pin_reset_authorization_required' | 'pin_already_set' | 'pin_not_set'>;
 export type VerificationSnapshot = Readonly<{
@@ -19,6 +23,10 @@ export type VerificationSnapshot = Readonly<{
   issueRetryAt?: number;
   verifyRetryAt?: number;
   challengeId?: string;
+  signupStatus?: SignupStatus;
+  signupRetryAt?: number;
+  signupMessage?: string;
+  signupPasswordError?: string;
 }>;
 export type EmailVerificationFlow = ReturnType<typeof createEmailVerification>;
 
@@ -28,6 +36,9 @@ const limited = '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주�
 const uncertain = '요청 결과를 확인할 수 없어요. 인증번호를 새로 받아 주세요.';
 const expired = '인증 시간이 지났어요. 인증번호를 새로 받아 주세요.';
 const security = '보안 확인이 필요해요. 잠시 후 다시 시도해 주세요.';
+const signupExpired = '이메일 인증 시간이 만료되었어요. 다시 인증해 주세요.';
+const verificationRequired = '이메일 인증을 확인할 수 없어요. 다시 인증해 주세요.';
+const signupUncertain = '가입 결과를 확인할 수 없어요. 로그인해서 가입 여부를 확인해 주세요.';
 
 // OpenAPI의 KST 소수 초(최대 6자리)를 양 OS에서 같은 절대 시각으로 읽는다.
 function deadline(value: unknown): number | undefined {
@@ -72,7 +83,7 @@ type VerificationOptions = {
   receiveProtectedAuthResult?: (result: ApiResult) => Promise<boolean>;
   isActive?: () => boolean;
   entryCsrf?: () => Promise<void> | undefined;
-  onCsrfLimited?: (deadline: number) => void;
+  onCsrfLimited?: (deadline: number, announce?: boolean) => void;
   onPinUnavailable?: (reason: PinFailure) => void;
 };
 
@@ -82,6 +93,8 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
   const listeners = new Set<() => void>();
   let state: VerificationSnapshot = { email: '', step: 'form', busy: false };
   let pending: AbortController | undefined;
+  let signupAttempt: SignupAttempt | undefined;
+  let signupLifetime = 0;
   let scope: AuthContext | undefined;
   let token: string | undefined;
 
@@ -97,7 +110,11 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
   }
 
   function limits() {
-    return { issueRetryAt: state.issueRetryAt, verifyRetryAt: state.verifyRetryAt };
+    return {
+      issueRetryAt: state.issueRetryAt,
+      verifyRetryAt: state.verifyRetryAt,
+      ...(state.signupRetryAt !== undefined ? { signupRetryAt: state.signupRetryAt } : {}),
+    };
   }
 
   function authorizationFailed(reason: PinFailure, message: string) {
@@ -111,8 +128,16 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
     prior?.abort();
   }
 
+  function cancelSignup() {
+    const previous = signupAttempt;
+    signupAttempt = undefined;
+    previous?.controller.abort();
+  }
+
   function reset() {
+    signupLifetime += 1;
     cancelPending();
+    cancelSignup();
     scope = undefined;
     token = undefined;
     update({ email: '', step: 'form', busy: false });
@@ -122,21 +147,31 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
     const now = Date.now();
     const issueRetryAt = (state.issueRetryAt ?? 0) > now ? state.issueRetryAt : undefined;
     const verifyRetryAt = (state.verifyRetryAt ?? 0) > now ? state.verifyRetryAt : undefined;
-    if (state.issueRetryAt !== issueRetryAt || state.verifyRetryAt !== verifyRetryAt) {
+    const signupRetryAt = (state.signupRetryAt ?? 0) > now ? state.signupRetryAt : undefined;
+    if (state.issueRetryAt !== issueRetryAt || state.verifyRetryAt !== verifyRetryAt || state.signupRetryAt !== signupRetryAt) {
       update({ ...state, issueRetryAt, verifyRetryAt,
+        ...(state.signupRetryAt !== undefined ? {
+          signupRetryAt,
+          signupMessage: signupRetryAt === undefined && state.signupMessage === limited ? undefined : state.signupMessage,
+        } : {}),
         message: !issueRetryAt && !verifyRetryAt && state.message === limited ? undefined : state.message });
     }
     if (scope && !client.isCurrentContext(scope)) {
       reset();
-    } else if (!pending && ((state.expiresAt !== undefined && state.expiresAt <= now)
+    } else if (!pending && !signupAttempt?.mayHaveCreatedAccount && ((state.expiresAt !== undefined && state.expiresAt <= now)
         || (state.tokenExpiresAt !== undefined && state.tokenExpiresAt <= now))) {
-      clear(state.step === 'form' || state.step === 'verified' ? 'form' : 'email', expired);
+      // 전송 가드를 닫되 진행 중인 공통 CSRF 조회의 제한 응답은 받을 수 있게 한다.
+      if (signupAttempt) signupAttempt.expired = true;
+      signupAttempt = undefined;
+      const signupGrantExpired = purpose === 'SIGNUP' && state.tokenExpiresAt !== undefined;
+      clear(state.step === 'form' || state.step === 'verified' ? 'form' : 'email', signupGrantExpired ? signupExpired : expired);
     }
   }
 
   function setEmail(email: string) {
     if (pin || email === state.email || !isActive()) return;
     cancelPending();
+    cancelSignup();
     token = undefined;
     scope = undefined;
     update({ email, busy: false, step: state.step === 'form' || state.step === 'verified' ? 'form' : 'email',
@@ -144,7 +179,7 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
   }
 
   function openEmail() {
-    if (!isActive() || pending) return;
+    if (!isActive() || pending || state.signupStatus) return;
     syncTime();
     if (state.step !== 'form' && state.step !== 'verified') return;
     if (!pin && !validEmail(state.email)) {
@@ -174,7 +209,7 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
   }
 
   function takeToken(expected: VerificationPurpose) {
-    if (expected !== purpose || !isActive()) return;
+    if (expected !== purpose || !isActive() || signupAttempt) return;
     syncTime();
     if (state.step !== 'verified' || !token) return;
     const value = token;
@@ -183,7 +218,17 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
   }
 
   function suspend() {
-    if (pending) {
+    signupLifetime += 1;
+    if (signupAttempt) {
+      const { mayHaveCreatedAccount } = signupAttempt;
+      cancelSignup();
+      if (mayHaveCreatedAccount) settleSignup('uncertain', signupUncertain);
+      else {
+        scope = undefined;
+        update({ ...state, busy: false, signupStatus: undefined });
+        syncTime();
+      }
+    } else if (pending) {
       cancelPending();
       clear('email', uncertain);
     } else if (!pin) {
@@ -192,11 +237,13 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
     }
   }
 
-  function deferUntil(deadline: number, target: RateScope = 'csrf') {
+  function deferUntil(deadline: number, target: RateScope = 'csrf', announce = true) {
     if (deadline <= Date.now()) return;
     const issueRetryAt = target === 'verify' ? state.issueRetryAt : Math.max(deadline, state.issueRetryAt ?? 0);
     const verifyRetryAt = target === 'issue' ? state.verifyRetryAt : Math.max(deadline, state.verifyRetryAt ?? 0);
-    update({ ...state, issueRetryAt, verifyRetryAt, message: limited });
+    const signupLimit = purpose === 'SIGNUP' && target === 'csrf'
+      ? { signupRetryAt: Math.max(deadline, state.signupRetryAt ?? 0) } : {};
+    update({ ...state, issueRetryAt, verifyRetryAt, ...signupLimit, ...(announce ? { message: limited } : {}) });
   }
 
   function setRateLimit(decision: Extract<RecoveryDecision, { retryAfter: unknown }>, receivedAt: number, target: RateScope) {
@@ -318,6 +365,144 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
     }
   }
 
+  function settleSignup(status: Exclude<SignupStatus, 'submitting'>, message?: string) {
+    token = undefined;
+    scope = undefined;
+    update({ ...limits(), email: state.email, step: 'form', busy: false, signupStatus: status, signupMessage: message });
+  }
+
+  function setSignupRateLimit(decision: Extract<RecoveryDecision, { retryAfter: unknown }>, receivedAt: number, announce = true) {
+    if (decision.retryAfter.kind === 'valid') {
+      const retryAt = receivedAt + decision.retryAfter.seconds * 1000;
+      if (Number.isSafeInteger(retryAt)) {
+        deferUntil(retryAt, 'csrf', announce);
+        if (announce) options.onCsrfLimited?.(retryAt);
+        else options.onCsrfLimited?.(retryAt, false);
+      }
+    }
+    if (announce) update({ ...state, signupMessage: limited });
+  }
+
+  async function submitSignup(password: string, confirmation: string) {
+    if (purpose !== 'SIGNUP' || !isActive() || signupAttempt || pending) return;
+    syncTime();
+    const expiresAt = state.tokenExpiresAt;
+    const waiting = () => (state.signupRetryAt ?? 0) > Date.now();
+    if (state.step !== 'verified' || !token || expiresAt === undefined || waiting()
+      || validateSignupPassword(password) || password !== confirmation) return;
+
+    const context = client.captureCurrentContext();
+    if (!context) return;
+    const body = prepareRequestBody({ kind: 'json', value: { verificationToken: token, password } });
+    if (!body.ok) return;
+    const attempt: SignupAttempt = { controller: new AbortController(), mayHaveCreatedAccount: false };
+    const lifetime = signupLifetime;
+    signupAttempt = attempt;
+    update({ ...state, busy: true, signupStatus: 'submitting', message: undefined,
+      signupMessage: undefined, signupPasswordError: undefined });
+
+    const sameFlow = () => lifetime === signupLifetime && isActive() && client.isCurrentContext(context);
+    const current = () => signupAttempt === attempt && sameFlow();
+    const beforeSend = () => {
+      if (!current() || waiting() || expiresAt <= Date.now()) return false;
+      attempt.mayHaveCreatedAccount = true;
+      return true;
+    };
+
+    const receiveCsrfFailure = async (failure: CsrfFailure | undefined, receivedAt: number) => {
+      if (!current() && !(attempt.expired && sameFlow())) return;
+      const parsed = failure && await readCsrfFailure(failure);
+      const decision = parsed && classifyRecovery(parsed, 'general');
+      const announce = current();
+      if (decision?.kind === 'rate_limited' && (announce || (attempt.expired && sameFlow()))) {
+        setSignupRateLimit(decision, receivedAt, announce);
+      } else if (announce && expiresAt > Date.now()) update({ ...state, signupMessage: security });
+    };
+
+    try {
+      const checking = options.entryCsrf?.();
+      if (checking) await checking;
+      if (!current() || waiting() || expiresAt <= Date.now()) return;
+      const result = await client.request({
+        method: 'POST', path: '/auth/signup', ...body.value, signal: attempt.controller.signal,
+      }, beforeSend);
+      const receivedAt = Date.now();
+      if (result.kind === 'not_sent') {
+        await receiveCsrfFailure(result.reason === 'csrf_unavailable' ? result.csrf : undefined, receivedAt);
+        return;
+      }
+      if (!current()) return;
+      if (result.kind !== 'response') {
+        settleSignup('uncertain', signupUncertain);
+        return;
+      }
+
+      const parsed = await parseApiResponse(result.response, { kind: 'json', statuses: [201] });
+      if (!current()) return;
+      if (parsed.kind === 'json' && parsed.data && typeof parsed.data === 'object') {
+        const { accountId } = parsed.data as Record<string, unknown>;
+        if (Object.keys(parsed.data).length === 1 && typeof accountId === 'string' && accountId.length === 36 && uuid.test(accountId)) {
+          settleSignup('complete');
+          return;
+        }
+      }
+
+      const decision = classifyRecovery(parsed, 'general');
+      switch (decision.kind) {
+        case 'validation_failed': {
+          const fields = parsed.kind === 'http_error' ? parsed.error.fields : [];
+          if (fields.some(field => field.field === 'verificationToken')) clear('form', verificationRequired);
+          else if (fields.some(field => field.field === 'password')) {
+            update({ ...state, signupPasswordError: '비밀번호를 확인해 주세요.' });
+          } else update({ ...state, signupMessage: '가입 정보를 확인해 주세요.' });
+          break;
+        }
+        case 'verification_invalid':
+          clear('form', verificationRequired);
+          break;
+        case 'account_already_exists':
+          settleSignup('exists', '이미 가입한 이메일이에요. 로그인하거나 다른 이메일을 사용해 주세요.');
+          break;
+        case 'rate_limited':
+          setSignupRateLimit(decision, receivedAt);
+          break;
+        case 'csrf_invalid': {
+          // 이 응답은 계정 생성 전에 거절됐다. CSRF만 복구하고 가입은 사용자가 다시 요청한다.
+          attempt.mayHaveCreatedAccount = false;
+          syncTime();
+          const recovered = await client.recoverCsrf(result.context);
+          await receiveCsrfFailure(recovered.kind === 'failed' ? recovered.failure : undefined, Date.now());
+          break;
+        }
+        case 'request_too_large':
+        case 'unsupported_media_type':
+          update({ ...state, signupMessage: '가입 요청을 처리할 수 없어요. 잠시 후 다시 시도해 주세요.' });
+          break;
+        case 'auth_state_unavailable':
+          settleSignup('uncertain', '서비스에 일시적인 문제가 있어요. 로그인해서 가입 여부를 확인해 주세요.');
+          break;
+        default:
+          settleSignup('uncertain', signupUncertain);
+      }
+    } catch {
+      if (current()) {
+        if (attempt.mayHaveCreatedAccount) settleSignup('uncertain', signupUncertain);
+        else update({ ...state, signupMessage: security });
+      }
+    } finally {
+      if (signupAttempt === attempt) {
+        signupAttempt = undefined;
+        if (!client.isCurrentContext(context)) reset();
+        else if (state.signupStatus === 'submitting') {
+          // 네이티브 전경 세대가 AppState 알림보다 먼저 바뀔 수 있다.
+          if (!isActive() && attempt.mayHaveCreatedAccount) settleSignup('uncertain', signupUncertain);
+          else update({ ...state, busy: false, signupStatus: undefined });
+        }
+        syncTime();
+      }
+    }
+  }
+
   return {
     getSnapshot: () => state,
     subscribe(listener: () => void) {
@@ -327,5 +512,6 @@ export function createEmailVerification(client: ApiClient, purpose: Verification
     setEmail, openEmail, closeDialog, finish, suspend, reset, syncTime, takeToken, deferUntil,
     issue: () => submit(),
     verify: (code: string) => submit(code),
+    submitSignup,
   };
 }
