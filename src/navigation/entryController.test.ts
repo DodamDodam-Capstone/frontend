@@ -298,7 +298,7 @@ describe('SCRUM-170 앱 진입', () => {
     await changed.promise;
     pending.resolve(error(401, 'AUTHENTICATION_REQUIRED'));
     await checking;
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/login', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/login', visit: expect.any(Number), generation: 0, loginRetryAt: 4_000 });
     await entry.start();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
     expect(entry.getSnapshot()).toEqual({ kind: 'error', reason: 'rate_limited', retryAt: 4_000 });

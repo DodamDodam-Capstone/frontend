@@ -5,7 +5,7 @@ import { classifyRecovery, readCsrfFailure, type RecoveryDecision } from '../api
 import { prepareRequestBody } from '../api/requestBody';
 import { parseApiResponse } from '../api/response';
 
-export type LoginFeedback = { message: string; fields?: { email?: string; password?: string } };
+export type LoginFeedback = { message: string; fields?: { email?: string; password?: string }; retryAt?: number };
 export type EmailLoginResult =
   | { kind: 'accepted'; csrfFailed: boolean; retryAt?: number }
   | { kind: 'uncertain'; feedback: LoginFeedback }

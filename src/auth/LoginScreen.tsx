@@ -6,8 +6,9 @@ import { Button } from '../components/Button';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { TextField } from '../components/TextField';
 import { colors, fonts, typography } from '../theme/tokens';
+import type { LoginFeedback } from './emailLogin';
 
-export type LoginFeedback = { message: string; fields?: { email?: string; password?: string } };
+export type { LoginFeedback } from './emailLogin';
 
 type LoginScreenProps = {
   submit: (email: string, password: string) => Promise<LoginFeedback | undefined>;
@@ -76,57 +77,63 @@ export function LoginScreen({ submit, retryAt, initialFeedback }: LoginScreenPro
     }
   }
 
-  const message = waiting ? requestLimited : feedback?.message;
+  const message = waiting ? requestLimited : feedback?.retryAt === undefined ? feedback?.message : undefined;
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-      <View style={styles.form}>
-        <View style={styles.heading}>
-          <Image style={styles.symbol} source={symbol} resizeMode="contain" accessible={false} />
-          <AppText accessibilityRole="header" style={styles.title}>보호자 로그인</AppText>
-        </View>
-        <View style={styles.fields}>
-          <TextField label="이메일" placeholder="이메일을 입력해주세요." value={email}
-            onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
-            keyboardType="email-address" autoComplete="username" autoCapitalize="none" autoCorrect={false}
-            returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => { passwordInput.current?.focus(); }}
-            error={feedback?.fields?.email} disabled={submitting} />
-          <TextField ref={passwordInput} label="비밀번호" placeholder="비밀번호를 입력해주세요." value={password}
-            onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
-            secureTextEntry autoComplete="current-password" autoCapitalize="none" autoCorrect={false}
-            returnKeyType="go" onSubmitEditing={() => { void submitForm(); }}
-            error={feedback?.fields?.password} disabled={submitting} />
-        </View>
-        <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
-          <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
-        </Pressable>
-        <View style={styles.actions}>
-          {message && <ErrorMessage message={message} />}
-          <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting} disabled={waiting} />
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.signUp, styles.unavailable]}>
-            <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
-          </Pressable>
-        </View>
-        <View style={styles.social}>
-          <View style={styles.separator}>
-            <View style={styles.rule} />
-            <AppText style={styles.separatorLabel}>소셜 로그인</AppText>
-            <View style={styles.rule} />
+    <View style={styles.screen}>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <View style={styles.form}>
+          <View style={styles.heading}>
+            <Image style={styles.symbol} source={symbol} resizeMode="contain" accessible={false} />
+            <AppText accessibilityRole="header" style={styles.title}>보호자 로그인</AppText>
           </View>
-          <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.google, styles.unavailable]}>
-            <AppText style={styles.googleLabel}>Google</AppText>
+          <View style={styles.fields}>
+            <TextField label="이메일" placeholder="이메일을 입력해주세요." value={email}
+              onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
+              keyboardType="email-address" autoComplete="username" autoCapitalize="none" autoCorrect={false}
+              returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => { passwordInput.current?.focus(); }}
+              error={feedback?.fields?.email} disabled={submitting} />
+            <TextField ref={passwordInput} label="비밀번호" placeholder="비밀번호를 입력해주세요." value={password}
+              onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
+              secureTextEntry autoComplete="current-password" autoCapitalize="none" autoCorrect={false}
+              returnKeyType="go" onSubmitEditing={() => { void submitForm(); }}
+              error={feedback?.fields?.password} disabled={submitting} />
+          </View>
+          <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
+            <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
           </Pressable>
+          <View style={styles.actions}>
+            {message && <ErrorMessage message={message} />}
+            <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting} disabled={waiting} />
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.signUp, styles.unavailable]}>
+              <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
+            </Pressable>
+          </View>
+          <View style={styles.social}>
+            <View style={styles.separator}>
+              <View style={styles.rule} />
+              <AppText style={styles.separatorLabel}>소셜 로그인</AppText>
+              <View style={styles.rule} />
+            </View>
+            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.google, styles.unavailable]}>
+              <AppText style={styles.googleLabel}>Google</AppText>
+            </Pressable>
+          </View>
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1, backgroundColor: '#F7F2E6',
-    experimental_backgroundImage: 'linear-gradient(180deg, #F7F2E6, #EAF2DE)',
+    experimental_backgroundImage: [{
+      type: 'linear-gradient', direction: 'to bottom',
+      colorStops: [{ color: '#F7F2E6', positions: ['0%'] }, { color: '#EAF2DE', positions: ['100%'] }],
+    }],
   },
+  scroll: { flex: 1 },
   content: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingVertical: 24 },
   form: { alignSelf: 'center', width: '100%', maxWidth: 596 },
   heading: { alignItems: 'center', gap: 4, marginBottom: 26 },
