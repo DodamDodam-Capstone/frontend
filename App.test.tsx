@@ -170,6 +170,39 @@ async function openLoginForm() {
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), ' x ');
 }
 
+test('앱에서 로그아웃하면 갱신을 기다리는 동안에도 기존 계정 내용을 숨긴다', async () => {
+  markers.set(marker, 'true');
+  mockAccountLabel = '이전 계정 표시';
+  const logout = pendingResponse();
+  const refresh = pendingResponse();
+  let posted = false;
+  const fetchCall = jest.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
+    const path = new URL(String(input)).pathname;
+    if (path.endsWith('/auth/me')) return response(200, { data: account });
+    if (path.endsWith('/auth/logout') && init?.method === 'POST') {
+      posted = true;
+      return logout.promise;
+    }
+    if (path.endsWith('/auth/csrf')) {
+      return posted ? refresh.promise : response(200, { headerName: 'X-XSRF-TOKEN', parameterName: '_csrf', token: 'before' });
+    }
+    throw new Error('Unexpected logout fixture request');
+  });
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByText('이전 계정 표시')).toBeVisible();
+  await fireEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+  expect(screen.queryByText('이전 계정 표시')).not.toBeOnTheScreen();
+  expect(screen.getByText('로그아웃 중')).toBeVisible();
+  await act(() => { logout.resolve(new Response(null, { status: 204 })); });
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  expect(screen.getByRole('button', { name: '로그인' })).toBeDisabled();
+  await act(() => { refresh.resolve(authError(503, 'AUTH_STATE_UNAVAILABLE')); });
+  expect(await screen.findByRole('button', { name: '보안 확인 다시 시도' })).toBeEnabled();
+  expect(fetchCall.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(1);
+  expect(AsyncStorage.setItem).not.toHaveBeenCalled();
+});
+
 test.each(['복귀 전', '복귀 후'])('로그인 응답이 %s 도착해도 현재 앱만 계정을 한 번 확인한다', async (when) => {
   const changeAppState = observeAppState();
   const login = pendingResponse();
