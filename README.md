@@ -606,5 +606,6 @@ FE는 사람 승인 대신 최신 변경의 GPT 코드 리뷰·지적 사항 검
 확인합니다. 같은 날 development Ruleset의 승인 수 0·마지막 push 승인 해제를
 확인했습니다. main 설정과 다른 저장소까지 동일하다고 가정하지 않으며, 병합 시 실제
 보호 조건을 다시 확인합니다.
-`main` 반영이 완료되면 Bot PR이
-integration의 `development`에서 프론트엔드 commit SHA를 자동으로 갱신합니다.
+스프린트 릴리스 버전은 루트 [VERSION](VERSION)에서 관리합니다. 승격된 `main`
+커밋의 품질 검사가 통과하면 CI가 같은 커밋에 릴리스 브랜치·태그·GitHub Release를
+생성한 뒤 integration에 SHA를 전달합니다. [스프린트 릴리스 절차](docs/TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)를 따릅니다.

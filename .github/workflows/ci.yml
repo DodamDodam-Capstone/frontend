@@ -2,6 +2,8 @@ name: Frontend CI
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     branches: [main, development]
 
@@ -12,8 +14,9 @@ env:
   CI: "true"
 
 concurrency:
-  group: frontend-ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # PR updates supersede earlier checks. Each main push must keep its own release run.
+  group: frontend-ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 defaults:
   run:
@@ -39,7 +42,7 @@ jobs:
       - name: Validate project manifest
         run: node .github/scripts/validate_frontend_project.mjs
 
-      - name: Test Jira key workflow
+      - name: Test workflow and release checks
         run: python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v
 
       - name: Pin npm version
@@ -152,6 +155,16 @@ jobs:
         working-directory: android
         run: ./gradlew :app:assembleDebug --no-daemon
 
+      - name: Verify version in the compiled APK
+        run: |
+          apk="android/app/build/outputs/apk/debug/app-debug.apk"
+          version="$("$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest version-name "$apk")"
+          expected="$(node -p "require('./package.json').version")"
+          if [[ "$version" != "$expected" ]]; then
+            echo "Compiled APK versionName differs from VERSION" >&2
+            exit 1
+          fi
+
   ios:
     name: ios-simulator-debug-build
     needs: js
@@ -238,6 +251,16 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             build
 
+      - name: Verify version in the built Simulator app
+        run: |
+          plist="$RUNNER_TEMP/dodamdodam-derived-data/Build/Products/Debug-iphonesimulator/app.app/Info.plist"
+          version="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$plist")"
+          expected="$(node -p "require('./package.json').version")"
+          if [[ "$version" != "$expected" ]]; then
+            echo "Compiled app CFBundleShortVersionString differs from VERSION" >&2
+            exit 1
+          fi
+
   quality:
     name: frontend-quality
     needs: [js, android, ios]
@@ -256,3 +279,30 @@ jobs:
             echo "A required frontend check did not succeed." >&2
             exit 1
           fi
+
+  release:
+    name: publish-frontend-release
+    needs: quality
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Checkout the quality-checked commit
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Publish versioned branch, tag and GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B .github/scripts/release.py
+
+  notify-integration:
+    needs: release
+    uses: ./.github/workflows/notify-integration.yml
+    secrets:
+      INTEGRATION_APP_PRIVATE_KEY: ${{ secrets.INTEGRATION_APP_PRIVATE_KEY }}
