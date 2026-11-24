@@ -1,0 +1,5 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["EntryPrivacyModule"] },
+  "android": { "modules": ["expo.modules.entryprivacy.EntryPrivacyModule"] }
+}

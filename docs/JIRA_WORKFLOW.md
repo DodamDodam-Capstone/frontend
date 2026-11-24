@@ -54,7 +54,7 @@ GitHub     frontend#9 SCRUM-2 [FE] GitHub·Jira 연동 및 문서 검증
 
 ## 개발 식별자
 
-GitHub for Atlassian이 개발 정보를 Jira에 연결할 수 있도록 모든 식별자에
+GitHub for Atlassian이 개발 정보를 Jira에 연결할 수 있도록 일반 작업의 식별자에
 정확한 Jira 키를 포함합니다.
 
 ```text
@@ -73,16 +73,20 @@ Resolves #9
 일반 작업 PR의 대상은 `development`입니다. `development` 반영과 검증이 끝난
 뒤 sprint 승격 PR로 `main`에 반영합니다. `main` 대상 PR의 source branch는
 항상 `development`여야 하며 hotfix도 먼저 `development`에 반영합니다.
+승격 PR은 제목에 `[FE] vX.Y.Z`를 쓰고 본문의 `## 스프린트 작업`에서 실제 포함된
+Jira 작업을 연결합니다. Fix Version과 릴리스 확인은 [팀 가이드](TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)를 따릅니다.
 
 ## 완료 조건
 
 - GitHub-first 업무는 Jira Task와 GitHub Issue가 서로 연결되어 있습니다.
-- branch, commit, PR 제목에 같은 Jira 키가 있습니다.
+- 일반 작업 branch, commit, `development` 대상 PR 제목에 같은 Jira 키가 있습니다.
 - Gitmoji PR 제목 검사와 `frontend-quality`가 통과합니다.
-- 모든 필수 검사를 통과하고 검토 대화를 해결합니다. 프론트엔드 1인 담당 체제에서는
-  별도 리뷰 승인을 요구하지 않습니다.
-- PR merge 후 Jira Task가 완료되고, GitHub-first 업무는 GitHub Issue도 닫히며
-  Slack 알림이 성공합니다.
+- FE 작업 PR은 최신 커밋의 원격 코드 리뷰를 확인하고, 모든 필수 검사 통과와 검토 대화 해결을 확인합니다.
+- Frontend 저장소의 작업 PR이 `development`에 병합되고 PR 제목의 Jira 키가
+  Task와 같으면 Jira Task가 완료됩니다. GitHub-first 업무는 PR 본문의
+  `Resolves #번호`로 같은 저장소 GitHub Issue도 닫고 Slack 알림을 확인합니다.
+- `development` → `main` 승격이나 integration의 컴포넌트 갱신은 Frontend
+  Task를 완료시키지 않습니다.
 - Jira 업무는 삭제하지 않고 `완료` 상태로 전환하며 Team Board의
   `Show completed tickets`에서 완료 기록을 확인할 수 있습니다.
 
@@ -103,9 +107,8 @@ Resolves #9
 
 팀원 초대 후 GitHub visible Team `frontend`에 Frontend 담당자를 넣고 이
 저장소에 `Write`를 부여합니다. 팀원이 2명 이상일 때만 CODEOWNERS와 리뷰 자동
-배정을 사용합니다. 한 명인 동안 Ruleset의 필수 승인 수는 0으로 유지하고, PR과
-필수 CI는 계속 강제합니다. Jira에는 `Frontend` Team을 연결하되 `Assignee`는
-실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
+배정을 사용합니다. 1인 운영 시 승격 기준은 [FE 스프린트 릴리스 절차](TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)를 따릅니다.
+Jira에는 `Frontend` Team을 연결하되 `Assignee`는 실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
 않습니다.
 
 ## 초기 자동화 검증

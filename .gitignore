@@ -7,3 +7,26 @@ coverage/
 !.env.example
 __pycache__/
 *.py[cod]
+
+# Expo and Metro
+.expo/
+expo-env.d.ts
+.metro-health-check*
+
+# Generated native projects (Expo CNG)
+/ios/
+/android/
+.kotlin/
+
+# Native signing files
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Local tooling output
+*.tsbuildinfo
+npm-debug.*
+.DS_Store
