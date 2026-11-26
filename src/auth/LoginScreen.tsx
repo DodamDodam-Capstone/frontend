@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Image, Keyboard, Pressable, ScrollView, StyleSheet, type TextInput, View } from 'react-native';
 
 import { AppText } from '../components/AppText';
@@ -22,6 +22,40 @@ type LoginScreenProps = {
 
 const symbol = require('../../assets/images/login/symbol.png');
 const requestLimited = '요청이 많아요. 잠시 기다린 뒤 다시 시도해 주세요.';
+
+function LoginFrame({ children }: { children: ReactNode }) {
+  return (
+    <View style={styles.screen}>
+      <ScrollView bounces={false} style={styles.scroll} contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
+        <View style={styles.form}>
+          <View style={styles.heading}>
+            <Image style={styles.symbol} source={symbol} resizeMode="contain" accessible={false} />
+            <AppText accessibilityRole="header" style={styles.title}>보호자 로그인</AppText>
+          </View>
+          {children}
+        </View>
+      </ScrollView>
+    </View>
+  );
+}
+
+export function SignedInLoginScreen({ continueRegistration, logoutDisabled, logoutFeedback, onLogout }: {
+  continueRegistration: () => void;
+  logoutDisabled: boolean;
+  logoutFeedback?: string;
+  onLogout: () => void;
+}) {
+  return (
+    <LoginFrame>
+      <View style={styles.actions}>
+        {logoutFeedback && <ErrorMessage message={logoutFeedback} />}
+        <Button label="아이 등록 계속하기" onPress={continueRegistration} />
+        <Button label="로그아웃" variant="secondary" disabled={logoutDisabled} onPress={onLogout} />
+      </View>
+    </LoginFrame>
+  );
+}
 
 export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false, retrySecurity, openSignup }: LoginScreenProps) {
   const [email, setEmail] = useState('');
@@ -71,56 +105,47 @@ export function LoginScreen({ submit, retryAt, initialFeedback, blocked = false,
   const fieldErrors = feedback?.fields;
   const inlineMessage = fieldErrors?.email && fieldErrors.password ? message : fieldErrors?.email ?? fieldErrors?.password ?? message;
   return (
-    <View style={styles.screen}>
-      <ScrollView bounces={false} style={styles.scroll} contentContainerStyle={styles.content}
-        keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
-        <View style={styles.form}>
-          <View style={styles.heading}>
-            <Image style={styles.symbol} source={symbol} resizeMode="contain" accessible={false} />
-            <AppText accessibilityRole="header" style={styles.title}>보호자 로그인</AppText>
-          </View>
-          <View style={styles.fields}>
-            <TextField label="이메일" placeholder="이메일을 입력해주세요." value={email}
-              onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
-              keyboardType="email-address" autoComplete="username" autoCapitalize="none" autoCorrect={false}
-              returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => { passwordInput.current?.focus(); }}
-              error={fieldErrors?.email} showMessage={false} disabled={submitting} />
-            <TextField ref={passwordInput} label="비밀번호" placeholder="비밀번호를 입력해주세요." value={password}
-              onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
-              secureTextEntry autoComplete="current-password" autoCapitalize="none" autoCorrect={false}
-              returnKeyType="go" onSubmitEditing={() => { void submitForm(); }}
-              error={fieldErrors?.password} showMessage={false} disabled={submitting} />
-          </View>
-          <View style={styles.helpRow}>
-            {credentialError && inlineMessage && <ErrorMessage message={inlineMessage} inline />}
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
-              <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
-            </Pressable>
-          </View>
-          <View style={styles.actions}>
-            {!credentialError && message && <ErrorMessage message={message} />}
-            <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting}
-              disabled={waiting || blocked || !!retrySecurity} />
-            {retrySecurity && <Button label="보안 확인 다시 시도" variant="secondary" disabled={waiting} loading={blocked}
-              onPress={() => { void retrySecurity(); }} />}
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: signupDisabled }} disabled={signupDisabled}
-              onPress={openSignup} style={[styles.signUp, signupDisabled && styles.unavailable]}>
-              <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
-            </Pressable>
-          </View>
-          <View style={styles.social}>
-            <View style={styles.separator}>
-              <View style={styles.rule} />
-              <AppText style={styles.separatorLabel}>소셜 로그인</AppText>
-              <View style={styles.rule} />
-            </View>
-            <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.google, styles.unavailable]}>
-              <AppText style={styles.googleLabel}>Google</AppText>
-            </Pressable>
-          </View>
+    <LoginFrame>
+      <View style={styles.fields}>
+        <TextField label="이메일" placeholder="이메일을 입력해주세요." value={email}
+          onChangeText={(value) => { setEmail(value); clearFieldError('email'); }}
+          keyboardType="email-address" autoComplete="username" autoCapitalize="none" autoCorrect={false}
+          returnKeyType="next" submitBehavior="submit" onSubmitEditing={() => { passwordInput.current?.focus(); }}
+          error={fieldErrors?.email} showMessage={false} disabled={submitting} />
+        <TextField ref={passwordInput} label="비밀번호" placeholder="비밀번호를 입력해주세요." value={password}
+          onChangeText={(value) => { setPassword(value); clearFieldError('password'); }}
+          secureTextEntry autoComplete="current-password" autoCapitalize="none" autoCorrect={false}
+          returnKeyType="go" onSubmitEditing={() => { void submitForm(); }}
+          error={fieldErrors?.password} showMessage={false} disabled={submitting} />
+      </View>
+      <View style={styles.helpRow}>
+        {credentialError && inlineMessage && <ErrorMessage message={inlineMessage} inline />}
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.reset, styles.unavailable]}>
+          <AppText style={styles.resetLabel}>비밀번호를 잊으셨나요?</AppText>
+        </Pressable>
+      </View>
+      <View style={styles.actions}>
+        {!credentialError && message && <ErrorMessage message={message} />}
+        <Button label="로그인" onPress={() => { void submitForm(); }} loading={submitting}
+          disabled={waiting || blocked || !!retrySecurity} />
+        {retrySecurity && <Button label="보안 확인 다시 시도" variant="secondary" disabled={waiting} loading={blocked}
+          onPress={() => { void retrySecurity(); }} />}
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: signupDisabled }} disabled={signupDisabled}
+          onPress={openSignup} style={[styles.signUp, signupDisabled && styles.unavailable]}>
+          <AppText style={styles.signUpLabel}>이메일로 회원 가입</AppText>
+        </Pressable>
+      </View>
+      <View style={styles.social}>
+        <View style={styles.separator}>
+          <View style={styles.rule} />
+          <AppText style={styles.separatorLabel}>소셜 로그인</AppText>
+          <View style={styles.rule} />
         </View>
-      </ScrollView>
-    </View>
+        <Pressable accessibilityRole="button" accessibilityState={{ disabled: true }} disabled style={[styles.google, styles.unavailable]}>
+          <AppText style={styles.googleLabel}>Google</AppText>
+        </Pressable>
+      </View>
+    </LoginFrame>
   );
 }
 

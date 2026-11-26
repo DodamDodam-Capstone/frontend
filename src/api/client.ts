@@ -73,7 +73,8 @@ export function createApiClient(
   // CSRF 준비 대기는 포함하지 않고 실제 전송된 응답 헤더만 추적한다.
   const headersPending = new Set<Promise<Response>>();
   async function send(path: string, url: string, init: RequestInit): Promise<Response> {
-    const pending = mock ? mock({ method: init.method ?? 'GET', path }) : (options.fetchImpl ?? fetch)(url, init);
+    const pending = mock ? mock({ method: init.method ?? 'GET', path, ...(init.body == null ? {} : { body: init.body }) })
+      : (options.fetchImpl ?? fetch)(url, init);
     headersPending.add(pending);
     try { return await pending; } finally { headersPending.delete(pending); }
   }

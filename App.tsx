@@ -5,10 +5,13 @@ import { AppState, ScrollView, StyleSheet, View } from 'react-native';
 
 import { createApiClient } from './src/api/client';
 import { SignupVerificationScreen } from './src/auth/SignupVerificationScreen';
+import { TEST_CHILD_CHARACTERS } from './src/childRegistration/childRegistrationData';
 import { Button } from './src/components/Button';
 import { EntrySplash } from './src/components/EntrySplash';
 import { ErrorMessage } from './src/components/ErrorMessage';
 import { LoadingIndicator } from './src/components/LoadingIndicator';
+import { useReduceMotion } from './src/components/useReduceMotion';
+import { readEnvironment } from './src/config/env';
 import { createEntryController, type EntrySnapshot } from './src/navigation/entryController';
 import { EntryDestination } from './src/navigation/EntryDestination';
 import { EntryPrivacySurface, readForegroundGeneration, subscribeToTaskReentry } from './src/navigation/entryPrivacy';
@@ -57,6 +60,7 @@ function EntryError({ state, onRetry }: { state: EntryErrorState; onRetry: () =>
 
 function EntryContent({ controller }: { controller: EntryController }) {
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
+  const reduceMotion = useReduceMotion();
   if (state.kind === 'route') {
     const signup = state.signup;
     const hideHome = state.logoutPending && state.childId !== undefined;
@@ -69,6 +73,8 @@ function EntryContent({ controller }: { controller: EntryController }) {
           : !hideHome && <EntryDestination route={state.route} visit={state.visit} childId={state.childId}
             openSignup={controller.openSignup} loginRetryAt={state.loginRetryAt} loginFeedback={state.loginFeedback}
             loginBlocked={state.loginBlocked} loginCsrfRecovery={state.loginCsrfRecovery}
+            registrationCheck={state.registrationCheck} registrationRetryAt={state.registrationRetryAt}
+            animateRegistrationEntry={state.transition === 'registration-complete'} reduceMotion={reduceMotion}
             logoutRetryAt={state.logoutRetryAt} logoutFeedback={state.logoutFeedback} />}
       </View>
       {state.logoutPending && <EntryFrame><LoadingIndicator label="로그아웃 중" /></EntryFrame>}
@@ -85,10 +91,12 @@ function EntryContent({ controller }: { controller: EntryController }) {
 
 export default function App() {
   const [startup] = useState(() => {
-    const result = createApiClient();
+    const environment = readEnvironment();
+    const result = createApiClient(environment);
     if (!result.ok) return null;
     const client = result.value;
-    const controller = createEntryController(client, readForegroundGeneration);
+    const childCharacters = environment.apiMode === 'mock' ? TEST_CHILD_CHARACTERS : [];
+    const controller = createEntryController(client, readForegroundGeneration, childCharacters);
     return {
       controller,
       session: {
@@ -98,6 +106,9 @@ export default function App() {
         getHomeRetryAt: controller.getHomeRetryAt,
         rememberHomeRetry: controller.rememberHomeRetry,
         refreshEntry: controller.refresh,
+        childCharacters,
+        submitChild: controller.submitChild,
+        checkChildRegistration: controller.checkChildRegistration,
         submitLogin: controller.submitLogin,
         submitLogout: controller.submitLogout,
         retryLogoutCsrf: controller.retryLogoutCsrf,

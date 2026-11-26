@@ -214,7 +214,7 @@ mock handler를 등록·실행하지 않으며, 수신자가 요청할 때에만
 후속 API를 추가할 때 해당 요청의 mock handler와 실제 전송 경계를 이 위치에서 확장합니다.
 테스트의 가상 응답은 실제 서버·세션·쿠키 동작을 검증한 결과가 아닙니다.
 
-일반 앱은 시작할 때 공통 client 하나로 CSRF 준비와 현재 계정 조회를 시작합니다. mock 기본 응답은 아이 등록 전 계정입니다. real 모드에서는 설정된 API 주소를 사용합니다. 설정 오류 시 요청을 보내지 않습니다.
+일반 앱은 시작할 때 공통 client 하나로 CSRF 준비와 현재 계정 조회를 시작합니다. mock에서는 미등록 가상 계정으로 시작하고, 아이 등록에 성공하면 같은 실행의 목록·계정·홈 조회가 새 아이 정보를 반환합니다. 개발 앱을 완전히 종료하고 열면 새 가상 계정 상태로 시작합니다. real 모드에서는 설정된 API 주소를 사용합니다. 설정 오류 시 요청을 보내지 않습니다.
 실제 서버 왕복·인증·쿠키·CSRF 확인은 SCRUM-129와 해당 기능 작업에서 수행합니다.
 `.env.local` 변경 후 앱을 다시 로드하고, 셸 환경을 변경했다면 Metro를 재시작하세요.
 
@@ -222,7 +222,9 @@ mock handler를 등록·실행하지 않으며, 수신자가 요청할 때에만
 
 온보딩 완료 표시는 기기 로컬 AsyncStorage에 저장합니다. 마이크 허용 또는 **다음에 할래요**를 누르면 이번 실행의 안내가 끝납니다. 저장에 실패하면 다음 시작 시 안내가 다시 열릴 수 있습니다. 신규 저장 모듈이 포함된 Android·iPad 개발 빌드를 사용합니다.
 
-인증되지 않은 세션은 로그인, 인증된 계정에서 `childId`가 null이면 아이 등록, UUID이면 홈으로 이동합니다. 현재 세 화면은 경로 선택 결과를 표시하는 수신처입니다. 실제 기능을 연결할 때 [EntryDestination](src/navigation/EntryDestination.tsx)의 해당 경로를 교체합니다. [useEntrySession](src/navigation/entrySession.ts)에서 공통 client와 경로 갱신 함수를 받습니다. 보호 요청의 결과는 본문을 소비하기 전에 같은 세션의 `receiveProtectedAuthResult`에 전달합니다. 현재 문맥의 계약상 만료만 로그인으로 이동합니다. 로그인·로그아웃 전환을 마친 후에는 `refreshEntry`로 새 계정 상태를 조회합니다.
+인증되지 않은 세션은 로그인 화면을 엽니다. 인증된 계정의 `childId`가 null이면 아이 프로필 등록 화면, UUID이면 해당 아이의 홈을 엽니다. 등록 성공 후에는 `refreshEntry`로 현재 계정과 아이를 다시 확인한 뒤 같은 아이의 홈을 조회합니다. 실제 API 모드의 캐릭터 선택은 [캐릭터 목록 확정](docs/FE_TEST_CI_PLAN.md#8-아이-프로필-등록--scrum-131) 후 연결합니다.
+
+[EntryDestination](src/navigation/EntryDestination.tsx)은 경로에 맞는 화면을 열고, [useEntrySession](src/navigation/entrySession.ts)은 공통 client와 경로 갱신 함수를 제공합니다. 보호 요청의 결과는 본문을 소비하기 전에 같은 세션의 `receiveProtectedAuthResult`에 전달합니다. 현재 문맥의 계약상 만료만 로그인으로 이동합니다. 로그인·로그아웃 전환을 마친 후에는 `refreshEntry`로 새 계정 상태를 조회합니다.
 
 확인 중·확인 실패에는 보호 화면을 가립니다. 재시도는 사용자가 누를 때 조회만 다시 실행하며, 유효한 `Retry-After`가 있으면 해당 기한을 지킵니다. [상태 대응표](docs/FE_TEST_CI_PLAN.md#scrum-170-앱-진입-규칙--2026-11-22)
 
@@ -256,8 +258,7 @@ Android 12L 이하에서는 로그인·아이 등록·홈 화면의 스크린샷
 `GET /auth/csrf`의 wrapper 없는 응답을 검증해 token을 메모리에 보관하고 준비 결과만 반환합니다.
 POST는 초기 발급이 필요하면 기다리고, 준비 실패 시 전송하지 않습니다. 준비된 token은 재사용하며
 JS 계층에서 실패한 POST를 재호출하지 않습니다. Android 네이티브 재전송 차단은 아래 정책을 따릅니다.
-mock은 `/auth/csrf`·`/auth/me` 예제만 제공하고,
-미등록 요청을 실제 네트워크로 넘기지 않습니다.
+mock의 지원 요청은 [로컬 응답 처리기](src/api/mockAuthMe.ts)에 정의되어 있습니다. 정의되지 않은 요청은 로컬에서 실패합니다.
 
 ```ts
 import { createApiClient } from './src/api/client';
@@ -413,10 +414,9 @@ POST 재전송 없음, 인증 classifier clone/원본·CSRF 재획득을 검사�
 합성 바이트와 `audio/x-synthetic`은 실제 음성 형식·codec 정책이 아닙니다.
 
 Expo `57.0.31`의 원본 native buffered reader에서 Android의 부분 본문 성공과 iOS의 오류 후
-미완료 대기를 재현했습니다. `57.0.32`·`57.0.33` 공식 배포본도 패치 대상 3개 파일의 원본 SHA256이 같아
-현재 `57.0.33`에서도 이 보완을 유지합니다. `npm ci`의 postinstall은
-[`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)를 적용합니다. Android의 오류 상태
-보존과 Android/iOS `text()`·`arrayBuffer()` 및 늦은 clone의 stream 시작 시 오류 reject를 변경합니다. Expo/core 버전과 아래 코어 보완을 포함한 4개 소스의
+미완료 대기를 재현했습니다. 공식 `57.0.34`는 iOS `text()`·`arrayBuffer()`의 오류 처리를 포함합니다.
+`npm ci`의 postinstall은 [`patchExpoFetch.cjs`](scripts/native-session/patchExpoFetch.cjs)로
+Android의 오류 상태 보존과 본문 읽기 오류 처리, 양쪽 플랫폼의 늦은 clone에서 stream을 열 때의 오류 처리를 보완합니다. Expo/core 버전과 아래 코어 보완을 포함한 4개 소스의
 원본/패치 SHA256을 모두 확인하며, 예상과 다르면 설치가 실패합니다. SDK 갱신 시 이 보완을
 그대로 우회하지 말고 공식 수정 여부와 아래 실제 네이티브 회귀를 확인한 뒤 제거/갱신합니다.
 이미 빌드한 앱·Expo Go에는 적용되지 않으므로 **설치 후 development build 재빌드가 필요합니다.**

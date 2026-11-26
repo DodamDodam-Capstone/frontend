@@ -2,7 +2,7 @@ const { createHash } = require('node:crypto');
 const fs = require('node:fs');
 const path = require('node:path');
 
-// Expo 57.0.33의 본문/clone 읽기가 취소·단절을 성공/미완료로 처리하는 경로만 보완한다.
+// Expo 57.0.34에 포함된 iOS 본문 오류 처리와 나머지 본문/clone 보완을 함께 검증한다.
 // core 57.0.26의 iOS 리디렉션 진단은 전송 중인 body stream을 다시 읽지 않는다.
 // 공식 수정 버전 전환 시 실제 네이티브 회귀를 통과한 뒤 제거한다.
 const patches = [
@@ -24,12 +24,10 @@ const patches = [
   },
   {
     "file": "ios/Fetch/ExpoFetchModule.swift",
-    "before": "        response.waitFor(states: [.bodyCompleted]) { _ in",
-    "after": "        response.waitFor(states: [.bodyCompleted, .errorReceived]) { state in\n          if state == .errorReceived {\n            promise.reject(response.error ?? FetchUnknownException())\n            return\n          }",
-    "originalHash": "4e23605435443e9a0c40a4b694bbb775fa83befc14d53664d3f54261744d0381",
-    "patchedHash": "662314bc78b03cd06b7e0ea422dfd55d1fd60ca3712765d42c1c3c3fb19d3cdd",
-    "secondaryBefore": "      AsyncFunction(\"startStreaming\") { (response: NativeResponse) -> Data? in\n        return response.startStreaming()\n      }",
-    "secondaryAfter": "      AsyncFunction(\"startStreaming\") { (response: NativeResponse) throws -> Data? in\n        if let error = response.error {\n          throw error\n        }\n        return response.startStreaming()\n      }"
+    "before": "      AsyncFunction(\"startStreaming\") { (response: NativeResponse) -> Data? in\n        return response.startStreaming()\n      }",
+    "after": "      AsyncFunction(\"startStreaming\") { (response: NativeResponse) throws -> Data? in\n        if let error = response.error {\n          throw error\n        }\n        return response.startStreaming()\n      }",
+    "originalHash": "313c5ee727bad075b7f53c8ce6b0900e75a8cae185c45ad9dcdfcec32a061267",
+    "patchedHash": "662314bc78b03cd06b7e0ea422dfd55d1fd60ca3712765d42c1c3c3fb19d3cdd"
   },
   {
     "packageName": "expo-modules-core",
@@ -57,8 +55,8 @@ function apply() {
     || lock.packages?.['']?.name !== project.name || installed.name !== 'expo') {
     throw new Error('Unexpected Expo fetch project');
   }
-  if (project.dependencies?.expo !== '57.0.33' || lock.packages[''].dependencies?.expo !== '57.0.33'
-    || lock.packages['node_modules/expo']?.version !== '57.0.33' || installed.version !== '57.0.33') {
+  if (project.dependencies?.expo !== '57.0.34' || lock.packages[''].dependencies?.expo !== '57.0.34'
+    || lock.packages['node_modules/expo']?.version !== '57.0.34' || installed.version !== '57.0.34') {
     throw new Error('Unsupported Expo fetch version');
   }
   const core = JSON.parse(read('node_modules/expo-modules-core/package.json'));
@@ -86,7 +84,7 @@ function apply() {
   }
   // 네 파일과 설치 버전을 모두 확인한 뒤에만 쓴다. 실패 시 미확인 소스를 덮지 않는다.
   for (const [file, source] of updates) fs.writeFileSync(file, source, 'utf8');
-  console.log('Expo native request patches verified for 57.0.33 / core 57.0.26 (4 native files).');
+  console.log('Expo native request patches verified for 57.0.34 / core 57.0.26 (4 native files).');
 }
 if (require.main === module) apply();
 module.exports = { patches };

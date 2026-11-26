@@ -7,7 +7,7 @@
 
 이번 스프린트의 FE 작업을 구현할 때 각 Jira 완료 기준에서 정상 동작, 핵심 오류, 경계 조건을 테스트로 연결한다. **각 기능의 최소 동작을 구현한 직후 해당 기능의 테스트를 만들고, 같은 Subtask를 완료하거나 PR을 올리기 전에 통과시킨다.** 여러 기능이 이어져야 가능한 연결·기기·실서버 검증은 선행 기능이 준비된 뒤 수행한다. 로컬에서 먼저 검사하고, 같은 코드를 깨끗한 CI 환경에서도 검사한다.
 
-- 현재 기준 기술은 Expo `57.0.33`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
+- 현재 기준 기술은 Expo `57.0.34`, React Native `0.86.3`, React `19.2.3`, TypeScript `6.0.3`, Node `24.20.0`, npm `11.19.0`이다. 실제 기준은 변경 시 [`package.json`](../package.json), [`.nvmrc`](../.nvmrc), lockfile에서 다시 확인한다.
 - 현재 `package.json`에는 `start`·`android`·`ios`와 실제 실행한 `lint`·`typecheck`·`test` 스크립트가 있다. 공통 `build` 스크립트는 없으며, 이 React Native 앱의 빌드는 Android·iOS별 네이티브 명령으로 검증한다. [CI 구성](../.github/workflows/ci.yml)은 필수 파일·스크립트, JS 검사·양 플랫폼 export, Android·iOS 네이티브 빌드의 실패·취소·건너뜀을 `frontend-quality` 실패로 연결한다. [PR #29의 실행 결과](https://github.com/DodamDodam-Capstone/frontend/actions/runs/38769299920)에서 JS·Android·iOS와 최종 집계가 모두 통과했다.
 - 로컬 SCRUM-159의 1~5단계는 완료됐다. Pixel Tablet(Android API 36)과 iPad Pro 11형(iOS 26.5)에서 development build 컴파일·설치·가로 화면·재실행을 확인했다. 변경된 lockfile에서 설치·lint·typecheck·최소 화면 테스트와 Android·iOS JS export를 실행했다. 첫 PR의 온라인 Expo 검사는 `57.0.29` 대신 `~57.0.30`을 요구해 실패했고, 패치 갱신 후 로컬 온라인 검사와 깨끗한 checkout의 양쪽 네이티브 빌드, PR 원격 CI가 통과했다. Jira 상태와 로컬 단계 완료는 별개다.
 - 이번 스프린트 범위는 [SCRUM-121](https://dodamdodam.atlassian.net/browse/SCRUM-121), [SCRUM-123](https://dodamdodam.atlassian.net/browse/SCRUM-123), [SCRUM-122](https://dodamdodam.atlassian.net/browse/SCRUM-122), [SCRUM-125](https://dodamdodam.atlassian.net/browse/SCRUM-125), [SCRUM-124](https://dodamdodam.atlassian.net/browse/SCRUM-124), [SCRUM-136](https://dodamdodam.atlassian.net/browse/SCRUM-136)의 부모 6개와 자식 19개다. 실제 서버 왕복은 별도 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129)에서 검증한다.
@@ -1604,7 +1604,38 @@ iPad의 로컬 시연에서는 기존 임시 보호자 계정으로 로그인하
 
 로그인·가입 표시와 시간 경계·포커스를 보완한 뒤 lint, typecheck, Jest 54개 스위트·1,099개 테스트, 환경 설정 14개 조합과 양 플랫폼 단일 워커 Hermes export를 다시 통과했다.
 
-[SCRUM-131](https://dodamdodam.atlassian.net/browse/SCRUM-131)에서 아이 등록을 구현하면 등록 성공 뒤 공통 `refreshEntry`로 현재 계정을 다시 확인한다. 테스트는 가입 후 아이 없음 → 아이 등록 성공 → `/auth/me`에 등록한 아이 ID 반영 → 같은 아이의 홈 조회 순서로 이어간다. 그때 기기 시연용 계정의 사전 등록 데이터도 신규 등록 흐름에 맞춘다. 실제 서버의 가입부터 아이 홈까지는 [SCRUM-133](https://dodamdodam.atlassian.net/browse/SCRUM-133)에서 검증한다.
+[SCRUM-131](https://dodamdodam.atlassian.net/browse/SCRUM-131)의 신규 등록 확인은 아래 절에서 이어간다. 기존 아이 시연 데이터와 신규 등록용 가상 계정은 각각의 경로를 검증하는 데 사용한다.
+
+### 8. 아이 프로필 등록 — SCRUM-131
+
+가상 미등록 계정으로 일반 앱 진입 → 프로필 입력 → 등록 확인 → 등록 → 홈을 검증한다. 가로 화면의 왼쪽에는 프로필 입력과 등록 확인 두 단계를 표시하고 현재 단계를 강조한다. 생년월일 칸을 탭하면 년·월·일을 각각 스크롤할 수 있는 선택창이 열린다. 선택창의 확인에서만 날짜를 반영하며, 취소하면 기존 날짜를 유지한다. 성별 옵션을 열고 닫거나 관심사 태그 줄이 늘어나도 가로 화면에서 캐릭터 미리보기의 상단 위치를 유지한다. 관심사 안내는 입력란 안에 표시하고 포커스가 들어오면 숨긴다. 키보드의 완료로 직접 입력한 태그를 추가한다. 출처는 [아이 프로필](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3282)과 [등록 확인](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3661)이다.
+
+| 검증 항목 | 확인하는 동작 |
+| --- | --- |
+| 입력과 확인 | 이름·애칭 Unicode 코드포인트 길이, KST 날짜·윤일·휠의 월과 말일 경계, 성별·캐릭터 독립 선택, 관심사 개수·길이·중복·순서, 취소와 확인 화면 왕복을 확인한다. 목 목록의 초기 선택은 여자 도담이다. 등록 확인에는 선택한 도담이의 얼굴과 어깨를 공통 연두색 배경에 표시한다. 관심사가 있으면 안내가 ‘직접 작성할 수도 있어요’로 바뀐다. 등록 확인에서 입력 화면으로 돌아오면 입력값을 유지한다. 입력 화면에서 보호자 로그인으로 나갔다가 재진입하면 입력값을 초기화한다. 확인 화면에서 등록을 누르기 전 등록 전송은 0회다. |
+| 등록과 홈 | 인증 쿠키 전달 설정과 CSRF 헤더를 사용한다. 제출 연타에도 POST 1회이며, 201의 `ChildView`·`Location`을 검증한 뒤 공통 `refreshEntry`로 같은 계정·아이 ID를 확인한다. 동일 ID로 조회한 기존 홈에 입력한 가상 애칭을 표시한다. |
+| 오류와 앱 복귀 | 미지원 캐릭터는 입력을 보존하고 재선택을 안내한다. 409 및 응답 유실은 `GET /children`으로 확인하며, 상태 재확인은 읽기 요청만 수행한다. 계정·아이 ID 불일치에는 등록 성공을 표시하지 않으며, 이전 방문 응답은 새 세션에 반영하지 않는다. |
+
+P0 목 목록에서 등록할 수 있는 캐릭터는 여자 도담이 한 종이다. 남자 도담이 탭은 카드 중앙의 준비 중 안내와 미리보기를 열며, `여자 도담이로 계속`을 누르면 확인 화면과 등록 요청에 여자 도담이가 사용된다. 미리보기 전용 ID는 등록 검증에서 거절한다.
+
+입력과 등록 확인 사이에서는 220ms 동안 본문에만 짧은 좌우 이동과 페이드를 적용한다. 캐릭터 미리보기는 150ms 동안 이미지와 안내가 교차로 나타난다. 연속 탭으로 반대 방향 전환이 가능하며, 확인 화면이 나타나는 동안 같은 자리를 다시 눌러도 등록을 제출하지 않는다. 기기의 동작 줄이기가 켜져 있으면 두 전환을 즉시 표시한다.
+
+iPad에서 키보드가 열릴 때 본문 스크롤만 키보드 높이를 반영한다. 하단 버튼은 화면 아래에 고정되어 도킹된 키보드에 가려진다. 키보드를 닫으면 같은 위치에서 다시 보인다.
+
+보호자 화면과 아이 프로필 사이에는 180ms 방향 이동을 적용한다. 생년월일 선택창은 160ms 페이드로 열리고, 성별 메뉴는 150ms 동안 펼쳐지면서 화살표가 함께 회전한다.
+
+등록 직후에는 `/auth/me` 재확인과 등록한 아이의 홈 조회가 끝나면 처음 준비된 홈에만 180ms 페이드를 적용한다. 기기의 동작 줄이기가 켜져 있으면 각 화면을 즉시 표시한다. 선택·닫기·포커스와 백그라운드에서의 개인정보 가림은 애니메이션 완료를 기다리지 않는다.
+
+BE `development` `eee7806f`의 [캐릭터 허용 목록](https://github.com/DodamDodam-Capstone/backend/blob/eee7806f2ffb18aa626546b36b0ff8bbbbd68a0d/src/main/java/com/dodamdodam/backend/child/application/ChildService.java#L19-L48)은 비어 있다. 실제 ID·표시 이름·기본값·폐기 ID 처리는 [등록 명세의 J-04](https://github.com/DodamDodam-Capstone/backend/blob/eee7806f2ffb18aa626546b36b0ff8bbbbd68a0d/docs/p0/api/03-children.md#section-6-10)에서 확인한다. `src/childRegistration/childRegistrationData.ts`의 `TEST_CHILD_CHARACTERS`는 mock 전용이며, `App.tsx`의 목록 선택과 등록 화면의 캐릭터 에셋 연결이 교체 위치다. 테스트 목록을 공식 목록으로 교체한 뒤 [SCRUM-133](https://dodamdodam.atlassian.net/browse/SCRUM-133)에서 실제 서버의 가입부터 아이 홈까지 검증한다.
+
+회귀 테스트로 등록과 복구의 계정·세션 대조, 새 활성 세대의 503·429 재조회, 휠 정지 전 확정 방지, 선택창의 개인정보 보호, 빠른 홈 응답의 첫 페이드와 재조회 시 재생 방지를 검증한다.
+
+2026-11-26 [SCRUM-192의 Expo 57.0.34 패치](https://github.com/DodamDodam-Capstone/frontend/pull/57)가 반영된 `development`에서 깨끗한 `npm ci`와 온라인 Expo 의존성 검사를 통과했다. 전체 Jest 60개 스위트·1,172개 테스트, CI 스크립트 테스트 26개, 프로젝트 설정 검사, lint, typecheck, 공개 환경 설정 14개 조합과 iOS·Android Expo export도 통과했다.
+
+| 기기 | 실행 결과 |
+| --- | --- |
+| 가로 iPad Air 11형(M3), iPadOS 27.2.1, USB | 11월 25일 무음 상태에서 생년월일 필드를 열고 세 휠을 움직여 날짜가 입력란에 반영되는 모습을 확인했다. 11월 26일 초기 폼과 성별 메뉴가 펼쳐진 화면을 확인했다. 등록 후 홈까지의 실기기 동작은 미확인이다. |
+| 가로 Android Pixel Tablet 에뮬레이터, API 36, host GPU | 11월 25일 iPad 시험 앱과 Metro를 종료한 뒤 확인했다. 휠 스와이프, 취소·확정, 키보드 입력, 관심사 추가, 뒤로 가기 후 입력 유지, 가상 애칭을 표시하는 홈까지 검증했다. 성별 메뉴 전후의 캐릭터 선택 버튼 좌표와 미리보기 영역 픽셀이 일치했다. |
 
 ## SCRUM-179: Dependabot Jira 검사 회귀 — 2026-10-26
 

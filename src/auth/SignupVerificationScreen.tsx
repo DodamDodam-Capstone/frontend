@@ -1,64 +1,22 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore, type RefObject } from 'react';
 import {
-  AccessibilityInfo, ActivityIndicator, BackHandler, Image, Keyboard, KeyboardAvoidingView, Platform,
+  AccessibilityInfo, ActivityIndicator, BackHandler, Keyboard, KeyboardAvoidingView, Platform,
   Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View,
 } from 'react-native';
 
 import { AppText } from '../components/AppText';
 import { ErrorMessage } from '../components/ErrorMessage';
-import { Logo } from '../components/Logo';
 import { TextField } from '../components/TextField';
 import { colors, fonts, typography } from '../theme/tokens';
 import type { EmailVerificationFlow } from './emailVerification';
 import { SignupCompleteScreen } from './SignupCompleteScreen';
+import { SignupProgress } from './SignupProgress';
 import { validateSignupPassword } from './signupPassword';
 import { VerificationPanel, useVerificationClock } from './VerificationPanel';
 
 type ScreenFlow = Pick<EmailVerificationFlow, 'getSnapshot' | 'subscribe' | 'setEmail' | 'clearInvalidEmail' | 'openEmail' | 'issue' |
   'verify' | 'closeDialog' | 'finish' | 'syncTime' | 'submitSignup'>;
 type SignupSnapshot = ReturnType<ScreenFlow['getSnapshot']>;
-
-const badges = [
-  require('../../assets/images/signup/step-one.png'),
-  require('../../assets/images/signup/step-two.png'),
-  require('../../assets/images/signup/step-three.png'),
-];
-const activeTwo = require('../../assets/images/signup/step-two-active.png');
-const stages = [
-  ['이메일 인증', '이메일 확인'], ['비밀번호 설정', '계정 만들기'], ['가입 완료', '별도 로그인'],
-];
-function SignupProgress({ verified, width }: { verified: boolean; width: number }) {
-  const scale = width / 215;
-  return (
-    <View style={[styles.rail, { width }]} accessible accessibilityLabel={verified
-      ? '가입 2단계, 비밀번호 설정' : '가입 1단계, 이메일 인증'}>
-      <View accessibilityElementsHidden importantForAccessibility="no-hide-descendants"
-        style={{ alignItems: 'center', paddingTop: 26 * scale }}>
-        <View>
-          <Image source={require('../../assets/images/signup/logo-heart.png')} accessible={false}
-            style={{ position: 'absolute', left: 45 * scale, top: 29 * scale, width: 35.6 * scale, height: 25.25 * scale }} />
-          <Logo width={120 * scale} />
-        </View>
-        <Image source={require('../../assets/images/signup/divider.png')} accessible={false}
-          style={{ width: 170 * scale, height: 1, marginVertical: 30 * scale }} />
-      </View>
-      <View style={{ paddingHorizontal: 32 * scale }}>
-        <Image accessible={false} source={require('../../assets/images/signup/connector.png')}
-          style={{ position: 'absolute', left: 50 * scale, top: 16 * scale, width: 2 * scale, height: 190 * scale }} />
-        {stages.map(([title, detail], i) => (
-          <View key={title} style={[styles.stage, { minHeight: 98 * scale }]}>
-            <Image accessible={false} source={verified && i === 1 ? activeTwo : badges[i]}
-              style={{ width: 36 * scale, height: 36 * scale }} />
-            <View style={styles.stageCopy}>
-              <AppText style={styles.stageTitle}>{title}</AppText>
-              <AppText style={styles.detail}>{detail}</AppText>
-            </View>
-          </View>
-        ))}
-      </View>
-    </View>
-  );
-}
 
 function SignupPasswordForm({ state, now, scroll, onSubmit, onBack }: {
   state: SignupSnapshot;
@@ -178,7 +136,7 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
     <View style={styles.root}>
       <View style={styles.layout} accessibilityElementsHidden={panel}
         importantForAccessibility={panel ? 'no-hide-descendants' : 'auto'} pointerEvents={panel ? 'none' : 'auto'}>
-        <SignupProgress verified={verified} width={railWidth} />
+        <SignupProgress step={verified ? 'password' : 'email'} width={railWidth} />
         <KeyboardAvoidingView style={styles.formColumn} behavior="padding" enabled={Platform.OS === 'android'}>
           <ScrollView ref={scroll} bounces={false} testID="signup-form-scroll" keyboardShouldPersistTaps="handled"
             contentContainerStyle={styles.formScroll} automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}>
@@ -223,12 +181,6 @@ export function SignupVerificationScreen({ flow, onBack }: { flow: ScreenFlow; o
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
   layout: { flex: 1, flexDirection: 'row' },
-  rail: { backgroundColor: '#E5F3B1', experimental_backgroundImage: [{ type: 'linear-gradient', direction: 'to bottom',
-    colorStops: [{ color: '#F1FAD2', positions: ['0%'] }, { color: '#D9EC8D', positions: ['100%'] }] }] },
-  stage: { flexDirection: 'row', alignItems: 'flex-start', gap: 8 },
-  stageCopy: { flex: 1, gap: 2 },
-  stageTitle: { ...typography.label, color: colors.textPrimary },
-  detail: { fontFamily: fonts.regular, fontSize: 13, lineHeight: 18, color: colors.textSecondary },
   formColumn: { flex: 1 },
   formScroll: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: '3%', paddingVertical: 24 },
   form: { width: '87%', maxWidth: 802, alignSelf: 'center', gap: 20 },
