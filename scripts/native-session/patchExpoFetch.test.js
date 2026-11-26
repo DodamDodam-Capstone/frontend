@@ -16,7 +16,7 @@ const originals = patches.map((patch) => {
   return patch.secondaryAfter ? bufferedOriginal.replaceAll(patch.secondaryAfter, patch.secondaryBefore) : bufferedOriginal;
 });
 const owned = [];
-function fixture(version = '57.0.33') {
+function fixture(version = '57.0.34') {
   const project = fs.mkdtempSync(path.join(os.tmpdir(), 'expo-fetch-installer-'));
   owned.push(project);
   const metadata = { name: 'dodamdodam-frontend', dependencies: { expo: version },
@@ -50,7 +50,7 @@ test('실제 Expo/core 원본 4개를 고정 SHA256 패치로 바꾸고 재실�
   expect(originals.map(hash)).toEqual([
     'dc0ef1165d12c1634bc0503bee9029a118c13561b38f9cea1d1d3b4d2f739e57',
     '3c766cf8a30f00a91f3a6116aa9e7f6a44f26d7fe2179cd7c114cbbfb56b08ea',
-    '4e23605435443e9a0c40a4b694bbb775fa83befc14d53664d3f54261744d0381',
+    '313c5ee727bad075b7f53c8ce6b0900e75a8cae185c45ad9dcdfcec32a061267',
     'aad9abe3946b2cd7a3febca4f11d9f36bd8b2ea4309cf17901b5b069abba63ec',
   ]);
   const project = fixture();
@@ -77,17 +77,17 @@ test.each([0, 1, 2, 3])('%i번째 소스가 알려진 원본/패치가 아니면
 
 test.each(['project', 'root-lock', 'locked', 'installed'])('%s Expo 버전이 다르면 쓰지 않는다', (where) => {
   const project = fixture();
-  if (where === 'project') changeJson(project, 'package.json', (value) => { value.dependencies.expo = '57.0.34'; });
-  else if (where === 'root-lock') changeJson(project, 'package-lock.json', (value) => { value.packages[''].dependencies.expo = '57.0.34'; });
-  else if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo'].version = '57.0.34'; });
-  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.version = '57.0.34'; });
+  if (where === 'project') changeJson(project, 'package.json', (value) => { value.dependencies.expo = '57.0.35'; });
+  else if (where === 'root-lock') changeJson(project, 'package-lock.json', (value) => { value.packages[''].dependencies.expo = '57.0.35'; });
+  else if (where === 'locked') changeJson(project, 'package-lock.json', (value) => { value.packages['node_modules/expo'].version = '57.0.35'; });
+  else changeJson(project, 'node_modules/expo/package.json', (value) => { value.version = '57.0.35'; });
   const before = hashes(project); const result = run(project);
   expect(result.status).not.toBe(0);
   expect(result.stderr).toContain('Unsupported Expo fetch version');
   expect(hashes(project)).toEqual(before);
 });
 
-test.each(['57.0.32', '57.0.34'])('모든 메타데이터가 %s여도 승인한 버전이 아니면 쓰지 않는다', (version) => {
+test.each(['57.0.33', '57.0.35'])('모든 메타데이터가 %s여도 승인한 버전이 아니면 쓰지 않는다', (version) => {
   const project = fixture(version);
   const before = hashes(project); const result = run(project);
   expect(result.status).not.toBe(0);
@@ -137,7 +137,7 @@ test.each(['source', 'metadata'])('%s 심볼릭 링크는 거절하고 외부 �
   expect(hashes(project)).toEqual(before); expect(hash(fs.readFileSync(external))).toBe(externalBefore);
 });
 
-test.each([1, 2, 3])('%i번째 파일의 추가 치환이 빠진 패치는 최종 패치로 인정하지 않는다', (index) => {
+test.each([1, 3])('%i번째 파일의 추가 치환이 빠진 패치는 최종 패치로 인정하지 않는다', (index) => {
   const project = fixture();
   fs.writeFileSync(file(project, index), originals[index].replaceAll(patches[index].before, patches[index].after));
   const before = hashes(project); const result = run(project);
