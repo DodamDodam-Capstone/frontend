@@ -3,7 +3,6 @@ import type { HomeData } from './homeData';
 export const MOCK_CHILD_ID = '22222222-2222-4222-8222-222222222222';
 
 const hour = 3600_000;
-const joinedAt = '2026-10-02T09:00:00+09:00';
 function formatKst(time: number): string {
   return `${new Date(time + 9 * hour).toISOString().slice(0, 19)}+09:00`;
 }
@@ -13,13 +12,19 @@ export function createHomeFixture({
   serverTime = formatKst(Date.now()),
   activeConversationId = null,
   closing = false,
+  name = '도담친구',
   nickname = '별이',
+  characterId = 'dodam',
+  joinedAt = '2026-10-02T09:00:00+09:00',
 }: {
   childId?: string;
   serverTime?: string;
   activeConversationId?: string | null;
   closing?: boolean;
+  name?: string;
   nickname?: string;
+  characterId?: string;
+  joinedAt?: string;
 } = {}): HomeData {
   const serviceDate = serverTime.slice(0, 10);
   const opensAt = `${serviceDate}T08:00:00+09:00`;
@@ -33,7 +38,7 @@ export function createHomeFixture({
       : { ...window, canEnter: true, reason: null, nextOpensAt: null };
 
   return {
-    child: { childId, name: '도담친구', characterId: 'dodam', nickname },
+    child: { childId, name, characterId, nickname },
     greeting: `${nickname}, 오늘도 반가워!`,
     joinedAt,
     daysTogether: 1 + Math.floor((start - joinedDay) / (24 * hour)),

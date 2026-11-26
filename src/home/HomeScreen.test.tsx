@@ -31,7 +31,7 @@ const data: HomeData = {
 
 function homeProps() {
   return {
-    data, logoutDisabled: false, onTalk: jest.fn(), onGuardian: jest.fn(),
+    data, logoutDisabled: false, reduceMotion: true, onTalk: jest.fn(), onGuardian: jest.fn(),
     onLogout: jest.fn(), onRefresh: jest.fn(),
   };
 }

@@ -2,7 +2,7 @@ import { readEnvironment, type ConfigResult, type EnvironmentInput } from '../co
 import { createApiClient, type ApiFetch } from './client';
 import type { ExampleScenario } from './mockAuthMe';
 
-export type ExampleRequest = { method: string; path: string };
+export type ExampleRequest = { method: string; path: string; body?: BodyInit };
 export type ExampleTransport = (request: ExampleRequest) => Promise<Response>;
 export type ExampleFetch = ApiFetch;
 

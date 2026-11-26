@@ -5,28 +5,41 @@ import { parseApiResponse } from '../api/response';
 import { submitEmailLogin, type LoginFeedback } from '../auth/emailLogin';
 import { createEmailVerification, type EmailVerificationFlow } from '../auth/emailVerification';
 import { submitLogoutRequest } from '../auth/logout';
+import { validateChildDraft, type ChildCharacter, type ChildDraft, type ChildFieldErrors } from '../childRegistration/childRegistrationData';
+import { requestChildRegistration, requestRegisteredChild } from '../childRegistration/childRegistrationRequest';
 import { ROUTES, type RoutePath } from './routes';
 
 type EntryError = {
   kind: 'error';
-  reason: 'request_failed' | 'auth_state_unavailable' | 'rate_limited' | 'invalid_response' | 'csrf_unavailable';
+  reason: 'request_failed' | 'auth_state_unavailable' | 'rate_limited' | 'invalid_response'
+    | 'csrf_unavailable' | 'registration_account_changed';
   retryAt?: number;
 };
 type HomeIdentity = { accountId: string; childId: string };
-type EntryRoute = { kind: 'route'; route: RoutePath; child?: HomeIdentity };
+type RegistrationRefresh = { accountId: string; generation: number };
+type EntryRoute = { kind: 'route'; route: RoutePath; child?: HomeIdentity; accountId?: string };
+type RegistrationCheck = {
+  accountId: string;
+  message: string;
+  expectedChildId?: string;
+  lookupRequired: boolean;
+};
+export type RegistrationFeedback = { message: string; errors?: ChildFieldErrors };
 type EntryAttempt = {
   aborter: AbortController;
   finishCancelled: () => void;
   context: AuthContext;
+  registrationAccountId?: string;
   account?: EntryRoute | EntryError;
   csrf?: { kind: 'ready' } | EntryError;
   expired?: boolean;
 };
 
-type EntryVisit = Omit<EntryRoute, 'child'> & {
+type EntryVisit = Omit<EntryRoute, 'child' | 'accountId'> & {
   childId?: string;
   visit: number;
   generation: number;
+  transition?: 'registration-complete';
   loginRetryAt?: number;
   loginFeedback?: LoginFeedback;
   loginBlocked?: boolean;
@@ -35,6 +48,8 @@ type EntryVisit = Omit<EntryRoute, 'child'> & {
   logoutPending?: boolean;
   logoutRetryAt?: number;
   logoutFeedback?: string;
+  registrationCheck?: string;
+  registrationRetryAt?: number;
 };
 export type EntrySnapshot = { kind: 'loading' } | EntryVisit | EntryError;
 
@@ -42,8 +57,9 @@ const loading = { kind: 'loading' } as const;
 const jsonResponse = { kind: 'json', statuses: [200] } as const;
 function routeForAccount(value: unknown): EntryRoute | undefined {
   if (!isAccountView(value)) return;
-  if (value.childId === null) return { kind: 'route', route: ROUTES.childRegistration };
-  return { kind: 'route', route: ROUTES.home, child: { accountId: value.accountId, childId: value.childId } };
+  const accountId = value.accountId.toLowerCase();
+  if (value.childId === null) return { kind: 'route', route: ROUTES.childRegistration, accountId };
+  return { kind: 'route', route: ROUTES.home, accountId, child: { accountId, childId: value.childId } };
 }
 
 function rateLimit(decision: RecoveryDecision, receivedAt: number): EntryError | undefined {
@@ -70,7 +86,9 @@ function combineFailures(account: EntryError | undefined, csrf: EntryError | und
   return (csrf?.retryAt ?? 0) > (account.retryAt ?? 0) ? csrf : account;
 }
 
-export function createEntryController(client: ApiClient, readForegroundGeneration: () => number) {
+export function createEntryController(
+  client: ApiClient, readForegroundGeneration: () => number, childCharacters: readonly ChildCharacter[] = [],
+) {
   let snapshot: EntrySnapshot = loading;
   const listeners = new Set<() => void>();
   let mounted = false;
@@ -97,6 +115,22 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   let signup: EmailVerificationFlow | undefined;
   let signupIssueRetryAt = 0;
   let signupVerifyRetryAt = 0;
+  let registrationAccountId: string | undefined;
+  let registrationCheck: RegistrationCheck | undefined;
+  let registrationOperation: object | undefined;
+  let registrationRefresh: RegistrationRefresh | undefined;
+  let registrationLimit: { accountId: string; retryAt: number } | undefined;
+
+  function clearRegistration() {
+    registrationCheck = undefined;
+    registrationOperation = undefined;
+    registrationRefresh = undefined;
+    registrationLimit = undefined;
+  }
+
+  function registrationControls() {
+    return { registrationCheck: registrationCheck?.message, registrationRetryAt: registrationLimit?.retryAt };
+  }
 
   function discardSignup(keepRetryDeadline = false) {
     const previous = signup;
@@ -145,6 +179,26 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   }
 
   function publish(next: typeof loading | EntryRoute | EntryError) {
+    let transition: EntryVisit['transition'];
+    registrationAccountId = undefined;
+    if (next.kind === 'route') {
+      if (registrationCheck && registrationCheck.accountId !== next.accountId) registrationCheck = undefined;
+      if (registrationLimit && registrationLimit.accountId !== next.accountId) registrationLimit = undefined;
+      if (registrationCheck && !registrationCheck.lookupRequired && next.child
+        && next.child.childId.toLowerCase() === registrationCheck.expectedChildId) {
+        if (registrationRefresh?.accountId === registrationCheck.accountId && registrationRefresh.generation === generation) {
+          transition = 'registration-complete';
+        }
+        clearRegistration();
+      }
+      if (registrationCheck && !registrationCheck.lookupRequired) {
+        registrationCheck = { ...registrationCheck, message: '아이 정보를 아직 확인할 수 없어요. 다시 확인해 주세요.' };
+      }
+      if (registrationCheck || next.route === ROUTES.childRegistration) {
+        registrationAccountId = next.accountId;
+        next = { kind: 'route', route: ROUTES.childRegistration, accountId: next.accountId };
+      }
+    }
     // React가 확인 중 렌더를 합쳐도 같은 경로의 이전 화면 상태를 재사용하지 않는다.
     if (next.kind === 'route' && next.route === ROUTES.login) signup?.syncTime();
     const loginState = next.kind === 'route' && next.route === ROUTES.login ? {
@@ -162,6 +216,8 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     setSnapshot(next.kind === 'route' ? {
       kind: 'route', route: next.route, ...(homeIdentity ? { childId: homeIdentity.childId } : {}),
       visit: ++visit, generation, ...controls,
+      ...(transition ? { transition } : {}),
+      ...(next.route === ROUTES.childRegistration && (registrationCheck || registrationLimit) ? registrationControls() : {}),
     } : next);
   }
 
@@ -220,6 +276,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
 
   function confirmSignedOut() {
     cancelAttempt();
+    clearRegistration();
     logoutFeedback = undefined;
     logoutRetryAt = 0;
     homeRetry = undefined;
@@ -275,6 +332,11 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
           return;
         }
         const route = parsed.kind === 'json' ? routeForAccount(parsed.data) : undefined;
+        if (route && attempt.registrationAccountId && route.accountId !== attempt.registrationAccountId) {
+          attempt.account = { kind: 'error', reason: 'registration_account_changed' };
+          publishAttempt(attempt);
+          return;
+        }
         if (route) discardSignup();
         attempt.account = route ?? rateLimit(decision, receivedAt) ?? {
           kind: 'error', reason: decision.kind === 'auth_state_unavailable' ? 'auth_state_unavailable' : 'invalid_response',
@@ -284,7 +346,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     publishAttempt(attempt);
   }
 
-  async function refresh(): Promise<void> {
+  async function refresh(expectedRegistration?: RegistrationRefresh): Promise<void> {
     if (!mounted || suspended) return;
     const nextGeneration = readForegroundGeneration();
     if (logoutPending) {
@@ -310,9 +372,13 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     const requestedGeneration = generation;
     const context = client.captureCurrentContext();
     if (!context) return;
+    // 등록한 계정과의 대조는 요청을 시작한 포그라운드에서만 유지한다.
+    registrationRefresh = expectedRegistration?.generation === requestedGeneration ? expectedRegistration : undefined;
     let finishCancelled!: () => void;
     const cancelled = new Promise<void>((resolve) => { finishCancelled = resolve; });
-    const attempt: EntryAttempt = { aborter: new AbortController(), finishCancelled, context };
+    const attempt: EntryAttempt = {
+      aborter: new AbortController(), finishCancelled, context, registrationAccountId: registrationRefresh?.accountId,
+    };
     currentAttempt = attempt;
 
     try {
@@ -348,12 +414,13 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     if (!mounted || suspended) return;
     suspended = true;
     signup?.suspend();
+    registrationOperation = undefined;
     loginFeedback = undefined;
     // 화면이 바뀌어도 동일 세션의 로그아웃 또는 토큰 재획득 결과는 이어 받는다.
     if (!logoutPending && !retryingLogoutCsrf) client.discardRequestContexts();
     cancelAttempt();
     // 복귀 전 보호 화면을 내린다. 이미 표시된 오류의 재시도는 사용자에게 맡긴다.
-    if (snapshot.kind !== 'error') publish(loading);
+    if (snapshot.kind !== 'error' || snapshot.reason === 'registration_account_changed') publish(loading);
   }
 
   async function resume() {
@@ -372,7 +439,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   }
 
   async function retry(): Promise<void> {
-    if (snapshot.kind === 'error') await refresh();
+    if (snapshot.kind === 'error') await refresh(registrationRefresh);
   }
 
   async function submitLogin(email: string, password: string): Promise<LoginFeedback | undefined> {
@@ -419,7 +486,9 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
     const isSameMount = () => mounted && submittedMount === mountId;
     logoutPending = true;
     logoutFeedback = undefined;
-    setSnapshot({ ...snapshot, logoutPending: true, logoutFeedback: undefined });
+    const pending = { ...snapshot, logoutPending: true, logoutFeedback: undefined };
+    delete pending.transition;
+    setSnapshot(pending);
     let result;
     try {
       result = await submitLogoutRequest(client, () => {
@@ -481,6 +550,7 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   function stop() {
     mounted = false;
     discardSignup();
+    clearRegistration();
     suspended = false;
     mountId += 1;
     entryCsrf = undefined;
@@ -495,6 +565,86 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
   function isHomeVisitCurrent(visit: number): boolean {
     return mounted && !suspended && !logoutPending && isForegroundGeneration()
       && snapshot.kind === 'route' && snapshot.route === ROUTES.home && snapshot.visit === visit;
+  }
+
+  function registrationVisit(visit: number) {
+    if (!mounted || suspended || logoutPending || !isForegroundGeneration()) return;
+    if (snapshot.kind === 'route' && snapshot.route === ROUTES.childRegistration && snapshot.visit === visit) {
+      return registrationAccountId;
+    }
+  }
+
+  function updateRegistrationControls() {
+    if (snapshot.kind === 'route' && snapshot.route === ROUTES.childRegistration) {
+      setSnapshot({ ...snapshot, ...registrationControls() });
+    }
+  }
+
+  async function submitChild(visit: number, draft: ChildDraft): Promise<RegistrationFeedback | undefined> {
+    const accountId = registrationVisit(visit);
+    if (!accountId || childCharacters.length === 0 || registrationCheck || registrationOperation
+      || (registrationLimit?.retryAt ?? 0) > Date.now()) return;
+    const input = validateChildDraft(draft, childCharacters);
+    if (!input.ok) return { errors: input.errors, message: '입력한 정보를 확인해 주세요.' };
+    const operation = {};
+    registrationOperation = operation;
+    const isCurrent = () => registrationOperation === operation && registrationVisit(visit) === accountId;
+    try {
+      const result = await requestChildRegistration(client, input.value, {
+        isCurrent,
+        receiveProtectedAuthResult,
+        beforeSend() {
+          if (!isCurrent()) return false;
+          // 서버에 도달할 수 있는 시점부터 복귀·재조회에도 중복 POST를 막는다.
+          registrationCheck = { accountId, message: '아이 등록 상태를 다시 확인해 주세요.', lookupRequired: true };
+          return true;
+        },
+      });
+      if (!isCurrent() || result.kind === 'ignored') return;
+      if (result.kind === 'rejected') {
+        registrationCheck = undefined;
+        registrationLimit = result.retryAt === undefined ? undefined : { accountId, retryAt: result.retryAt };
+        updateRegistrationControls();
+        return result;
+      }
+      registrationCheck = {
+        accountId, message: result.message, expectedChildId: result.expectedChildId?.toLowerCase(),
+        lookupRequired: result.reason !== 'created',
+      };
+      updateRegistrationControls();
+      if (result.reason === 'created') await refresh({ accountId, generation });
+      if (result.reason === 'existing' && isCurrent()) {
+        registrationOperation = undefined;
+        await checkChildRegistration(visit);
+      }
+    } finally {
+      if (registrationOperation === operation) registrationOperation = undefined;
+    }
+  }
+
+  async function checkChildRegistration(visit: number) {
+    const check = registrationCheck;
+    if (!check || registrationVisit(visit) !== check.accountId || registrationOperation
+      || (registrationLimit?.retryAt ?? 0) > Date.now()) return;
+    const operation = {};
+    registrationOperation = operation;
+    const isCurrent = () => registrationOperation === operation && registrationVisit(visit) === check.accountId;
+    try {
+      if (check.lookupRequired) {
+        const result = await requestRegisteredChild(client, { isCurrent, receiveProtectedAuthResult });
+        if (!isCurrent() || result.kind === 'ignored') return;
+        if (result.kind === 'unresolved') {
+          registrationCheck = { ...check, message: '아이 등록 상태를 확인할 수 없어요. 다시 확인해 주세요.' };
+          if (result.retryAt !== undefined) registrationLimit = { accountId: check.accountId, retryAt: result.retryAt };
+          updateRegistrationControls();
+          return;
+        }
+        registrationCheck = { ...check, expectedChildId: result.childId.toLowerCase(), lookupRequired: false };
+      }
+      await refresh({ accountId: check.accountId, generation });
+    } finally {
+      if (registrationOperation === operation) registrationOperation = undefined;
+    }
   }
 
   function getHomeRetryAt(visit: number): number | undefined {
@@ -531,6 +681,6 @@ export function createEntryController(client: ApiClient, readForegroundGeneratio
       return () => { listeners.delete(listener); };
     },
     start, suspend, resume, reenterTask, refresh, retry, stop, receiveProtectedAuthResult, submitLogin, submitLogout, retryLogoutCsrf,
-    openSignup, closeSignup, isHomeVisitCurrent, getHomeRetryAt, rememberHomeRetry,
+    openSignup, closeSignup, isHomeVisitCurrent, getHomeRetryAt, rememberHomeRetry, submitChild, checkChildRegistration,
   };
 }

@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, expect, jest, test } from '@jest/globals';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react-native';
-import { AccessibilityInfo, AppState, type AppStateStatus } from 'react-native';
+import { AccessibilityInfo, Animated, AppState, type AppStateStatus } from 'react-native';
 
 import App from './App';
+import type { ExampleRequest } from './src/api/exampleTransport';
+import * as mockApi from './src/api/mockAuthMe';
 import { createHomeFixture } from './src/home/homeFixture';
 import type { HomeDestination } from './src/navigation/routes';
 import * as entry from './src/navigation/entryController';
@@ -984,7 +986,7 @@ test('mock 모드는 실제 fetch에 닿지 않고 기본 미등록 계정을 �
   const fetchCall = realFetch();
   await render(<App />);
   await finishSplash();
-  expect(await screen.findByRole('header', { name: '아이 등록' })).toBeVisible();
+  expect(await screen.findByRole('header', { name: '아이 프로필' })).toBeVisible();
   expect(fetchCall).not.toHaveBeenCalled();
 });
 
@@ -1351,4 +1353,352 @@ test('첫 실행에서 임시 보호자 계정으로 로그인에 성공한 뒤 
   expect(server.calls('/home')).toHaveLength(1);
   expect(server.calls('/children')).toHaveLength(0);
   expect(screen.queryByRole('header', { name: '아이 등록' })).not.toBeOnTheScreen();
+});
+
+const registeredChildId = '44444444-4444-4444-8444-444444444444';
+const newHomePath = `/children/${registeredChildId}/home`;
+
+function registrationServer(reply?: (request: ExampleRequest, handle: () => Promise<Response>) => Promise<Response>) {
+  process.env.EXPO_PUBLIC_API_MODE = 'mock';
+  markers.set(marker, 'true');
+  const network = realFetch();
+  const handlers = jest.spyOn(mockApi, 'registerExampleHandlers');
+  const original = handlers.getMockImplementation()!;
+  const requests: ExampleRequest[] = [];
+  handlers.mockImplementation(scenario => {
+    const handler = original(scenario);
+    return request => {
+      requests.push(request);
+      return reply ? reply(request, () => handler(request)) : handler(request);
+    };
+  });
+  const trace = () => requests.map(({ method, path }) => `${method} ${path}`);
+  return { requests, trace, network };
+}
+
+async function openRegistrationConfirmation(previewUpcoming = false) {
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('header', { name: '아이 프로필' })).toBeVisible();
+  await fireEvent.changeText(screen.getByLabelText('아이 이름'), '가상');
+  await fireEvent.changeText(screen.getByLabelText('아이 애칭'), '새싹');
+  const clock = jest.spyOn(Date, 'now').mockReturnValue(Date.parse('2020-02-29T03:00:00Z'));
+  await fireEvent.press(screen.getByRole('button', { name: '생년월일 선택' }));
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+  clock.mockRestore();
+  await fireEvent.press(screen.getByRole('button', { name: '성별' }));
+  await fireEvent.press(screen.getByRole('button', { name: '남자' }));
+  const interestInput = screen.getByLabelText('직접 입력');
+  await fireEvent.changeText(interestInput, ' 그림 ');
+  await fireEvent(interestInput, 'submitEditing');
+  if (previewUpcoming) {
+    await fireEvent.press(screen.getByRole('button', { name: '남자 도담이' }));
+    expect(screen.getByRole('button', { name: '남자 도담이', expanded: true })).toBeVisible();
+    expect(screen.getByText('준비 중이에요')).toBeVisible();
+    expect(screen.getByTestId('child-upcoming-lock')).toBeVisible();
+  }
+  await fireEvent.press(screen.getByRole('button', { name: previewUpcoming ? '여자 도담이로 계속' : '다음으로' }));
+  expect(await screen.findByRole('header', { name: '등록 확인' })).toBeVisible();
+}
+
+async function pressRegister() {
+  await fireEvent.press(screen.getByRole('button', { name: '등록하고 시작' }));
+}
+
+const registrationStart = ['GET /auth/csrf', 'GET /auth/me'];
+
+const expectedRegistration = {
+  name: '가상', nickname: '새싹', birthDate: '2020-02-29', gender: 'MALE',
+  interests: ['그림'], characterId: 'test-dodam-girl',
+};
+
+test('새 프로필에서 여자 도담이가 기본으로 선택된다', async () => {
+  registrationServer();
+  await render(<App />);
+  await finishSplash();
+  expect(await screen.findByRole('button', { name: '여자 도담이' })).toBeSelected();
+  expect(screen.getByRole('button', { name: '남자 도담이' })).not.toBeSelected();
+});
+
+test('아이 프로필에서 로그인 화면으로 돌아갔다가 재진입하면 세션을 유지하고 입력을 초기화한다', async () => {
+  const server = registrationServer();
+  jest.mocked(AccessibilityInfo.isReduceMotionEnabled).mockResolvedValue(false);
+  const timing = jest.spyOn(Animated, 'timing');
+  const pageTransitions = () => timing.mock.calls.filter(([, config]) => config.duration === 180);
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: '남자 도담이' }));
+  await fireEvent.changeText(screen.getByLabelText('아이 이름'), '가상');
+  await fireEvent.changeText(screen.getByLabelText('아이 애칭'), '새싹');
+  await fireEvent.press(screen.getByRole('button', { name: '생년월일 선택' }));
+  await fireEvent.press(screen.getByRole('button', { name: '확인' }));
+  await fireEvent.press(screen.getByRole('button', { name: '성별' }));
+  await fireEvent.press(screen.getByRole('button', { name: '여자' }));
+  await fireEvent.press(screen.getByRole('button', { name: '그림' }));
+  await fireEvent.changeText(screen.getByLabelText('직접 입력'), '종이접기');
+
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+  expect(await screen.findByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  expect(screen.queryByLabelText('아이 이름')).not.toBeOnTheScreen();
+  expect(server.trace()).toEqual(registrationStart);
+  expect(pageTransitions()).toHaveLength(1);
+
+  await fireEvent.press(screen.getByRole('button', { name: '아이 등록 계속하기' }));
+  expect(screen.getByLabelText('아이 이름')).toHaveDisplayValue('');
+  expect(screen.getByLabelText('아이 애칭')).toHaveDisplayValue('');
+  expect(screen.getByRole('button', { name: '생년월일 선택' })).toHaveAccessibilityValue({ text: '선택하지 않음' });
+  expect(screen.getByRole('button', { name: '성별' })).toHaveAccessibilityValue({ text: '선택하지 않음' });
+  expect(screen.getByLabelText('직접 입력')).toHaveDisplayValue('');
+  expect(screen.getByRole('button', { name: '그림' })).not.toBeSelected();
+  expect(screen.getByRole('button', { name: '여자 도담이' })).toBeSelected();
+  expect(screen.getByRole('button', { name: '다음으로' })).toBeDisabled();
+  expect(pageTransitions()).toHaveLength(2);
+  expect(server.trace()).toEqual(registrationStart);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test('보호자 화면에서 명시적으로 로그아웃하면 기존 로그인 양식을 연다', async () => {
+  const server = registrationServer();
+  await render(<App />);
+  await finishSplash();
+  await fireEvent.press(await screen.findByRole('button', { name: '뒤로 가기' }));
+  expect(server.trace()).toEqual(registrationStart);
+  await fireEvent.press(screen.getByRole('button', { name: '로그아웃' }));
+  expect(await screen.findByLabelText('이메일')).toBeVisible();
+  expect(server.trace()).toEqual([...registrationStart, 'POST /auth/logout', 'GET /auth/csrf']);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test('확인에서 돌아와도 입력을 유지하고 등록 연타에도 한 번만 제출해 같은 아이의 홈을 연다', async () => {
+  const changeAppState = observeAppState();
+  const createController = jest.spyOn(entry, 'createEntryController');
+  const pending = pause();
+  const checkAccount = pause();
+  let created = false;
+  const server = registrationServer(async ({ method, path }, handle) => {
+    if (method === 'POST' && path === '/children') {
+      await pending.wait();
+      const result = await handle();
+      created = true;
+      return result;
+    }
+    if (created && path === '/auth/me') await checkAccount.wait();
+    return handle();
+  });
+  await openRegistrationConfirmation(true);
+  expect(screen.getByText('아이 이름 가상 · 여자 도담이')).toBeVisible();
+  expect(server.trace()).toEqual(registrationStart);
+  await fireEvent.press(screen.getByRole('button', { name: '뒤로 가기' }));
+  expect(screen.getByLabelText('아이 이름')).toHaveDisplayValue('가상');
+  expect(screen.getByLabelText('아이 애칭')).toHaveDisplayValue('새싹');
+  expect(screen.getByRole('button', { name: '생년월일 선택' })).toHaveTextContent('2020.02.29');
+  expect(screen.queryByText('준비 중이에요')).not.toBeOnTheScreen();
+  expect(screen.queryByPlaceholderText('YYYY-MM-DD')).not.toBeOnTheScreen();
+  await fireEvent.press(screen.getByRole('button', { name: '다음으로' }));
+  expect(server.trace()).toEqual(registrationStart);
+
+  const register = screen.getByRole('button', { name: '등록하고 시작' });
+  await fireEvent.press(register);
+  await waitFor(() => expect(pending.wait).toHaveBeenCalledTimes(1));
+  expect(register).toBeDisabled();
+  await fireEvent.press(register);
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children']);
+  expect(JSON.parse(String(server.requests[2].body))).toEqual(expectedRegistration);
+  await act(() => { pending.release(); });
+  await waitFor(() => expect(checkAccount.wait).toHaveBeenCalledTimes(1));
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children', 'GET /auth/me']);
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  await act(() => { checkAccount.release(); });
+
+  expect(await screen.findByText('새싹, 오늘도 반가워!')).toBeVisible();
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children', 'GET /auth/me', `GET ${newHomePath}`]);
+  expect(server.network).not.toHaveBeenCalled();
+  const result = createController.mock.results[0];
+  if (result?.type !== 'return') throw new Error('Expected entry controller');
+  expect(result.value.getSnapshot()).toMatchObject({ route: '/home', transition: 'registration-complete' });
+  await changeAppState('background');
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  expect(await screen.findByText('새싹, 오늘도 반가워!')).toBeVisible();
+  expect(result.value.getSnapshot()).not.toHaveProperty('transition');
+});
+
+test('이미 아이가 등록된 경우 목록과 계정의 아이 ID를 확인하고 다시 제출하지 않는다', async () => {
+  const server = registrationServer(async (request, handle) => {
+    const result = await handle();
+    return request.method === 'POST' && request.path === '/children'
+      ? authError(409, 'CHILD_LIMIT_REACHED') : result;
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+
+  expect(await screen.findByText('새싹, 오늘도 반가워!')).toBeVisible();
+  expect(server.trace()).toEqual([
+    ...registrationStart, 'POST /children', 'GET /children', 'GET /auth/me', `GET ${newHomePath}`,
+  ]);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test('등록 응답 유실 뒤 사용자가 상태를 확인하면 저장된 아이의 홈을 열고 POST를 반복하지 않는다', async () => {
+  const server = registrationServer(async (request, handle) => {
+    const result = await handle();
+    if (request.method === 'POST' && request.path === '/children') throw new Error('Response lost after storage');
+    return result;
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+
+  expect(await screen.findByRole('header', { name: '등록 상태 확인' })).toBeVisible();
+  await fireEvent.press(await screen.findByRole('button', { name: '뒤로 가기', disabled: false }));
+  expect(screen.getByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children']);
+  await fireEvent.press(screen.getByRole('button', { name: '아이 등록 계속하기' }));
+  expect(screen.getByRole('header', { name: '등록 상태 확인' })).toBeVisible();
+  const retry = screen.getByRole('button', { name: '다시 확인' });
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children']);
+  await fireEvent.press(retry);
+  expect(await screen.findByText('새싹, 오늘도 반가워!')).toBeVisible();
+  expect(server.trace()).toEqual([
+    ...registrationStart, 'POST /children', 'GET /children', 'GET /auth/me', `GET ${newHomePath}`,
+  ]);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test('이미 등록 응답 뒤 아이 목록이 비어 있으면 읽기만 다시 시도한다', async () => {
+  const server = registrationServer(async ({ method, path }, handle) => {
+    if (method === 'POST' && path === '/children') return authError(409, 'CHILD_LIMIT_REACHED');
+    return handle();
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+
+  expect(await screen.findByRole('header', { name: '등록 상태 확인' })).toBeVisible();
+  expect(screen.queryByRole('button', { name: '등록하고 시작' })).not.toBeOnTheScreen();
+  await fireEvent.press(await screen.findByRole('button', { name: '다시 확인', disabled: false }));
+  expect(await screen.findByRole('button', { name: '다시 확인', disabled: false })).toBeVisible();
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children', 'GET /children', 'GET /children']);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test.each([null, account.childId])('등록 201 뒤 계정 아이 ID가 %s이면 홈을 열거나 다시 제출하지 않는다', async childId => {
+  let submitted = false;
+  const server = registrationServer(async (request, handle) => {
+    if (request.method === 'POST' && request.path === '/children') submitted = true;
+    if (submitted && request.path === '/auth/me') return response(200, { data: { ...account, childId } });
+    return handle();
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+
+  await fireEvent.press(await screen.findByRole('button', { name: '다시 확인' }));
+  expect(await screen.findByRole('button', { name: '다시 확인' })).toBeVisible();
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  expect(server.trace().filter(request => request.startsWith('POST '))).toEqual(['POST /children']);
+  expect(server.trace().filter(request => request.endsWith('/home'))).toEqual([]);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test('등록 직후 조회가 다른 계정의 아이를 반환해도 홈을 열지 않는다', async () => {
+  const changeAppState = observeAppState();
+  let submitted = false;
+  let returned = false;
+  const otherChildId = '55555555-5555-4555-8555-555555555555';
+  const otherHomePath = `/children/${otherChildId}/home`;
+  const server = registrationServer(async ({ method, path }, handle) => {
+    if (method === 'POST' && path === '/children') submitted = true;
+    if (returned && path === '/auth/me') return response(200, { data: { ...accountB, childId: otherChildId } });
+    if (returned && path === otherHomePath) {
+      return response(200, { data: createHomeFixture({ childId: otherChildId, nickname: '다른아이' }) });
+    }
+    if (submitted && path === '/auth/me') return response(200, { data: { ...accountB, childId: registeredChildId } });
+    return handle();
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+
+  const retry = await screen.findByRole('button', { name: '다시 시도' });
+  await fireEvent.press(retry);
+  expect(await screen.findByRole('button', { name: '다시 시도' })).toBeVisible();
+  expect(server.trace()).toEqual([...registrationStart, 'POST /children', 'GET /auth/me', 'GET /auth/me']);
+
+  await changeAppState('background');
+  returned = true;
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  expect(await screen.findByText('다른아이, 오늘도 반가워!')).toBeVisible();
+  expect(server.trace().slice(-2)).toEqual(['GET /auth/me', `GET ${otherHomePath}`]);
+});
+
+test.each([503, 429])('등록 직후 계정 조회 %i 뒤 복귀하면 첫 수동 재시도에서 현재 계정을 연다', async status => {
+  if (status === 429) jest.useFakeTimers();
+  const changeAppState = observeAppState();
+  const otherChildId = '55555555-5555-4555-8555-555555555555';
+  const otherHomePath = `/children/${otherChildId}/home`;
+  let submitted = false;
+  let returned = false;
+  const server = registrationServer(async ({ method, path }, handle) => {
+    if (method === 'POST' && path === '/children') submitted = true;
+    if (returned && path === '/auth/me') return response(200, { data: { ...accountB, childId: otherChildId } });
+    if (returned && path === otherHomePath) {
+      return response(200, { data: createHomeFixture({ childId: otherChildId, nickname: '다른아이' }) });
+    }
+    if (submitted && path === '/auth/me') {
+      return status === 429
+        ? authError(429, 'RATE_LIMITED', { 'Retry-After': '3' }) : authError(503, 'AUTH_STATE_UNAVAILABLE');
+    }
+    return handle();
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+  expect(await screen.findByRole('button', { name: '다시 시도' })).toBeVisible();
+  const failed = [...registrationStart, 'POST /children', 'GET /auth/me'];
+  expect(server.trace()).toEqual(failed);
+
+  await changeAppState('background');
+  returned = true;
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  if (status === 429) {
+    expect(screen.getByRole('button', { name: '다시 시도' })).toBeDisabled();
+    await act(async () => { await jest.advanceTimersByTimeAsync(3_000); });
+  }
+  expect(server.trace()).toEqual(failed);
+  await fireEvent.press(screen.getByRole('button', { name: '다시 시도', disabled: false }));
+  expect(await screen.findByText('다른아이, 오늘도 반가워!')).toBeVisible();
+  expect(server.trace()).toEqual([...failed, 'GET /auth/me', `GET ${otherHomePath}`]);
+  expect(server.network).not.toHaveBeenCalled();
+});
+
+test.each([201, 401])('백그라운드 전 등록 응답 %i이 뒤늦게 도착해도 새 계정을 바꾸지 않는다', async status => {
+  const changeAppState = observeAppState();
+  const pending = pause();
+  let switchedAccount = false;
+  const server = registrationServer(async (request, handle) => {
+    if (switchedAccount && request.path === '/auth/me') return response(200, { data: { ...accountB, childId: null } });
+    const result = await handle();
+    if (request.method === 'POST' && request.path === '/children') {
+      await pending.wait();
+      return status === 401 ? authError(401, 'AUTHENTICATION_REQUIRED') : result;
+    }
+    return result;
+  });
+  await openRegistrationConfirmation();
+  await pressRegister();
+  await waitFor(() => expect(pending.wait).toHaveBeenCalledTimes(1));
+
+  await changeAppState('background');
+  switchedAccount = true;
+  jest.mocked(readForegroundGeneration).mockReturnValue(1);
+  await changeAppState('active');
+  expect(await screen.findByRole('header', { name: '아이 프로필' })).toBeVisible();
+  const resumed = server.trace();
+  await act(() => { pending.release(); });
+
+  expect(screen.getByRole('header', { name: '아이 프로필' })).toBeVisible();
+  expect(screen.getByLabelText('아이 이름')).toHaveDisplayValue('');
+  expect(screen.queryByRole('header', { name: '홈' })).not.toBeOnTheScreen();
+  expect(screen.queryByRole('header', { name: '보호자 로그인' })).not.toBeOnTheScreen();
+  expect(server.trace()).toEqual(resumed);
+  expect(server.network).not.toHaveBeenCalled();
 });
