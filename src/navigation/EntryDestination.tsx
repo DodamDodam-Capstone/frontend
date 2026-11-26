@@ -2,6 +2,7 @@ import { ScrollView, StyleSheet } from 'react-native';
 
 import type { LoginFeedback } from '../auth/emailLogin';
 import { LoginScreen } from '../auth/LoginScreen';
+import { ChildRegistrationScreen } from '../childRegistration/ChildRegistrationScreen';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
 import { HomeEntry } from '../home/HomeEntry';
@@ -11,13 +12,9 @@ import { colors, typography } from '../theme/tokens';
 import { useEntrySession } from './entrySession';
 import { ROUTES, type RoutePath } from './routes';
 
-const titles = {
-  [ROUTES.childRegistration]: '아이 등록',
-  [ROUTES.home]: '홈',
-};
-
 export function EntryDestination({
-  route, visit, childId, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback, openSignup,
+  route, visit, childId, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery,
+  logoutRetryAt, logoutFeedback, registrationCheck, registrationRetryAt, animateRegistrationEntry, reduceMotion, openSignup,
 }: {
   route: RoutePath;
   visit: number;
@@ -28,6 +25,10 @@ export function EntryDestination({
   loginCsrfRecovery?: boolean;
   logoutRetryAt?: number;
   logoutFeedback?: string;
+  registrationCheck?: string;
+  registrationRetryAt?: number;
+  animateRegistrationEntry?: boolean;
+  reduceMotion: boolean;
   openSignup: () => void;
 }) {
   const { submitLogin, submitLogout, retryLogoutCsrf } = useEntrySession();
@@ -38,12 +39,18 @@ export function EntryDestination({
   }
 
   if (route === ROUTES.home && childId) {
-    return <HomeEntry visit={visit} childId={childId} logoutRetryAt={logoutRetryAt} logoutFeedback={logoutFeedback} />;
+    return <HomeEntry visit={visit} childId={childId} logoutRetryAt={logoutRetryAt} logoutFeedback={logoutFeedback}
+      animateRegistrationEntry={animateRegistrationEntry} reduceMotion={reduceMotion} />;
+  }
+
+  if (route === ROUTES.childRegistration) {
+    return <ChildRegistrationScreen visit={visit} checkMessage={registrationCheck} retryAt={registrationRetryAt}
+      logoutDisabled={waiting} logoutFeedback={logoutFeedback} />;
   }
 
   return (
     <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
-      <AppText accessibilityRole="header" style={styles.title}>{titles[route]}</AppText>
+      <AppText accessibilityRole="header" style={styles.title}>홈</AppText>
       <AppText style={styles.description}>화면을 준비하고 있어요.</AppText>
       {logoutFeedback && <ErrorMessage message={logoutFeedback} />}
       <Button label="로그아웃" variant="secondary" disabled={waiting} onPress={() => { void submitLogout(); }} />

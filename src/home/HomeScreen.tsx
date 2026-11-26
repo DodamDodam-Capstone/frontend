@@ -1,12 +1,13 @@
 import { type ReactNode, type Ref, type RefObject, useCallback, useEffect, useRef, useState } from 'react';
 import {
-  AccessibilityInfo, BackHandler, Image, type ImageSourcePropType, type ImageStyle, Platform, Pressable,
+  AccessibilityInfo, Animated, BackHandler, Image, type ImageSourcePropType, type ImageStyle, Platform, Pressable,
   ScrollView, StatusBar, StyleSheet, type Text, useWindowDimensions, View, type ViewStyle,
 } from 'react-native';
 
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
 import { ErrorMessage } from '../components/ErrorMessage';
+import { useEntranceMotion } from '../components/useEntranceMotion';
 import { colors, fonts, typography } from '../theme/tokens';
 import type { HomeData, HomeTalkState } from './homeData';
 
@@ -17,6 +18,8 @@ type HomeScreenProps = {
   onRefresh: () => void;
   logoutDisabled: boolean;
   logoutFeedback?: string;
+  animateRegistrationEntry?: boolean;
+  reduceMotion: boolean;
 } & (
   | { data: HomeData; talkState: HomeTalkState | 'checking'; fallback?: never }
   | { data?: never; talkState?: never; fallback: ReactNode }
@@ -303,8 +306,12 @@ function HomeTime({ data, scale, openAttendance, attendanceAnchor, attendanceOpe
 
 export function HomeScreen({
   data, talkState, fallback, onTalk, onGuardian, onLogout, onRefresh, logoutDisabled, logoutFeedback,
+  animateRegistrationEntry = false, reduceMotion,
 }: HomeScreenProps) {
   const window = useWindowDimensions();
+  const homeEntrance = useEntranceMotion(animateRegistrationEntry, {
+    reduceMotion, duration: 180, enabled: data !== undefined && animateRegistrationEntry,
+  });
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [attendanceOpen, setAttendanceOpen] = useState(false);
   const [upcomingMenu, setUpcomingMenu] = useState<UpcomingMenu>();
@@ -362,8 +369,8 @@ export function HomeScreen({
     if (talkState === 'checking') talkNote = '이용 가능 시간을 확인하고 있어요.';
 
     return (
-      <View {...backgroundAccessibility}
-        style={{ width: designWidth * scale, height: designHeight * scale }}>
+      <Animated.View {...backgroundAccessibility}
+        style={[{ width: designWidth * scale, height: designHeight * scale }, homeEntrance]}>
         <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden
           style={StyleSheet.absoluteFill}>
           {homeIllustrations.map(({ source, box, flip }) =>
@@ -430,7 +437,7 @@ export function HomeScreen({
               setUpcomingMenu(menu);
             }} />
         ))}
-      </View>
+      </Animated.View>
     );
   }
 
@@ -439,7 +446,7 @@ export function HomeScreen({
       const { width, height } = event.nativeEvent.layout;
       setSize(current => current.width === width && current.height === height ? current : { width, height });
     }}>
-      {(data || attendanceOpen) && <Image source={room} accessible={false} style={styles.room} resizeMode="stretch" />}
+      {(data || attendanceOpen) && <Animated.Image source={room} accessible={false} style={[styles.room, homeEntrance]} resizeMode="stretch" />}
       {data ? renderRoom(data, talkState) : !attendanceOpen && <View style={styles.fallback}>{fallback}</View>}
       {attendanceOpen && <AttendanceNotice scale={scale} height={attendanceHeight} onClose={closeAttendance} />}
     </View>

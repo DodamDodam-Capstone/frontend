@@ -18,7 +18,7 @@ import { HomeScreen } from './HomeScreen';
 type HomeState =
   | { kind: 'loading' }
   | { kind: 'error'; message: string; retryAt?: number }
-  | { kind: 'ready'; data: HomeData; refreshAt: number; talkUntil?: number; talkLocked: boolean };
+  | { kind: 'ready'; data: HomeData; refreshAt: number; talkUntil?: number; talkLocked: boolean; animateRegistrationEntry: boolean };
 
 const loading: HomeState = { kind: 'loading' };
 const monotonicNow = () => performance.now();
@@ -27,11 +27,13 @@ const rateLimitMessage = '요청이 많아요. 잠시 기다린 뒤 다시 시�
 type HomeEntryProps = {
   visit: number;
   childId: string;
+  animateRegistrationEntry?: boolean;
+  reduceMotion: boolean;
   logoutRetryAt?: number;
   logoutFeedback?: string;
 };
 
-export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: HomeEntryProps) {
+export function HomeEntry({ visit, childId, animateRegistrationEntry = false, reduceMotion, logoutRetryAt, logoutFeedback }: HomeEntryProps) {
   const {
     client, receiveProtectedAuthResult, submitLogout, isHomeVisitCurrent, getHomeRetryAt, rememberHomeRetry,
   } = useEntrySession();
@@ -39,6 +41,7 @@ export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: Hom
   const [destination, setDestination] = useState<HomeDestination>();
   const opened = useRef(false);
   const request = useRef<AbortController | null>(null);
+  const registrationEntrancePending = useRef(animateRegistrationEntry);
   const logoutDisabled = useRetryWaiting(logoutRetryAt);
   const retryWaiting = useRetryWaiting(state.kind === 'error' ? state.retryAt : undefined, monotonicNow);
 
@@ -72,7 +75,9 @@ export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: Hom
         // 서버 시간은 초 단위다. 자정 직전의 나머지 밀리초와 왕복 지연만큼 보수적으로 잠근다.
         const talkUntil = data.availability.canEnter ? sentAt + delay - 999 : undefined;
         const talkLocked = talkUntil !== undefined && monotonicNow() >= talkUntil;
-        setState({ kind: 'ready', data, refreshAt: receivedAt + delay, talkUntil, talkLocked });
+        const enterWithFade = registrationEntrancePending.current;
+        registrationEntrancePending.current = false;
+        setState({ kind: 'ready', data, refreshAt: receivedAt + delay, talkUntil, talkLocked, animateRegistrationEntry: enterWithFade });
         return;
       }
       const recovery = classifyRecovery(parsed, 'general');
@@ -166,6 +171,7 @@ export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: Hom
   const display = state.kind === 'ready' ? {
     data: state.data,
     talkState: state.talkLocked ? 'checking' as const : getHomeTalkState(state.data),
+    animateRegistrationEntry: state.animateRegistrationEntry,
   } : {
     fallback: <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
       <AppText accessibilityRole="header" style={styles.title}>홈</AppText>
@@ -178,7 +184,7 @@ export function HomeEntry({ visit, childId, logoutRetryAt, logoutFeedback }: Hom
     </ScrollView>,
   };
 
-  return <HomeScreen {...display} onTalk={openConversation}
+  return <HomeScreen {...display} reduceMotion={reduceMotion} onTalk={openConversation}
     onGuardian={() => open({ route: HOME_DESTINATIONS.guardian, childId })}
     onLogout={logout} onRefresh={() => { void load(); }} logoutDisabled={logoutDisabled} logoutFeedback={logoutFeedback} />;
 }
