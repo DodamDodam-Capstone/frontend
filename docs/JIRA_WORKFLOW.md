@@ -81,8 +81,7 @@ Jira 작업을 연결합니다. Fix Version과 릴리스 확인은 [팀 가이�
 - GitHub-first 업무는 Jira Task와 GitHub Issue가 서로 연결되어 있습니다.
 - 일반 작업 branch, commit, `development` 대상 PR 제목에 같은 Jira 키가 있습니다.
 - Gitmoji PR 제목 검사와 `frontend-quality`가 통과합니다.
-- 모든 필수 검사를 통과하고, 작성자와 다른 `Write` 권한자의 승인 리뷰 1건을
-  받은 뒤 검토 대화를 해결합니다.
+- FE 작업 PR은 최신 커밋의 원격 코드 리뷰를 확인하고, 모든 필수 검사 통과와 검토 대화 해결을 확인합니다.
 - Frontend 저장소의 작업 PR이 `development`에 병합되고 PR 제목의 Jira 키가
   Task와 같으면 Jira Task가 완료됩니다. GitHub-first 업무는 PR 본문의
   `Resolves #번호`로 같은 저장소 GitHub Issue도 닫고 Slack 알림을 확인합니다.
@@ -108,10 +107,8 @@ Jira 작업을 연결합니다. Fix Version과 릴리스 확인은 [팀 가이�
 
 팀원 초대 후 GitHub visible Team `frontend`에 Frontend 담당자를 넣고 이
 저장소에 `Write`를 부여합니다. 팀원이 2명 이상일 때만 CODEOWNERS와 리뷰 자동
-배정을 사용합니다. 현재 Ruleset은 팀 담당자가 한 명이어도 다른 `Write`
-권한자의 승인 리뷰 1건과 필수 CI를 요구합니다. Jira에는 `Frontend` Team을
-연결하되 `Assignee`는
-실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
+배정을 사용합니다. 1인 운영 시 승격 기준은 [FE 스프린트 릴리스 절차](TEAM_WORKFLOW_GUIDE.md#fe-스프린트-릴리스)를 따릅니다.
+Jira에는 `Frontend` Team을 연결하되 `Assignee`는 실제 담당 개인으로 유지합니다. 빈 팀을 미리 만들거나 Team filter부터 적용하지
 않습니다.
 
 ## 초기 자동화 검증

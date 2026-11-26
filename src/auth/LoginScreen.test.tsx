@@ -13,15 +13,20 @@ async function enterCredentials() {
   await fireEvent.changeText(screen.getByLabelText('비밀번호'), password);
 }
 
-test('시안의 제목과 마스킹된 입력을 보여주며 후속 동작은 비활성화한다', async () => {
+test('이메일 가입만 연결하고 비밀번호 찾기와 Google은 후속 작업으로 둔다', async () => {
   const submit = jest.fn<() => Promise<LoginFeedback | undefined>>();
-  await render(<LoginScreen submit={submit} retryAt={undefined} />);
+  const openSignup = jest.fn();
+  await render(<LoginScreen submit={submit} retryAt={undefined} openSignup={openSignup} />);
 
   expect(screen.getByRole('header', { name: '보호자 로그인' })).toBeVisible();
+  const [formScroll] = screen.container.queryAll(view => view.props.automaticallyAdjustKeyboardInsets === true);
+  expect(formScroll).toHaveProp('bounces', false);
+  expect(formScroll).not.toHaveProp('scrollEnabled', false);
   expect(screen.getByLabelText('이메일')).toHaveProp('keyboardType', 'email-address');
   expect(screen.getByLabelText('비밀번호')).toHaveProp('secureTextEntry', true);
   expect(screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' })).toBeDisabled();
-  expect(screen.getByRole('button', { name: '이메일로 회원 가입' })).toBeDisabled();
+  await fireEvent.press(screen.getByRole('button', { name: '이메일로 회원 가입' }));
+  expect(openSignup).toHaveBeenCalledTimes(1);
   expect(screen.getByRole('button', { name: 'Google' })).toBeDisabled();
   expect(screen.queryByRole('button', { name: /카카오|kakao/i })).toBeNull();
   expect(screen.queryByRole('checkbox')).toBeNull();
@@ -102,4 +107,28 @@ test('계정 재확인 뒤 다시 열린 폼은 전달받은 안내만 표시하
   expect(screen.getByLabelText('비밀번호')).toHaveDisplayValue('');
   await fireEvent.changeText(screen.getByLabelText('이메일'), email);
   expect(screen.queryByRole('alert')).toBeNull();
+});
+
+test.each([
+  ['틀린 계정', { kind: 'credentials', message: '입력한 이메일과 비밀번호를 확인해 주세요.' }, '입력한 이메일과 비밀번호를 확인해 주세요.'],
+  ['두 입력이 비어 있음', {
+    kind: 'credentials', message: '이메일과 비밀번호를 입력해 주세요.',
+    fields: { email: '이메일을 입력해 주세요.', password: '비밀번호를 입력해 주세요.' },
+  }, '이메일과 비밀번호를 입력해 주세요.'],
+  ['비밀번호만 비어 있음', {
+    kind: 'credentials', message: '입력한 이메일과 비밀번호를 확인해 주세요.',
+    fields: { password: '비밀번호를 입력해 주세요.' },
+  }, '비밀번호를 입력해 주세요.'],
+] satisfies [string, LoginFeedback, string][])('%s 안내는 비밀번호 찾기와 같은 줄에 한 번만 표시한다', async (_case, feedback, message) => {
+  const submit = jest.fn(async () => feedback);
+  await render(<LoginScreen submit={submit} retryAt={undefined} />);
+  await fireEvent.press(screen.getByRole('button', { name: '로그인' }));
+
+  const alert = await screen.findByRole('alert');
+  const reset = screen.getByRole('button', { name: '비밀번호를 잊으셨나요?' });
+  expect(alert).toHaveTextContent(message);
+  expect(alert).toHaveStyle({ fontSize: 15, lineHeight: 21, color: '#BC135D' });
+  expect(alert.parent?.parent).toBe(reset.parent);
+  expect(reset.parent).toHaveStyle({ flexDirection: 'row', alignItems: 'center' });
+  expect(screen.queryByText(/^오류:/)).not.toBeOnTheScreen();
 });

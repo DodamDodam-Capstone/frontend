@@ -29,11 +29,13 @@ test('비활성 입력은 편집과 변경 콜백을 차단한다', async () => 
 });
 
 test('오류가 있으면 도움말 대신 오류를 보이고 포커스 중에도 안내를 유지한다', async () => {
+  const onFocus = jest.fn();
   await render(<TextField label="이메일" value="" onChangeText={() => {}}
-    helperText="이메일을 입력하세요" error="입력 내용을 확인해 주세요" />);
+    helperText="이메일을 입력하세요" error="입력 내용을 확인해 주세요" onFocus={onFocus} />);
 
   await fireEvent(screen.getByLabelText('이메일'), 'focus');
 
+  expect(onFocus).toHaveBeenCalledTimes(1);
   expect(screen.queryByText('이메일을 입력하세요')).toBeNull();
   expect(screen.getByText('오류: 입력 내용을 확인해 주세요')).toBeVisible();
   expect(screen.getByLabelText('이메일')).toHaveProp('accessibilityHint', '오류: 입력 내용을 확인해 주세요');

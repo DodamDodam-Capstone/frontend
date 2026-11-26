@@ -7,7 +7,7 @@ const emailLocalPart = new RegExp(`^${emailWord}(?:\\.${emailWord})*$`, 'i');
 const emailLabelAtom = /[a-z\d!#$%&'*+/=?^_`{|}~]+/.source;
 const emailDomainLabel = new RegExp(`^${emailLabelAtom}(?:-+${emailLabelAtom})*$`, 'i');
 
-function isUuid(value: unknown): value is string {
+export function isUuid(value: unknown): value is string {
   return typeof value === 'string' && value.length === 36 && uuid.test(value);
 }
 
@@ -27,7 +27,7 @@ function isIpv6EmailLiteral(address: string): boolean {
   return groups.every((part) => /^[\da-f]{1,4}$/i.test(part)) && (halves.length === 2 ? size < 8 : size === 8);
 }
 
-function isAccountEmail(value: unknown): boolean {
+export function isAccountEmail(value: unknown): boolean {
   if (typeof value !== 'string' || value.length > 254 || /[^!-~]/.test(value)) return false;
   // Hibernate @Email과 동일하게 로컬 부분의 따옴표 안에는 @가 올 수 있다.
   const separator = value.lastIndexOf('@');
@@ -40,7 +40,7 @@ function isAccountEmail(value: unknown): boolean {
   return domain.split('.').every((label) => label.length <= 63 && emailDomainLabel.test(label));
 }
 
-function isKstDateTime(value: unknown): boolean {
+export function isKstDateTime(value: unknown): value is string {
   if (typeof value !== 'string' || value.length !== 25 || !kstSeconds.test(value)) return false;
   // UTC는 비교 표기일 뿐이다. 달력에 없는 날이나 24시를 JS가 정규화하면 거절한다.
   const localTime = `${value.slice(0, -6)}.000Z`;
@@ -48,7 +48,7 @@ function isKstDateTime(value: unknown): boolean {
   return Number.isFinite(time) && new Date(time).toISOString() === localTime;
 }
 
-export function isAccountView(value: unknown): value is { childId: string | null } {
+export function isAccountView(value: unknown): value is { accountId: string; childId: string | null } {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false;
   const { accountId, email: address, childId, hasPin, guardianUnlockedUntil } = value as Record<string, unknown>;
   return Object.keys(value).length === 5 && isUuid(accountId) && isAccountEmail(address) && typeof hasPin === 'boolean'

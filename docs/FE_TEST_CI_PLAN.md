@@ -1381,7 +1381,7 @@ NODE_OPTIONS=--dns-result-order=ipv4first EXPO_NO_DOTENV=1 npx --no-install expo
 
 #### SCRUM-172 이메일 로그인 검증
 
-- 기본 화면은 가로 1280×800의 [보호자 로그인 시안](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005)을 적용한다. 상태별 오류와 대기 표시는 공통 입력·버튼·안내를 사용한다. 비밀번호 재설정, 이메일 회원가입, Google 버튼은 각각 SCRUM-128·130·126에서 기능을 연결할 때까지 비활성으로 표시한다.
+- 기본 화면은 가로 1280×800의 [보호자 로그인 시안](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2005)을 적용한다. 상태별 오류와 대기 표시는 공통 입력·버튼·안내를 사용한다. SCRUM-172 시점에는 비밀번호 재설정, 이메일 회원가입, Google 버튼이 비활성이었다. 가입 버튼은 SCRUM-127에서 이메일 인증에 연결하며, 비밀번호 재설정과 Google 로그인 연결은 각각 SCRUM-128·126에서 진행한다.
 - 일반 `App`에서 온보딩을 마친 미인증 계정으로 시작한다. 합성 전송은 로그인 전 `/auth/me`에서 401을, 세션이 생긴 뒤 200을 반환한다. `POST /auth/login`은 이메일과 비밀번호 원문만 보낸다. 비밀번호의 마스킹, 화면 키보드 제출, 중복 요청 1회, 400·401·403·413·415·429·503, 비정상 200과 응답 유실을 단위 및 앱 연결 테스트에서 확인한다. [백엔드 계약](https://github.com/DodamDodam-Capstone/backend/blob/6d38bd38ddb972841fd8abf4ec4b93c2359a5ae9/docs/p0/api/02-auth.md#section-6-5) · [API 테스트](../src/auth/emailLogin.test.ts) · [앱 테스트](../App.test.tsx)
 - 첫 CSRF 준비 실패에는 로그인 POST를 보내지 않는다. 토큰 재발급 또는 상태 확인에서 유효한 `Retry-After`가 오면 해당 요청을 기한까지 미룬다. 로그인 200 뒤 갱신 오류는 로그인 실패와 구분하며 사용자 재시도에서 CSRF와 계정 조회만 다시 실행한다.
 - 로그인 요청이 보류된 동안 앱을 나갔다 돌아오면, 전환 완료 뒤 앱 진입 컨트롤러가 계정을 확인한다. 앞선 폼의 입력이나 늦게 온 오류는 새 폼으로 넘기지 않는다. 현재 `/auth/me`가 아이 등록 또는 홈의 테스트 수신자를 선택한다. 실제 서버 연결은 SCRUM-129에서 검증한다.
@@ -1448,6 +1448,45 @@ Node 24.20.0과 npm 11.19.0에서 lint, typecheck, Jest 48개 스위트·954개 
 기기별 화면, 합성 요청 기록과 Android의 같은 프로세스 복귀 관찰값은 로컬 `build/scrum-174/evidence/`에 있다. iPad 실행 당시 커밋은 `69614da`, Android는 `23fe631`이며 두 커밋의 제품 소스가 같다.
 
 두 기기와 Metro·합성 서버를 종료한 뒤 Node 24.20.0·npm 11.19.0에서 `npm run lint`, `npm run typecheck`, `npm test -- --watchman=false`(48개 스위트·956개 테스트), `npm run test:env`(14개 조합)가 통과했다. `expo export`를 iOS와 Android 순서로 실행해 각각 Hermes 번들 1개와 에셋 53개를 확인했다. 실행 로그는 로컬 `build/scrum-174/checks/`에 있다.
+
+#### SCRUM-127 가입 진입과 공통 이메일 인증
+
+- 일반 앱에서 로그인 → 이메일로 회원 가입 → 주소 확인 → 6자리 입력 → 인증 완료 팝업 → 인증 완료 폼까지 확인한다. **인증하기**는 팝업을 열고, **인증번호 받기**가 최초 발송을 요청한다. [주소 확인](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2874) · [번호 입력](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2967) · [완료 팝업](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-3067)
+- 발급·재발급은 공개 목적에만 이메일을 포함하고 PIN 목적은 로그인 세션을 사용한다. 확인 요청은 요청 ID(`challengeId`)와 선행 0을 보존한 여섯 자리 문자열만 보낸다. 번호와 토큰의 만료, 요청 제한, 응답 유실과 늦은 응답을 명세의 합성 응답으로 검증한다. [인증 API §6.2·6.3](https://github.com/DodamDodam-Capstone/backend/blob/6d38bd38ddb972841fd8abf4ec4b93c2359a5ae9/docs/p0/api/02-auth.md#section-6-2)
+- 완료 팝업은 토큰을 소비하지 않는다. 공통 흐름의 `takeToken`은 목적과 기한이 맞는 토큰을 호출자에게 한 번 반환한다. 가입 화면의 계정 생성은 아래 SCRUM-130의 제출 경로를 사용한다. 가입 화면 이탈·이메일 변경·만료·다른 계정 확인 후에는 이전 토큰을 사용할 수 없다.
+- 재전송에서 429를 받아도 이미 받은 유효한 번호는 확인할 수 있다. 반대로 번호 확인의 429는 새 번호를 발급받아도 확인 기한까지 유지한다. 공통 CSRF 조회의 429는 가입과 로그인 양쪽이 같은 기한을 지킨다. 번호 확인 중 유효 시간이 끝나고 오답 응답이 늦게 오면 새 번호를 요청할 수 있는 화면으로 돌아간다.
+- 공개 목적인 가입·비밀번호 재설정과 세션이 필요한 PIN 설정·재설정은 각각의 목적에 맞는 토큰만 인계한다. 보호자용 흐름은 세션·권한·PIN 상태 오류를 구분해 호출자에게 전달한다. 이번에 앱 화면까지 연결한 목적은 가입이다.
+
+2026-11-23 로컬 검증에서 `npm run lint`, `npm run typecheck`, `npm test -- --watchman=false`(50개 스위트, 1,007개 테스트), `npm run test:env`(14개 조합)가 통과했다. 로그는 `build/scrum-127/checks/`에 있다.
+
+가로 iPad Pro 11형(M5, iPadOS 26.5)에서 주소 확인, 최초 발송, 설정 앱을 거친 복귀, 재전송, 여섯 자리 확인, 완료 폼과 로그인 복귀까지 확인했다. 합성 서버는 발송·재전송·확인에 각각 200을 응답했다. 2420×1668 화면 여섯 장과 요청 기록은 `build/scrum-127/evidence/ipad/`에 있다.
+
+같은 iPad에서 인증번호 칸을 탭하자 기존 `number-pad`가 첫 칸을 덮는 작은 숫자판으로 표시됐다. iPad의 인증번호 입력에 `numbers-and-punctuation`을 적용한 뒤 같은 조작으로 화면 하단 전체 폭의 숫자·기호 키보드와 그 위의 여섯 칸·확인 버튼을 확인했다. 전후 화면은 `build/scrum-127/checks/ipad-keypad-before-frame-small.png`와 `ipad-docked-mid-frame-small.png`에 있다. 기호 입력을 무시하고 선행 0을 유지하는 회귀 테스트를 포함해 전체 50개 스위트·1,008개 테스트와 lint·타입 검사가 통과했다.
+
+가로 Pixel Tablet(API 36, 호스트 GPU)의 일반 앱에서 발송 503 후 수동 재요청 200을 확인했다. Gmail에서 돌아와 계정을 재확인하는 동안 기존 가입 내용이 가려졌고, 같은 프로세스에서 코드 입력을 이어갔다. 재전송 429의 35초 대기 중 기존 번호를 입력하고 키보드 위의 **확인**을 눌러 200을 받았다. 완료 폼에서 계정 만들기가 비활성인 상태와 로그인으로 돌아가는 경로까지 확인했다. 합성 응답 기록과 번호를 가린 키보드 캡처는 `build/scrum-127/evidence/android/`에 있다.
+
+인증 팝업의 위치는 가로 iPad에서 키보드를 닫은 화면과 연 화면을 각각 측정했다. 인증번호 입력 팝업은 키보드를 닫으면 전체 화면 중앙에, 열면 키보드 위 영역의 중앙에 놓였다. 2420×1668px 캡처에서 두 상태 모두 가로·세로 중심 편차는 0px였다. 캡처와 측정값은 `build/scrum-127/evidence/ipad/centered/`에 있다.
+
+두 기기를 한 대씩 사용한 뒤 모두 종료했다. iOS·Android 순서로 단일 워커 `expo export`를 실행해 각 플랫폼의 Hermes 번들 1개와 에셋 65개를 검증했다. 실제 메일 발송·인증 API 연동은 SCRUM-129에서, 가입 후 별도 로그인부터 홈까지의 실제 경로는 SCRUM-133에서 확인한다.
+
+#### SCRUM-130 이메일 가입과 가입 완료
+
+- [SCRUM-130](https://dodamdodam.atlassian.net/browse/SCRUM-130)의 완료 기준은 인증 완료 팝업 → 비밀번호 두 칸 → 계정 만들기 → 가입 완료 → 기존 로그인 순서로 확인한다. 팝업을 닫을 때까지 가입 요청은 0건이고, 가입 완료의 로그인하기 버튼은 기존 로그인 화면을 연다. [비밀번호 설정](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-2087) · [가입 완료](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-11481)
+- 14·15·128·129 Unicode 코드포인트, 조합 문자·이모지·양끝 공백과 유효하지 않은 UTF-8 입력을 확인한다. 확인값과 원문을 비교하고 CSRF 헤더가 붙은 가입 POST에 `verificationToken`과 `password`만 보내는지 검증한다. [가입 API §6.4](https://github.com/DodamDodam-Capstone/backend/blob/d8fa3934b39a039f6336400825affc8fed84165d/docs/p0/api/02-auth.md#section-6-4)
+- 합성 응답으로 중복 계정, 토큰 거부, CSRF 준비와 복구, 429의 대기 기한, 503과 미확정 응답을 확인한다. CSRF 대기 중 인증 만료는 가입 POST 0건, 유효한 시점의 제출은 연속 조작에도 1건이다. 사용자 이탈·복귀 후 늦은 결과가 새 화면에 표시되지 않아야 한다.
+- 가로 태블릿은 iPad를 종료한 다음 Android를 호스트 GPU로 실행한다. 화면 대조에는 가입 전후 화면과 보안 키보드를 사용한다. 증거에는 합성 요청의 상태 코드와 요청 ID만 남긴다. 실제 인증·메일 환경은 [SCRUM-129](https://dodamdodam.atlassian.net/browse/SCRUM-129), 실제 서버의 가입→로그인→아이 등록→홈은 [SCRUM-133](https://dodamdodam.atlassian.net/browse/SCRUM-133)에서 확인한다.
+
+2026-11-23 로컬에서 `npm run lint`, `npm run typecheck`, `npm test -- --watchman=false`(52개 스위트, 1,046개 테스트), `npm run test:env`(14개 조합), iOS·Android 순서의 단일 워커 `expo export`가 통과했다. Astra 최종 리뷰에서 CSRF 대기 중 인증 만료, 늦은 요청 제한과 중복 안내를 수정한 뒤 재검토를 마쳤다. 실행 로그는 로컬 `build/scrum-130/checks/`에 있다.
+
+가로 Pixel Tablet(API 36, 호스트 GPU)에서는 소프트 키보드가 열릴 때 포커스된 비밀번호 칸이 가려지는 문제를 확인하고, 폼 너비를 유지한 채 해당 칸이 보이도록 수정했다. 최종 재검증에서 두 입력란 하단 모두 키보드 시작점보다 32px 위였다. 비밀번호 불일치 안내와 연속 탭, 가입 POST 1건·201, 가입 완료와 로그인 화면 복귀, 로그인 POST 0건을 확인했다. 증빙은 로컬 `build/scrum-130/evidence/android/201318/`에 있다.
+
+가로 iPad Pro 11형(M5, iPadOS 26.5)에서도 일반 앱에서 이메일 인증 후 일치하는 비밀번호를 입력해 가입 POST 1건·201, 가입 완료와 기존 로그인 화면 복귀, 로그인 POST 0건을 확인했다. 최종 화면과 요청 기록은 로컬 `build/scrum-130/evidence/ipad/202454/`에 있다. 최종 실행의 캡처는 비밀번호 칸 포커스를 보여준다. iPad 소프트 키보드가 안정적으로 계속 표시되는지는 자동화 중 확인하지 못했다. 두 시뮬레이터와 로컬 시험 서버는 종료했다.
+
+별도 실기기 확인은 가로 iPad Air 11형(M3, iPadOS 27.2.1)을 USB로 연결해 진행했다. 이메일 입력란을 탭하면 키보드 전환 중 라벨이 안내 문구와 겹치던 현상을 재현했다. iOS 가입 폼에 스크롤 영역의 기본 키보드 인셋 처리를 적용한 뒤, 키보드를 열 때 제목·안내 문구·이메일 입력란이 기존 위치에 남고 합성 이메일 인증이 비밀번호 설정까지 이어지는 것을 실제 화면에서 확인했다. 앱·가입 폼 관련 Jest 44개와 lint·타입 검사가 통과했다.
+
+USB 재연결 후 같은 iPad에서 이메일 발송·확인 각 200, 비밀번호 불일치 시 제출 비활성, 두 값 일치 후 연속 탭에도 가입 POST 1건·201, 가입 완료 화면에서 기존 로그인으로 복귀와 로그인 POST 0건을 확인했다. 가입 완료 화면과 테스트용 요청 기록은 로컬 `build/scrum-130/evidence/ipad/device-final/`에 있다. iPadOS에서 숨긴 화면 키보드가 이메일 칸을 다시 탭해도 열리지 않는 현상은 별도로 기록했다.
+
+최종 작업본의 Jest 52개 스위트·1,048개 테스트, lint, 타입 검사, 환경 설정 14개 조합과 단일 워커 iOS·Android Hermes export가 통과했다. 로컬 최종 리뷰에서 iOS 폼 변경과 가입 실패 처리를 다시 확인했다. 가입 POST와 CSRF의 429는 현재 BE에서 같은 IP별 전역 한도를 사용한다. [공통 제한 필터](https://github.com/DodamDodam-Capstone/backend/blob/d8fa3934b39a039f6336400825affc8fed84165d/src/main/java/com/dodamdodam/backend/global/web/GlobalApiRateLimitFilter.java#L33-L46)
 
 ### 5. 진입·온보딩·상태별 이동 — SCRUM-124
 
@@ -1545,6 +1584,27 @@ iPad에서 홈을 보다가 제스처로 전환기를 열고 같은 앱으로 �
 | [175](https://dodamdodam.atlassian.net/browse/SCRUM-175) 환경·상한 | 대상 OS·브라우저·버전과 에뮬레이터/시뮬레이터/실기기 여부를 기록한다. 네이티브 앱에 브라우저 항목이 해당하지 않으면 Jira/설계와 대조해 `N/A` 근거를 남긴다. 전체 조사 시간 상한·단계별 배분·중단 시 미확인 항목을 정하고, 확인하지 않은 환경을 지원 완료로 표시하지 않는다. |
 | [176](https://dodamdodam.atlassian.net/browse/SCRUM-176) 권한·녹음·재생 | 기기에서 마이크 허용/거부, 녹음, 재생을 확인하고 아동 정보가 없는 시험 음성의 MIME/codec/sample rate/channels/duration/bytes를 기록한다. Jest의 네이티브 mock은 이 결과를 대신하지 않는다. |
 | [177](https://dodamdodam.atlassian.net/browse/SCRUM-177) 호환성 정리 | 환경별 성공/실패/차단/미검증 표와 권장 방식을 남긴다. D13/D14의 미확정 제한값은 임의 숫자로 채우지 않고 확인 담당·다음 확인 시점을 남긴다. |
+
+### 7. 아이 홈 — SCRUM-132
+
+[SCRUM-132](https://dodamdodam.atlassian.net/browse/SCRUM-132)는 인증을 확인한 뒤 같은 아이 ID로 홈을 조회한다. 홈은 서버의 애칭·인사·함께한 날·이용시간을 표시한다. 대화 시작·이어하기·종료 처리 중·시간외 상태와 자정·오전 8시 재조회는 [홈 조회 명세 §7.2](https://github.com/DodamDodam-Capstone/backend/blob/38cae80339b90500ef2b6673d6fa8e119f8533e1/docs/p0/api/06-conversations.md#section-7-2)에 맞춘다.
+
+| 확인 항목 | 증거 |
+| --- | --- |
+| 스플래시와 첫 온보딩 → 보호자 로그인 → 별이 홈 | `App.test.tsx`에서 로그인 실패 시 홈 조회 0건, 성공 시 현재 계정 확인 뒤 같은 아이 홈 조회 1건, 아이 생성 0건을 확인한다. 아이가 없는 계정은 아이 등록으로 분기한다. |
+| 이용 가능 시간·오류·앱 복귀 | `src/home/homeData.test.ts`와 `App.test.tsx`에서 응답 일치, 4개 이용 상태, 시간 경계, 기기 시각과 무관한 `Retry-After`, 404·503, 현재 401과 이전 계정의 늦은 홈 결과를 확인한다. 정상 복귀당 홈을 한 번 조회한다. |
+| 홈 그림·텍스트와 준비 중 안내 | [홈](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-12659)과 [출석 팝업](https://www.figma.com/design/4Io68b0WC6AKwKKC8JqHls?node-id=835-12750)을 기준으로 방과 정적 캐릭터를 적용했다. 테스트에서 그림·글자 윤곽의 터치 연동과 각 준비 중 안내의 추가 요청 0건을 확인했다. 가로 iPad Air 실기기와 호스트 GPU Android Pixel Tablet을 한 대씩 실행해 4개 상태, 복귀, 로그아웃, 20자 애칭과 큰 글씨를 캡처했다. |
+| 보호자·대화 진입 | 공통 앱 내부 경로의 테스트 화면에서 전달받은 아이 ID, 시작/이어하기 의도와 이어갈 대화 ID를 검증한다. 실제 보호자 권한 확인은 [SCRUM-147](https://dodamdodam.atlassian.net/browse/SCRUM-147), 실제 대화 시작·복원은 [SCRUM-137](https://dodamdodam.atlassian.net/browse/SCRUM-137)이 맡는다. |
+
+iPad의 로컬 시연에서는 기존 임시 보호자 계정으로 로그인하면 합성 API가 별이의 등록 ID를 반환한다. 화면은 일반 로그인 요청과 계정 확인, 홈 조회를 순서대로 실행한다. 시연 도구와 가상 데이터 기기 증거는 로컬 `build/scrum-132/`에 있다.
+
+같은 방문의 자정·오전 8시 홈 갱신 중에는 열린 준비 중 화면과 출석 안내를 유지한다. `App.test.tsx`에서 지연된 200, 503, 401 응답에 따른 안내 유지·오류 표시·로그인 이동과 새 홈의 포커스 복원을 검증한다. `HomeScreen.test.tsx`에서 안내를 화면 버튼이나 시스템 뒤로 가기로 닫으면 원래 메뉴에 포커스를 요청하는지, 출석 안내 뒤의 버튼이 키보드 탐색에서 제외되는지 확인한다.
+
+2026-11-24 로컬 검사에서 Expo 의존성 호환성, manifest, workflow 검사 26개, lint, typecheck, Jest 54개 스위트·1,090개 테스트, 환경 설정 14개 조합, 양 플랫폼 단일 워커 Hermes export가 통과했다. Astra 리뷰에서 비활성 캐릭터 터치 영역이 작은 가로 화면의 ‘다시 확인’ 버튼을 덮는 문제를 찾았다. 터치 대상에서 제외하고 회귀 테스트를 추가한 뒤 재검토했다.
+
+로그인·가입 표시와 시간 경계·포커스를 보완한 뒤 lint, typecheck, Jest 54개 스위트·1,099개 테스트, 환경 설정 14개 조합과 양 플랫폼 단일 워커 Hermes export를 다시 통과했다.
+
+[SCRUM-131](https://dodamdodam.atlassian.net/browse/SCRUM-131)에서 아이 등록을 구현하면 등록 성공 뒤 공통 `refreshEntry`로 현재 계정을 다시 확인한다. 테스트는 가입 후 아이 없음 → 아이 등록 성공 → `/auth/me`에 등록한 아이 ID 반영 → 같은 아이의 홈 조회 순서로 이어간다. 그때 기기 시연용 계정의 사전 등록 데이터도 신규 등록 흐름에 맞춘다. 실제 서버의 가입부터 아이 홈까지는 [SCRUM-133](https://dodamdodam.atlassian.net/browse/SCRUM-133)에서 검증한다.
 
 ## SCRUM-179: Dependabot Jira 검사 회귀 — 2026-10-26
 

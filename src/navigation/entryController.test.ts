@@ -131,7 +131,7 @@ describe('SCRUM-170 앱 진입', () => {
     const fetchImpl = jest.fn<ApiFetch>();
     const entry = controllerForTest(client(fetchImpl, scenario, 'mock'));
     await entry.start();
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route, visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route, visit: expect.any(Number), generation: 0 });
     expect(fetchImpl).not.toHaveBeenCalled();
   });
 
@@ -158,7 +158,7 @@ describe('SCRUM-170 앱 진입', () => {
     await start;
     expect(entry.getSnapshot()).toEqual({ kind: 'error', reason: 'csrf_unavailable' });
     await entry.retry();
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
     expect(csrfRequests).toBe(2);
   });
 
@@ -241,7 +241,7 @@ describe('SCRUM-170 앱 진입', () => {
         guardianUnlockedUntil: '2026-12-02T01:02:03+09:00',
       } }) : csrf()));
       await entry.start();
-      expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+      expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
     },
   );
 
@@ -312,7 +312,7 @@ describe('SCRUM-170 앱 진입', () => {
     });
     const entry = controllerForTest(api);
     await entry.start();
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
     const listener = jest.fn();
     entry.subscribe(listener);
     const [first, second] = await Promise.all([
@@ -375,7 +375,7 @@ describe('SCRUM-170 앱 진입', () => {
     await entry.start();
     pending.resolve(expectedBody);
     expect(await receiving).toBe(false);
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
   });
 
   it('종료된 조회의 본문이 새 진입 뒤 도착해도 최신 경로만 유지한다', async () => {
@@ -392,7 +392,7 @@ describe('SCRUM-170 앱 진입', () => {
     await entry.start();
     pending.resolve(JSON.stringify({ data: account }));
     await first;
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
   });
 
   it('CSRF 오류 본문 대기 중 문맥이 바뀌면 이전 조회의 성공이나 오류를 표시하지 않는다', async () => {
@@ -416,7 +416,7 @@ describe('SCRUM-170 앱 진입', () => {
     await first;
     expect(entry.getSnapshot()).toEqual({ kind: 'loading' });
     await entry.start();
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
   });
 
   it('이전 계정 본문 도착 시 앞서 표시한 임시 CSRF 오류도 새 문맥에 남지 않는다', async () => {
@@ -464,6 +464,41 @@ describe('SCRUM-170 앱 진입', () => {
     await Promise.all([first, transition]);
     await entry.start();
     expect(accountRequests).toBe(2);
-    expect(entry.getSnapshot()).toEqual({ kind: 'route', route: '/home', visit: expect.any(Number), generation: 0 });
+    expect(entry.getSnapshot()).toMatchObject({ kind: 'route', route: '/home', childId, visit: expect.any(Number), generation: 0 });
   });
+});
+
+it('가입에서 나갔다 다시 들어가도 서버가 지정한 재시도 시각까지 새 번호를 요청하지 않는다', async () => {
+  const now = jest.spyOn(Date, 'now').mockReturnValue(1_900_000_000_000);
+  try {
+    const sent: string[] = [];
+    const api = client(async url => {
+      if (url.endsWith('/csrf')) return csrf();
+      if (url.endsWith('/me')) return error(401, 'AUTHENTICATION_REQUIRED');
+      sent.push(url);
+      return error(429, 'RATE_LIMITED', { 'Retry-After': '30' });
+    });
+    const entry = controllerForTest(api);
+    await entry.start();
+    function enterEmail() {
+      entry.openSignup();
+      const snapshot = entry.getSnapshot();
+      if (snapshot.kind !== 'route' || !snapshot.signup) throw new Error('가입 진입 실패');
+      snapshot.signup.setEmail('guardian@example.test');
+      snapshot.signup.openEmail();
+      return snapshot.signup;
+    }
+    const first = enterEmail();
+    await first.issue();
+    entry.closeSignup(first);
+    const second = enterEmail();
+    expect(second.getSnapshot().issueRetryAt).toBe(Date.now() + 30_000);
+    await second.issue();
+    expect(sent).toHaveLength(1);
+    now.mockReturnValue(Date.now() + 30_000);
+    await second.issue();
+    expect(sent).toHaveLength(2);
+  } finally {
+    now.mockRestore();
+  }
 });

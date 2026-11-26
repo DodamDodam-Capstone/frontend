@@ -4,6 +4,7 @@ import type { LoginFeedback } from '../auth/emailLogin';
 import { LoginScreen } from '../auth/LoginScreen';
 import { AppText } from '../components/AppText';
 import { Button } from '../components/Button';
+import { HomeEntry } from '../home/HomeEntry';
 import { ErrorMessage } from '../components/ErrorMessage';
 import { useRetryWaiting } from '../components/useRetryWaiting';
 import { colors, typography } from '../theme/tokens';
@@ -16,25 +17,32 @@ const titles = {
 };
 
 export function EntryDestination({
-  route, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback,
+  route, visit, childId, loginRetryAt, loginFeedback, loginBlocked, loginCsrfRecovery, logoutRetryAt, logoutFeedback, openSignup,
 }: {
   route: RoutePath;
+  visit: number;
+  childId?: string;
   loginRetryAt?: number;
   loginFeedback?: LoginFeedback;
   loginBlocked?: boolean;
   loginCsrfRecovery?: boolean;
   logoutRetryAt?: number;
   logoutFeedback?: string;
+  openSignup: () => void;
 }) {
   const { submitLogin, submitLogout, retryLogoutCsrf } = useEntrySession();
   const waiting = useRetryWaiting(logoutRetryAt);
   if (route === ROUTES.login) {
     return <LoginScreen submit={submitLogin} retryAt={loginRetryAt} initialFeedback={loginFeedback}
-      blocked={loginBlocked} retrySecurity={loginCsrfRecovery ? retryLogoutCsrf : undefined} />;
+      blocked={loginBlocked} retrySecurity={loginCsrfRecovery ? retryLogoutCsrf : undefined} openSignup={openSignup} />;
+  }
+
+  if (route === ROUTES.home && childId) {
+    return <HomeEntry visit={visit} childId={childId} logoutRetryAt={logoutRetryAt} logoutFeedback={logoutFeedback} />;
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+    <ScrollView bounces={false} style={styles.screen} contentContainerStyle={styles.container}>
       <AppText accessibilityRole="header" style={styles.title}>{titles[route]}</AppText>
       <AppText style={styles.description}>화면을 준비하고 있어요.</AppText>
       {logoutFeedback && <ErrorMessage message={logoutFeedback} />}

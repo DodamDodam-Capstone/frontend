@@ -141,8 +141,8 @@ cookie, 개인정보는 첨부하지 않습니다.
 - GitHub Issue가 있을 때만 `development` 대상 작업 PR에 같은 저장소 Issue를
   `Resolves #번호`로 연결합니다.
 - `frontend-quality`와 모든 필수 검사를 통과합니다.
-- 프론트엔드 담당자가 한 명이어도 작성자와 다른 `Write` 권한자의 승인 리뷰
-  1건을 받은 뒤 병합합니다.
+- FE 1인 운영에서는 작업 PR의 최신 커밋에 대한 원격 코드 리뷰와 필수 검사를 확인합니다.
+  `main` 승격은 FE 담당자가 최신 커밋의 검증 결과와 리뷰 대화 해결을 확인하고 병합합니다.
 - 모든 review conversation을 해결한 뒤 일반 작업 PR을 `development`에 squash merge합니다.
 - `development`와 `main`에는 직접 push하지 않습니다.
 - `main` 대상 PR은 `development`에서만 만들며 긴급 수정도 같은 승격 경로를
@@ -152,10 +152,10 @@ cookie, 개인정보는 첨부하지 않습니다.
 
 ### FE 스프린트 릴리스
 
-1. **버전 결정.** 출시 전 작업 PR에서 루트 `VERSION`, Expo의 `app.json`, npm의 `package.json`과 `package-lock.json` 버전을 맞춥니다. 첫 버전은 `0.1.0`입니다. CI는 기존 빌드에서 APK의 `versionName`과 iOS 앱의 `CFBundleShortVersionString`까지 확인합니다.
+1. **버전 결정.** 출시 전 작업 PR에서 루트 `VERSION`, Expo의 `app.json`, npm의 `package.json`과 `package-lock.json` 버전을 맞춥니다. 이번 스프린트의 첫 FE 릴리스 버전은 `0.2.0`입니다. CI는 기존 빌드에서 APK의 `versionName`과 iOS 앱의 `CFBundleShortVersionString`까지 확인합니다.
 2. **출시 범위 확인.** 직전 태그부터 이번 `development`까지 실제 포함된 PR과 Jira 키를 대조합니다. 첫 출시라면 비교를 시작한 `main` SHA를 적습니다. Jira의 스프린트별로 작업명·링크·검증 결과를 기록하고 중복 키를 합칩니다. 이월·스프린트 미지정은 그대로 표시합니다. 의존성 전용 출시로 Jira 작업이 없으면 그 사유와 PR을 기록합니다.
 3. **승격 전 계보 확인.** 최신 원격에서 `git merge-base --is-ancestor origin/main origin/development`와 Ruleset을 확인합니다. 첫 준비 당시 `main` 고유 커밋은 2개, `development`는 20개였고 `main`과 공통 조상의 파일 트리는 같았습니다. 최신 base 요구로 승격이 막히면 별도 동기화 PR에서 최신 개발 트리 보존을 검토합니다. 계보를 잇는 merge commit에 필요한 권한은 실제 규칙에 따라 담당자와 확인합니다.
-4. **승격 PR.** 같은 FE 저장소의 `development → main` PR을 엽니다. 제목 예시는 `🚀 chore(release): [FE] v0.1.0 스프린트 릴리스`입니다. 본문에 `## 스프린트 작업`과 그 아래 `### 실제 스프린트명`, 실제 작업 목록을 적습니다. 세 필수 검사·리뷰·대화 해결을 확인한 뒤 merge commit으로 병합합니다.
+4. **승격 PR.** 같은 FE 저장소의 `development → main` PR을 엽니다. 제목 예시는 `🚀 chore(release): [FE] v0.2.0 스프린트 릴리스`입니다. 본문에 `## 스프린트 작업`과 그 아래 `### 실제 스프린트명`, 실제 작업 목록을 적습니다. 세 필수 검사·리뷰·대화 해결을 확인한 뒤 merge commit으로 병합합니다.
 5. **발행 확인.** `main` push의 `frontend-quality` 통과 후 CI가 `release/vX.Y.Z` 브랜치·`vX.Y.Z` 태그를 같은 SHA에 만들고, 승격 PR 본문과 자동 변경 내역으로 GitHub Release를 발행합니다. API 오류나 기존 버전 충돌은 Actions 로그에서 원인을 확인합니다. 부분 실패는 같은 SHA 실행을 재실행하고 브랜치·태그·Release ID·발행 시각을 대조합니다. 이미 발행한 설명을 보완할 때는 본문만 편집하고 기존 자동 변경 내역을 보존합니다.
 6. **통합 확인.** 발행 성공 후 기존 GitHub App이 해당 SHA를 integration에 전달합니다. 갱신 PR이 동일한 FE SHA를 가리키는지, 재실행 시 기존 PR을 재사용하는지 확인합니다. integration의 별도 Reconcile 경로에서 릴리스 성공 여부를 확인하는 일은 통합 담당자와 맞춥니다.
 
