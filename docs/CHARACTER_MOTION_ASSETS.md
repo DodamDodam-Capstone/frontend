@@ -37,3 +37,32 @@
 가로 iPad 시안에서 홈 인사와 Idle 반복을 확인했다. 테스트 버튼으로 듣기와 대기를 전환하고 로컬 인사 음성으로 말하기 박자와 최대 10px 입 모양을 검토했다. 종료 동작과 홈 복귀를 확인했으며, 이 문서의 에셋은 승인한 iPad 시안과 바이트 단위로 대조했다.
 
 공통 재생 모듈과 플랫폼별 재생 검증은 SCRUM-135에서 진행한다. 약 21MB인 홈 모션의 첫 표시와 반복 성능은 모듈 검증에 포함한다. 실제 홈·대화 상태와 답변 음성 연결은 SCRUM-142에서 진행한다. [SCRUM-135](https://dodamdodam.atlassian.net/browse/SCRUM-135) · [SCRUM-142](https://dodamdodam.atlassian.net/browse/SCRUM-142)
+
+## 공통 재생 모듈
+
+[CharacterMotionPlayer](../src/characterMotion/CharacterMotionPlayer.tsx)는 `state`와 정사각형 표시 크기 `size`를 받는다. 상태는 `neutral`, `home`, `listening`, `thinking`, `speaking`, `ending`이다. 호출 측에서 재생을 중단하려면 `active={false}`를 준다. 다시 활성화하면 현재 상태를 새로 재생한다. 동작을 줄일 때는 `reduceMotion`을 전달한다.
+
+말하기에는 `speech.playing`과 선택적인 `speech.subscribeLevel`을 전달한다. 구독은 첫 채널의 RMS와 `performance.now()` 기준 수신 시각을 공급하고 해제 함수를 반환한다. 샘플이 없거나 끊기면 입은 기본 미소로 돌아간다. 재생 중에는 몸 모션과 음성이 이어진다. 음원 재생과 정지는 호출 측이 담당하며, 대화를 끝낼 때는 음성을 멈추고 `ending`을 전달한다.
+
+`onEnd`는 종료 순서를 마쳤을 때 한 번 호출된다. `onAssetError`로 로딩 실패를 받고, 재시도할 때는 재생을 껐다 켠다. 작별 인사를 표시하지 못하면 정적 자세와 함께 종료를 완료한다. 화면을 해제하거나 `active`를 끄면 진행 중인 재생과 구독을 정리한다.
+
+### 독립 기기 검증
+
+Expo Image가 포함된 개발 빌드를 준비한다. Metro를 실행할 임시 복사본에서만 `package.json`의 `main`을 `scripts/character-motion/preview.tsx`로 지정한다. Android 태블릿 에뮬레이터는 `-gpu host`로 구동한다.
+
+```bash
+EXPO_NO_DOTENV=1 npx --no-install expo start --dev-client --localhost --port 8082
+```
+
+다른 터미널에서 Metro 포트를 연결하고 개발 앱으로 연다.
+
+```bash
+adb reverse tcp:8082 tcp:8082
+adb shell am start -a android.intent.action.VIEW \
+  -d 'exp+dodamdodam://expo-development-client/?url=http%3A%2F%2F127.0.0.1%3A8082' \
+  dev.dodamdodamcapstone.dodamdodam
+```
+
+iPad 실기기에서는 Metro를 `--lan`으로 실행하고 기기에서 접속할 수 있는 Mac 주소를 사용하거나 [검증용 진입점](../scripts/character-motion/preview.tsx)을 iOS 개발 앱에 번들링한다.
+
+상태 버튼과 시험 음량으로 상태 전환을 확인하고, 인사 음성 버튼으로 네이티브 샘플 수신과 입 모양을 확인한다. Android에서는 녹음 권한이 이미 허용된 상태에서 재생 음원을 샘플링한다. 권한이 없는 상태에서는 음성과 몸 모션을 재생하고 기본 미소를 표시한다. 순서대로 캡처할 때는 검증 번들에 `EXPO_PUBLIC_CHARACTER_MOTION_AUTO=1`을 주면 홈 반복 두 번, 듣기, 대기, 시험 음량, 인사 음성, 작별 인사 순서로 실행된다.
